@@ -1,0 +1,21 @@
+schema: amber.build.v1
+name: ember.example.hello
+root: ember.example.hello
+
+profiles:
+  required: [core.v1, macro.v1]
+  optional: []
+  forbidden: []
+
+modules:
+  - name: ember
+    path: ../src/ember.am
+  - name: ember.html
+    path: ../src/ember/html.am
+  - name: ember.middleware
+    path: ../src/ember/middleware.am
+  - name: ember.example.views.home
+    path: views/home.am
+  - name: ember.example.hello
+    path: hello.am
+

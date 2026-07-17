@@ -1,0 +1,87 @@
+package ember.core_selftest
+
+import ember
+import ember.testing
+from ember.html import escape, html, join
+from ember.middleware import before
+
+export main
+
+def home(request):
+  "home"
+
+def person(request, id):
+  ember.render(text: "person #{id}")
+
+annotation_order = []
+
+def annotation_outer(request, next):
+  annotation_order.push!("outer-before")
+  response = next(request)
+  annotation_order.push!("outer-after")
+  response
+
+def annotation_inner(request, next):
+  annotation_order.push!("inner-before")
+  response = next(request)
+  annotation_order.push!("inner-after")
+  response
+
+before [&annotation_outer, &annotation_inner]
+def annotated(request):
+  annotation_order.push!("handler")
+  ember.render(text: request.path)
+
+class Posts < ember.Controller:
+  def show(slug):
+    status(:created)
+    header("x-controller", "yes")
+    render(text: "post #{slug}")
+
+routes = ember.routes:
+  get "/people/:id", to: &person, params: {id: Int}, as: :person
+  get "/posts/new", to: &home
+  get "/posts/:slug", to: &Posts#show, as: :post
+  get "/*path", to: &home
+
+def assert(condition, message):
+  raise ArgumentError(message) unless condition
+
+def main():
+  app = ember.App(routes: routes, expose_exceptions: true)
+
+  assert(routes.routes[2].param_types.empty?, "controller route must not inherit typed params")
+  selected = routes.match("/posts/amber", method: "GET")
+  assert(selected.kind == :found and selected.match.route.pattern == "/posts/:slug", "parameter route precedence")
+
+  root = app.call(testing.get("/"))
+  assert(root.status == 200 and root.body_text == "home", "wildcard route")
+
+  typed = app.call(testing.get("/people/42"))
+  assert(typed.status == 200 and typed.body_text == "person 42", "typed param")
+
+  controller = app.call(testing.get("/posts/amber"))
+  assert(controller.status == 201, "controller status #{controller.status}: #{controller.body_text}")
+  assert(controller.header("x-controller") == "yes", "controller headers: #{controller.headers.keys.join(",")}")
+  assert(controller.body_text == "post amber", "controller body")
+
+  literal = routes.match("/posts/new", method: "GET")
+  assert(literal.kind == :found and literal.match.route.pattern == "/posts/new", "literal precedence")
+  assert(routes.path(:post, slug: "a b") == "/posts/a%20b", "named path")
+
+  title = "<&"
+  names = "Ada & Bob"
+  markup = html"""
+    <p title="#{title}">#{names}</p>
+    """
+  assert(markup.to_str.contains?("<p title=\"&lt;&amp;\">Ada &amp; Bob</p>"), "HTML escaping")
+
+  annotated_response = annotated(testing.get("/annotated"))
+  assert(annotated_response.body_text == "/annotated", "before direct invocation")
+  assert(
+    annotation_order.join(",") == "outer-before,inner-before,handler,inner-after,outer-after",
+    "before middleware order")
+
+  missing = app.call(ember.Request(path: "/missing/deep/path", target: "/missing/deep/path", method: "POST"))
+  assert(missing.status == 405, "method not allowed")
+  true

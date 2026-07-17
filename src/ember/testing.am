@@ -1,0 +1,72 @@
+package ember.testing
+
+import ember
+
+export request, get, post, put, patch, delete, head, options
+export assert_status, assert_header, assert_body
+
+def request(
+  method,
+  target,
+  headers: {},
+  query: null,
+  body: ""
+):
+  path = target
+  raw_query = query
+  if target.contains?("?"):
+    pieces = target.split("?")
+    path = pieces[0]
+    raw_query = pieces[1]
+  elif query:
+    raw_query = if Map === query or StrictMap === query then Url.build_query(query) else query.to_str
+  full_target = path
+  if raw_query and raw_query != "":
+    full_target = path + "?" + raw_query
+  ember.Request(
+    method: method,
+    target: full_target,
+    path: path,
+    raw_query: raw_query,
+    headers: headers,
+    body_text: body.to_str,
+    body_bytes: if Bytes === body then body else body.to_str.bytes)
+
+def get(target, **opts):
+  request("GET", target, **opts)
+
+def post(target, **opts):
+  request("POST", target, **opts)
+
+def put(target, **opts):
+  request("PUT", target, **opts)
+
+def patch(target, **opts):
+  request("PATCH", target, **opts)
+
+def delete(target, **opts):
+  request("DELETE", target, **opts)
+
+def head(target, **opts):
+  request("HEAD", target, **opts)
+
+def options(target, **opts):
+  request("OPTIONS", target, **opts)
+
+def assert_status(response, expected):
+  code = ember.status_code(expected)
+  unless response.status == code:
+    raise ArgumentError("expected response status #{code}, got #{response.status}")
+  response
+
+def assert_header(response, name, expected):
+  actual = response.header(name)
+  unless actual == expected:
+    raise ArgumentError("expected response header #{name}: #{expected}, got #{actual}")
+  response
+
+def assert_body(response, expected):
+  actual = response.body_text
+  unless actual == expected:
+    raise ArgumentError("expected response body #{expected}, got #{actual}")
+  response

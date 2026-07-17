@@ -1,0 +1,1031 @@
+package ember
+
+from net.http import Server, ServerRequest, ServerResponse
+
+# Ember core is deliberately source-only. The router, application pipeline,
+# controller lifecycle, and HTTP adapter do not depend on an ORM or an FFI
+# package.
+
+export macro routes
+export macro get
+export macro post
+export macro put
+export macro patch
+export macro delete
+export macro head
+export macro options
+export macro scope
+export macro mount
+export __route, __scope, __mount, __before
+export App, Routes, Route, RouteMatch, RouteLookup, Request, Response
+export Controller, Target, Html
+export render, redirect, normalize_response, status_code
+export EmberError, RouteError, InvalidRouteError, DuplicateRouteError
+export DuplicateRouteNameError, InvalidPathError, RouteParamError
+export RouteNotFoundError, UnknownRouteNameError, PathGenerationError
+export InvalidResponseError, DoubleRenderError, ResponseCommittedError
+export UnknownStatusError, UnknownServiceError, UnsafeRedirectError
+
+class EmberError < Exception:
+  attr message
+
+  def init(@message)
+  def to_str():
+    @message
+
+class RouteError < EmberError
+class InvalidRouteError < RouteError
+class DuplicateRouteError < RouteError
+class DuplicateRouteNameError < RouteError
+class InvalidPathError < RouteError
+class RouteParamError < RouteError
+class RouteNotFoundError < RouteError
+class UnknownRouteNameError < RouteError
+class PathGenerationError < RouteError
+class InvalidResponseError < EmberError
+class DoubleRenderError < EmberError
+class ResponseCommittedError < EmberError
+class UnknownStatusError < EmberError
+class UnknownServiceError < EmberError
+class UnsafeRedirectError < EmberError
+
+def _status_codes():
+  {
+    ok: 200,
+    created: 201,
+    accepted: 202,
+    no_content: 204,
+    moved_permanently: 301,
+    temporary_redirect: 307,
+    permanent_redirect: 308,
+    bad_request: 400,
+    unauthorized: 401,
+    forbidden: 403,
+    not_found: 404,
+    method_not_allowed: 405,
+    gone: 410,
+    unprocessable_entity: 422,
+    internal_server_error: 500,
+    service_unavailable: 503
+  }
+
+def status_code(status):
+  if Int === status:
+    unless status >= 100 and status <= 999:
+      raise UnknownStatusError("HTTP status must be between 100 and 999")
+    return status
+  unless Symbol === status:
+    raise UnknownStatusError("HTTP status must be an Int or known Symbol")
+  code = _status_codes()[?status]
+  unless code:
+    raise UnknownStatusError("unknown HTTP status: " + status.to_str)
+  code
+
+def _method_name(method):
+  name = method.to_str.upcase
+  unless ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"].include?(name):
+    raise InvalidRouteError("unsupported HTTP method: " + name)
+  name
+
+def _header_map(headers):
+  return {} unless headers
+  if Map === headers or StrictMap === headers:
+    result = {}
+    headers.each |name, value|:
+      result.store!(name.to_str.downcase, value)
+    return result
+  headers
+
+def _header_value(headers, name):
+  return null unless headers
+  key = name.to_str.downcase
+  if Map === headers or StrictMap === headers:
+    return headers[?key]
+  headers.first(key)
+
+def _content_type(headers, value):
+  result = _header_map(headers)
+  if Map === result or StrictMap === result:
+    unless result[?"content-type"]:
+      result.store!("content-type", value)
+  result
+
+class Html:
+  attr value
+
+  def init(@value as Str)
+
+  class_method def escape(value):
+    return value if Html === value
+    text = if value == null then "" else value.to_str
+    escaped = text.replace("&", "&amp;")
+    escaped = escaped.replace("<", "&lt;")
+    escaped = escaped.replace(">", "&gt;")
+    escaped = escaped.replace("\"", "&quot;")
+    escaped = escaped.replace("'", "&#39;")
+    Html(escaped)
+
+  class_method def raw(value):
+    return value if Html === value
+    Html(value.to_str)
+
+  class_method def join(parts):
+    texts = parts.map: _1.to_str
+    Html(texts.join(""))
+
+  def to_str():
+    @value
+  def +(other):
+    Html(@value + other.to_str)
+
+class Response:
+  attr status
+  attr headers
+  attr body
+
+  def init(status: 200, headers: {}, body: ""):
+    @status = status_code(status)
+    @headers = _header_map(headers)
+    @body = body
+
+  def header(name):
+    _header_value(@headers, name)
+
+  def body_text():
+    if @body == null:
+      return ""
+    if Str === @body:
+      return @body
+    if Html === @body:
+      return @body.to_str
+    if Bytes === @body:
+      return @body.text
+    @body.to_str
+
+  def body_bytes():
+    if Bytes === @body:
+      return @body
+    body_text().bytes
+
+  def to_server_response():
+    payload = @body
+    if Html === payload:
+      payload = payload.to_str
+    if payload == null:
+      payload = ""
+    ServerResponse(status: @status, headers: @headers, body: payload)
+
+def normalize_response(value):
+  return Response(status: :no_content, body: "") if value == null
+  case value:
+    when Response:
+      value
+    when Html:
+      Response(headers: {"content-type": "text/html; charset=utf-8"}, body: value)
+    when Str:
+      Response(headers: {"content-type": "text/plain; charset=utf-8"}, body: value)
+    when Bytes:
+      Response(headers: {"content-type": "application/octet-stream"}, body: value)
+    else:
+      raise InvalidResponseError("handler returned an unsupported response value")
+
+def _render_response(
+  value = null,
+  text: null,
+  html: null,
+  json: null,
+  body: null,
+  status: :ok,
+  headers: {}
+):
+  selected = 0
+  selected += 1 if value != null
+  selected += 1 if text != null
+  selected += 1 if html != null
+  selected += 1 if json != null
+  selected += 1 if body != null
+  if selected > 1:
+    raise ArgumentError("render accepts exactly one response body")
+
+  code = status_code(status)
+  if value != null:
+    response = normalize_response(value)
+    return Response(status: code, headers: response.headers.merge(_header_map(headers)), body: response.body)
+  if text != null:
+    return Response(status: code, headers: _content_type(headers, "text/plain; charset=utf-8"), body: text.to_str)
+  if html != null:
+    unless Html === html:
+      raise InvalidResponseError("render html: expects ember.Html")
+    return Response(status: code, headers: _content_type(headers, "text/html; charset=utf-8"), body: html)
+  if json != null:
+    return Response(status: code, headers: _content_type(headers, "application/json; charset=utf-8"), body: Json.generate(json))
+  if body != null:
+    return Response(status: code, headers: headers, body: body)
+  Response(status: code, headers: headers, body: "")
+
+def render(
+  value = null,
+  text: null,
+  html: null,
+  json: null,
+  body: null,
+  status: :ok,
+  headers: {}
+):
+  _render_response(value,
+    text: text,
+    html: html,
+    json: json,
+    body: body,
+    status: status,
+    headers: headers)
+
+def _redirect_response(to, status: :temporary_redirect, headers: {}, external: false):
+  location = to.to_str
+  unless external:
+    unless location.starts_with?("/") and not location.starts_with?("//"):
+      raise UnsafeRedirectError("redirect target must be an absolute application path")
+  result_headers = _header_map(headers)
+  result_headers.store!("location", location)
+  Response(status: status, headers: result_headers, body: "")
+
+def redirect(to, status: :temporary_redirect, headers: {}, external: false):
+  _redirect_response(to, status: status, headers: headers, external: external)
+
+class Request:
+  attr method
+  attr target
+  attr path
+  attr raw_query
+  attr headers
+  attr body_text
+  attr body_bytes
+  attr remote_endpoint
+  attr local_endpoint
+  attr routes
+  attr selected_route
+
+  def init(
+    method: "GET",
+    target: "/",
+    path: "/",
+    raw_query: null,
+    headers: {},
+    body_text: "",
+    body_bytes: null,
+    remote_endpoint: null,
+    local_endpoint: null,
+    routes: null,
+    selected_route: null,
+    path_params: {},
+    services: {}
+  ):
+    @method = method.to_str.upcase
+    @target = target
+    @path = path
+    @raw_query = raw_query
+    @headers = headers
+    @body_text = body_text
+    @body_bytes = body_bytes or body_text.bytes
+    @remote_endpoint = remote_endpoint
+    @local_endpoint = local_endpoint
+    @routes = routes
+    @selected_route = selected_route
+    @path_params = path_params
+    @services = services
+    @query_params = null
+
+  class_method def from_server(request as ServerRequest):
+    Request(
+      method: request.method,
+      target: request.target,
+      path: request.path,
+      raw_query: request.query,
+      headers: request.headers,
+      body_text: request.body_text,
+      body_bytes: request.body_bytes,
+      remote_endpoint: request.remote_endpoint,
+      local_endpoint: request.local_endpoint
+    )
+
+  def header(name):
+    _header_value(@headers, name)
+
+  def path_param(name):
+    @path_params[?name]
+
+  def path_params():
+    @path_params
+
+  def query(name):
+    value = query_params()[?name]
+    if Array === value:
+      return value[?0]
+    value
+
+  def query_params():
+    unless @query_params:
+      @query_params = if @raw_query then Url.parse_query(@raw_query) else {}
+    @query_params
+
+  def service(name):
+    value = @services[?name]
+    unless value:
+      raise UnknownServiceError("unknown request service: " + name.to_str)
+    value
+
+  def origin():
+    host = header("host")
+    return null unless host
+    "http://" + host.to_str
+
+  def _routed(routes, selected_route, path_params, services):
+    Request(
+      method: @method,
+      target: @target,
+      path: @path,
+      raw_query: @raw_query,
+      headers: @headers,
+      body_text: @body_text,
+      body_bytes: @body_bytes,
+      remote_endpoint: @remote_endpoint,
+      local_endpoint: @local_endpoint,
+      routes: routes,
+      selected_route: selected_route,
+      path_params: path_params,
+      services: services
+    )
+
+class Target:
+  attr kind
+  attr owner
+  attr callable
+  attr label
+
+  def init(@kind, @owner, @callable, @label)
+
+  class_method def function(callable, label: "function"):
+    Target(:function, null, callable, label)
+
+  class_method def controller(owner, callable, label: "controller"):
+    Target(:controller, owner, callable, label)
+
+  def controller?():
+    @kind == :controller
+
+  def invoke(request, captures, integrations = []):
+    endpoint = TargetEndpoint(self, captures)
+    if controller? and integrations.present?:
+      return IntegrationNext(integrations, 0, endpoint)(request)
+    endpoint(request)
+
+  def _invoke(request, captures):
+    if controller?:
+      instance = @owner(request)
+      return normalize_response(@callable(instance, *captures))
+    normalize_response(@callable(request, *captures))
+
+class TargetEndpoint:
+  def init(@target, @captures)
+  def call(request):
+    @target._invoke(request, @captures)
+
+class IntegrationNext:
+  def init(@integrations, @index, @endpoint)
+  def call(request):
+    if @index >= @integrations.count:
+      return @endpoint(request)
+    integration = @integrations[@index]
+    integration.around_controller(request, IntegrationNext(@integrations, @index + 1, @endpoint))
+
+class RouteSegment:
+  attr segment_kind
+  attr value
+
+  def init(@segment_kind, @value)
+
+class RouteCandidate:
+  attr route
+  attr raw_params
+  attr specificity
+
+  def init(@route, @raw_params, @specificity)
+
+class RouteMatch:
+  attr route
+  attr path_params
+  attr captures
+
+  def init(@route, @path_params, @captures)
+
+class RouteLookup:
+  attr kind
+  attr match
+  attr allowed_methods
+
+  def init(@kind, @match: null, @allowed_methods: [])
+
+class Route:
+  attr method
+  attr pattern
+  attr target
+  attr name
+  attr middleware
+  attr param_types
+  attr segments
+  attr shape
+
+  def init(method, pattern as Str, target as Target, name: null, params: {}, before: []):
+    @method = _method_name(method)
+    @pattern = pattern
+    @target = target
+    @name = name
+    @middleware = _middleware_list(before)
+    @param_types = params.copy
+    @segments = _compile_pattern(pattern)
+    @shape = _shape(@segments)
+    _validate_params!
+
+  def _validate_params!():
+    capture_names = @segments.select |segment|: segment.segment_kind != :literal .map: _1.value
+    @param_types.each |name, type|:
+      unless capture_names.include?(name.to_str):
+        raise InvalidRouteError("typed param is absent from route pattern: " + name.to_str)
+      unless type == Str or type == Int or type == Float or type == Bool:
+        raise InvalidRouteError("unsupported typed route param: " + name.to_str)
+    self
+
+  def with_prefix(prefix, before = []):
+    Route(@method, _join_paths(prefix, @pattern), @target,
+      name: @name,
+      params: @param_types,
+      before: _middleware_list(before) + @middleware)
+
+  def candidate(path_segments):
+    raw_params = {}
+    specificity = []
+    path_index = 0
+    segment_index = 0
+    while segment_index < @segments.count:
+      segment = @segments[segment_index]
+      if segment.segment_kind == :wildcard:
+        remaining = []
+        while path_index < path_segments.count:
+          remaining.push!(path_segments[path_index])
+          path_index += 1
+        raw_params.store!(segment.value, remaining.join("/"))
+        specificity.push!(1)
+        segment_index += 1
+        break
+      return null if path_index >= path_segments.count
+      value = path_segments[path_index]
+      if segment.segment_kind == :literal:
+        if value != segment.value:
+          return null
+        specificity.push!(3)
+      else:
+        raw_params.store!(segment.value, value)
+        specificity.push!(2)
+      path_index += 1
+      segment_index += 1
+    return null unless path_index == path_segments.count
+    RouteCandidate(self, raw_params, specificity)
+
+  def materialize(candidate):
+    converted = {}
+    captures = []
+    @segments.each |segment|:
+      unless segment.segment_kind == :literal:
+        raw = candidate.raw_params[segment.value]
+        type = @param_types[?segment.value] or Str
+        value = _convert_param(segment.value, raw, type)
+        converted.store!(segment.value, value)
+        captures.push!(value)
+    RouteMatch(self, converted, captures)
+
+  def path(params):
+    unknown = params.keys.map: _1.to_str .reject |name|:
+      @segments.any? |segment|: segment.segment_kind != :literal and segment.value == name
+    if unknown.present?:
+      raise PathGenerationError("unknown route path param: " + unknown[0])
+    pieces = []
+    @segments.each |segment|:
+      if segment.segment_kind == :literal:
+        pieces.push!(Url.percent_encode(segment.value))
+      else:
+        value = params[?segment.value]
+        if value == null:
+          raise PathGenerationError("missing route path param: " + segment.value)
+        text = value.to_str
+        if text.bytesize > 2048:
+          raise PathGenerationError("route path param is too long: " + segment.value)
+        if segment.segment_kind == :wildcard:
+          pieces.push!(text.split("/").map: Url.percent_encode(_1) .join("/"))
+        else:
+          pieces.push!(Url.percent_encode(text))
+    return "/" if pieces.empty?
+    "/" + pieces.join("/")
+
+class RouteGroup:
+  attr prefix
+  attr entries
+  attr middleware
+
+  def init(@prefix, @entries, @middleware)
+
+class RouteMount:
+  attr routes
+  attr prefix
+  attr middleware
+
+  def init(@routes, @prefix, @middleware)
+
+class Routes:
+  attr routes
+
+  def init(entries):
+    @routes = []
+    entries.each |entry|:
+      _append(entry, "", [])
+    if @routes.count > 4096:
+      raise InvalidRouteError("route table exceeds maximum route count")
+    _validate!
+    @routes = @routes.copy
+
+  def _append(entry, prefix, before):
+    case entry:
+      when Route:
+        @routes.push!(entry.with_prefix(prefix, before))
+      when RouteGroup:
+        nested_prefix = _join_paths(prefix, entry.prefix)
+        nested_before = before + entry.middleware
+        entry.entries.each |child|:
+          _append(child, nested_prefix, nested_before)
+      when RouteMount:
+        nested_prefix = _join_paths(prefix, entry.prefix)
+        nested_before = before + entry.middleware
+        entry.routes.routes.each |child|:
+          _append(child, nested_prefix, nested_before)
+      else:
+        raise InvalidRouteError("routes block emitted a non-route value")
+    null
+
+  def _validate!():
+    keys = {}
+    names = {}
+    @routes.each |route|:
+      key = route.method + " " + route.shape
+      if keys[?key]:
+        raise DuplicateRouteError("ambiguous route shape: " + key)
+      keys.store!(key, true)
+      if route.name:
+        name = route.name.to_str
+        if names[?name]:
+          raise DuplicateRouteNameError("duplicate route name: " + name)
+        names.store!(name, route)
+    @named = names.copy
+    self
+
+  def lookup(path, method, head_fallback: false, automatic_options: true):
+    segments = _request_segments(path)
+    best = null
+    candidates = []
+    @routes.each |route|:
+      candidate = route.candidate(segments)
+      if candidate:
+        if best == null or _specificity_compare(candidate.specificity, best) > 0:
+          best = candidate.specificity
+          candidates = [candidate]
+        elif _specificity_compare(candidate.specificity, best) == 0:
+          candidates.push!(candidate)
+    return RouteLookup(:not_found) if candidates.empty?
+
+    requested = method.to_str.upcase
+    selected = candidates.find |candidate|: candidate.route.method == requested
+    if selected == null and requested == "HEAD" and head_fallback:
+      selected = candidates.find |candidate|: candidate.route.method == "GET"
+    if selected:
+      return RouteLookup(:found, match: selected.route.materialize(selected))
+
+    allowed = candidates.map: _1.route.method .sorted
+    if head_fallback and allowed.include?("GET") and not allowed.include?("HEAD"):
+      allowed.push!("HEAD")
+    if automatic_options and not allowed.include?("OPTIONS"):
+      allowed.push!("OPTIONS")
+    allowed = allowed.sorted
+    if requested == "OPTIONS" and automatic_options:
+      return RouteLookup(:options, allowed_methods: allowed)
+    RouteLookup(:method_not_allowed, allowed_methods: allowed)
+
+  def match(path, method: "GET"):
+    lookup(path, method)
+
+  def path(name, **params):
+    route = @named[?name]
+    unless route:
+      raise UnknownRouteNameError("unknown route name: " + name.to_str)
+    route.path(params)
+
+  def url(name, origin:, **params):
+    base = origin.to_str
+    while base.ends_with?("/"):
+      base = base.slice(0...base.length - 1)
+    base + path(name, **params)
+
+  def describe():
+    @routes.map |route|:
+      label = if route.name then route.name.to_str else "-"
+      route.method + "  " + route.pattern + "  " + label + "  " + route.target.label
+    .join("\n")
+
+def _middleware_list(value):
+  return [] if value == null
+  return value.copy if Array === value
+  [value]
+
+def _join_paths(prefix, path):
+  return path if prefix == null or prefix == "" or prefix == "/"
+  return prefix if path == null or path == "" or path == "/"
+  left = if prefix.ends_with?("/") then prefix.slice(0...prefix.length - 1) else prefix
+  right = if path.starts_with?("/") then path else "/" + path
+  left + right
+
+def _compile_pattern(pattern):
+  unless pattern.starts_with?("/"):
+    raise InvalidRouteError("route pattern must start with '/': " + pattern)
+  if pattern.bytesize > 8192:
+    raise InvalidRouteError("route pattern exceeds maximum path length")
+  raw_segments = _raw_segments(pattern)
+  if raw_segments.count > 128:
+    raise InvalidRouteError("route pattern exceeds maximum segment count")
+  seen = {}
+  segments = []
+  raw_segments.each_with_index |raw, index|:
+    if raw.starts_with?(":"):
+      name = raw.slice(1...raw.length)
+      _validate_capture_name!(name)
+      if seen[?name]:
+        raise InvalidRouteError("repeated route param name: " + name)
+      seen.store!(name, true)
+      segments.push!(RouteSegment(:param, name))
+    elif raw.starts_with?("*"):
+      name = raw.slice(1...raw.length)
+      _validate_capture_name!(name)
+      unless index == raw_segments.count - 1:
+        raise InvalidRouteError("wildcard route segment must be terminal")
+      if seen[?name]:
+        raise InvalidRouteError("repeated route param name: " + name)
+      seen.store!(name, true)
+      segments.push!(RouteSegment(:wildcard, name))
+    else:
+      segments.push!(RouteSegment(:literal, Url.percent_decode(raw)))
+  segments
+
+def _validate_capture_name!(name):
+  if name.empty?:
+    raise InvalidRouteError("route capture name cannot be empty")
+  first = name.chars[0]
+  unless first == "_" or first.downcase != first.upcase:
+    raise InvalidRouteError("route capture name must be an identifier: " + name)
+  name.chars.each |char|:
+    unless char == "_" or char.downcase != char.upcase or (char >= "0" and char <= "9"):
+      raise InvalidRouteError("route capture name must be an identifier: " + name)
+  name
+
+def _raw_segments(path):
+  return [] if path == "/"
+  parts = path.split("/")
+  result = []
+  index = 1
+  while index < parts.count:
+    result.push!(parts[index])
+    index += 1
+  result
+
+def _request_segments(path):
+  unless Str === path and path.starts_with?("/"):
+    raise InvalidPathError("request path must start with '/'")
+  if path.bytesize > 8192:
+    raise InvalidPathError("request path exceeds maximum length")
+  raw = _raw_segments(path)
+  if raw.count > 128:
+    raise InvalidPathError("request path exceeds maximum segment count")
+  raw.map |segment|:
+    decoded = Url.percent_decode(segment)
+    if decoded.bytesize > 2048:
+      raise InvalidPathError("request path segment exceeds maximum length")
+    decoded
+
+def _shape(segments):
+  return "/" if segments.empty?
+  "/" + segments.map |segment|:
+    if segment.segment_kind == :literal:
+      "=" + segment.value
+    elif segment.segment_kind == :param:
+      ":"
+    else:
+      "*"
+  .join("/")
+
+def _specificity_compare(left, right):
+  count = if left.count < right.count then left.count else right.count
+  index = 0
+  while index < count:
+    return 1 if left[index] > right[index]
+    return -1 if left[index] < right[index]
+    index += 1
+  return 1 if left.count > right.count
+  return -1 if left.count < right.count
+  0
+
+def _convert_param(name, raw, type):
+  return raw if type == Str
+  converted = null
+  try:
+    if type == Int:
+      converted = _parse_route_int(raw)
+    elif type == Float:
+      converted = raw.to_float()
+    elif type == Bool:
+      if raw == "true" or raw == "1":
+        converted = true
+      elif raw == "false" or raw == "0":
+        converted = false
+      else:
+        raise ValueError("invalid Bool")
+    else:
+      raise RouteParamError("unsupported route param type: " + name)
+  rescue RouteParamError |error|:
+    raise error
+  rescue Exception |error|:
+    raise RouteParamError("invalid route param " + name + ": " + raw)
+  converted
+
+def _parse_route_int(raw):
+  if raw.empty?:
+    raise ValueError("empty Integer")
+  negative = raw.starts_with?("-")
+  offset = if negative or raw.starts_with?("+") then 1 else 0
+  if offset == raw.length:
+    raise ValueError("invalid Integer")
+  digits = {
+    "0": 0, "1": 1, "2": 2, "3": 3, "4": 4,
+    "5": 5, "6": 6, "7": 7, "8": 8, "9": 9
+  }
+  value = 0
+  index = offset
+  while index < raw.length:
+    digit = digits[?raw.slice(index...index + 1)]
+    if digit == null:
+      raise ValueError("invalid Integer")
+    value = value * 10 + digit
+    index += 1
+  if negative then 0 - value else value
+
+class MiddlewareNext:
+  def init(@middleware, @index, @endpoint)
+  def call(request):
+    if @index >= @middleware.count:
+      return @endpoint(request)
+    layer = @middleware[@index]
+    layer(request, MiddlewareNext(@middleware, @index + 1, @endpoint))
+
+class BeforeEndpoint:
+  def init(@block)
+  def call(request):
+    @block(request)
+
+def __before(middleware, request, &block):
+  unless block:
+    raise ArgumentError("ember.__before requires a handler block")
+  MiddlewareNext(_middleware_list(middleware), 0, BeforeEndpoint(block))(request)
+
+class RouteEndpoint:
+  def init(@match, @integrations)
+  def call(request):
+    @match.route.target.invoke(request, @match.captures, @integrations)
+
+class App:
+  attr routes
+
+  def init(
+    routes:,
+    middleware: [],
+    integrations: [],
+    services: {},
+    head_fallback: false,
+    automatic_options: true,
+    expose_exceptions: false
+  ):
+    @routes = routes
+    @middleware = _middleware_list(middleware)
+    @integrations = integrations.copy
+    @services = services.copy
+    @head_fallback = head_fallback
+    @automatic_options = automatic_options
+    @expose_exceptions = expose_exceptions
+
+  def call(request):
+    normalized = if ServerRequest === request then Request.from_server(request) else request
+    unless Request === normalized:
+      raise ArgumentError("App#call expects ember.Request or net.http.ServerRequest")
+    try:
+      lookup = @routes.lookup(normalized.path, normalized.method,
+        head_fallback: @head_fallback,
+        automatic_options: @automatic_options)
+      if lookup.kind == :not_found:
+        return render(text: "not found", status: :not_found)
+      if lookup.kind == :method_not_allowed:
+        return render(text: "method not allowed", status: :method_not_allowed,
+          headers: {"allow": lookup.allowed_methods.join(", ")})
+      if lookup.kind == :options:
+        return Response(status: :no_content,
+          headers: {"allow": lookup.allowed_methods.join(", ")}, body: "")
+
+      match = lookup.match
+      routed = normalized._routed(@routes, match.route, match.path_params, @services)
+      endpoint = RouteEndpoint(match, @integrations)
+      chain = MiddlewareNext(@middleware + match.route.middleware, 0, endpoint)
+      response = normalize_response(chain(routed))
+      if normalized.method == "HEAD":
+        return Response(status: response.status, headers: response.headers, body: "")
+      response
+    rescue InvalidPathError |error|:
+      render(text: "bad request", status: :bad_request)
+    rescue UrlDecodeError |error|:
+      render(text: "bad request", status: :bad_request)
+    rescue RouteParamError |error|:
+      render(text: "bad request", status: :bad_request)
+    rescue Exception |error|:
+      message = if @expose_exceptions then error.message else "internal server error"
+      render(text: message, status: :internal_server_error)
+
+  def run(
+    host: "127.0.0.1",
+    port: 3000,
+    workers: 1,
+    max_concurrent_per_worker: 32,
+    max_requests: null
+  ):
+    server = Server(
+      host: host,
+      port: port,
+      workers: workers,
+      max_concurrent_per_worker: max_concurrent_per_worker)
+    server.serve(max_requests: max_requests) |server_request|:
+      call(Request.from_server(server_request)).to_server_response
+
+class Controller:
+  attr request
+
+  def init(@request as Request):
+    @response_status = :ok
+    @response_headers = {}
+    @committed = false
+
+  def status(value):
+    _ensure_mutable!
+    @response_status = value
+    self
+
+  def header(name, value):
+    _ensure_mutable!
+    @response_headers.store!(name.to_str.downcase, value)
+    self
+
+  def render(value = null, text: null, html: null, json: null, body: null, status: null, headers: {}):
+    _ensure_renderable!
+    chosen_status = if status == null then @response_status else status
+    merged_headers = @response_headers.merge(_header_map(headers))
+    response = _render_response(value,
+      text: text,
+      html: html,
+      json: json,
+      body: body,
+      status: chosen_status,
+      headers: merged_headers)
+    @committed = true
+    response
+
+  def redirect(to, status: :temporary_redirect, headers: {}, external: false):
+    _ensure_renderable!
+    response = _redirect_response(to,
+      status: status,
+      headers: @response_headers.merge(_header_map(headers)),
+      external: external)
+    @committed = true
+    response
+
+  def path(name, **params):
+    @request.routes.path(name, **params)
+
+  def service(name):
+    @request.service(name)
+
+  def path_param(name):
+    @request.path_param(name)
+
+  def query(name):
+    @request.query(name)
+
+  def _ensure_mutable!():
+    if @committed:
+      raise ResponseCommittedError("response has already been committed")
+    self
+
+  def _ensure_renderable!():
+    if @committed:
+      raise DoubleRenderError("response has already been rendered")
+    self
+
+def __route(method, pattern, target, name: null, params: {}, before: []):
+  Route(method, pattern, target, name: name, params: params, before: before)
+
+def __scope(prefix, entries, before: []):
+  RouteGroup(prefix, entries, _middleware_list(before))
+
+def __mount(routes, at: "/", before: []):
+  RouteMount(routes, at, _middleware_list(before))
+
+macro def routes(&blk) -> Ast:
+  unless blk:
+    raise ArgumentError("EMBER_ROUTES_BLOCK: ember.routes requires a block")
+  entries = blk().expressions
+  return quote:
+    ember.Routes([#{*entries}])
+
+macro def _route_macro(method, pattern as Ast, target as Ast, **opts) -> Ast:
+  unless pattern.kind == "AstStringLiteral" and not pattern.interpolation:
+    raise ArgumentError("EMBER_ROUTE_PATTERN: route pattern must be a static string literal")
+  unless target.kind == "AstCallableRef":
+    raise ArgumentError("EMBER_ROUTE_TARGET: to: must be an Amber callable reference")
+  allowed = ["as", "params", "before"]
+  opts.keys.each |name|:
+    unless allowed.include?(name.to_str):
+      raise ArgumentError("EMBER_ROUTE_OPTION: unknown route option " + name.to_str)
+  name = opts[?"as"]
+  params = opts[?"params"]
+  before = opts[?"before"]
+  unless name:
+    name = quote:
+      null
+  unless params:
+    params = quote:
+      {}
+  unless before:
+    before = quote:
+      []
+  label = Ast.lift(target.source)
+  descriptor = null
+  if target.ref_kind == "unbound_instance":
+    descriptor = quote:
+      ember.Target.controller(#{target.receiver}, #{target}, label: #{label})
+  else:
+    descriptor = quote:
+      ember.Target.function(#{target}, label: #{label})
+  return quote:
+    ember.__route(#{Ast.lift(method)}, #{pattern}, #{descriptor}, name: #{name}, params: #{params}, before: #{before})
+
+macro def get(pattern as Ast, to as Ast:, **opts) -> Ast:
+  return _route_macro("GET", pattern, to, **opts)
+
+macro def post(pattern as Ast, to as Ast:, **opts) -> Ast:
+  return _route_macro("POST", pattern, to, **opts)
+
+macro def put(pattern as Ast, to as Ast:, **opts) -> Ast:
+  return _route_macro("PUT", pattern, to, **opts)
+
+macro def patch(pattern as Ast, to as Ast:, **opts) -> Ast:
+  return _route_macro("PATCH", pattern, to, **opts)
+
+macro def delete(pattern as Ast, to as Ast:, **opts) -> Ast:
+  return _route_macro("DELETE", pattern, to, **opts)
+
+macro def head(pattern as Ast, to as Ast:, **opts) -> Ast:
+  return _route_macro("HEAD", pattern, to, **opts)
+
+macro def options(pattern as Ast, to as Ast:, **opts) -> Ast:
+  return _route_macro("OPTIONS", pattern, to, **opts)
+
+macro def scope(prefix as Ast, before as Ast: null, &blk) -> Ast:
+  unless blk:
+    raise ArgumentError("EMBER_SCOPE_BLOCK: scope requires a block")
+  entries = blk().expressions
+  middleware = before
+  unless middleware:
+    middleware = quote:
+      []
+  return quote:
+    ember.__scope(#{prefix}, [#{*entries}], before: #{middleware})
+
+macro def mount(routes as Ast, at as Ast: null, before as Ast: null) -> Ast:
+  prefix = at
+  unless prefix:
+    prefix = quote:
+      "/"
+  middleware = before
+  unless middleware:
+    middleware = quote:
+      []
+  return quote:
+    ember.__mount(#{routes}, at: #{prefix}, before: #{middleware})

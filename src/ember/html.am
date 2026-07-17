@@ -1,0 +1,31 @@
+package ember.html
+
+from ember import Html
+
+export escape, raw, join
+export macro html
+
+def escape(value):
+  Html.escape(value)
+
+def raw(value):
+  Html.raw(value)
+
+def join(parts):
+  Html.join(parts)
+
+string_tag macro def html(template as Ast.StringTemplate) -> Ast:
+  parts = []
+  template.parts.each |part|:
+    if part.kind == "AstStringText":
+      node = quote:
+        ember.Html(#{Ast.lift(part.value)})
+      parts.push!(node)
+    elif part.kind == "AstStringExpr":
+      node = quote:
+        escape(#{part.expr})
+      parts.push!(node)
+    else:
+      raise ArgumentError("EMBER_HTML_PART: unsupported HTML template part")
+  return quote:
+    join([#{*parts}])

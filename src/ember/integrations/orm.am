@@ -1,0 +1,42 @@
+package ember.integrations.orm
+
+from ember import render
+from orm.pool import ConnectionPoolClosedError
+from orm.pool import ConnectionPoolLeaseError
+from orm.pool import ConnectionPoolTimeoutError
+
+export pool, connection, PoolIntegration, ConnectionMiddleware
+
+def pool(database):
+  PoolIntegration(database)
+
+def connection(database):
+  ConnectionMiddleware(database)
+
+class PoolIntegration:
+  def init(@database)
+
+  def around_controller(request, next):
+    try:
+      @database.with_connection:
+        next(request)
+    rescue ConnectionPoolTimeoutError |error|:
+      render(text: "service unavailable", status: :service_unavailable)
+    rescue ConnectionPoolClosedError |error|:
+      render(text: "service unavailable", status: :service_unavailable)
+    rescue ConnectionPoolLeaseError |error|:
+      render(text: "service unavailable", status: :service_unavailable)
+
+class ConnectionMiddleware:
+  def init(@database)
+
+  def call(request, next):
+    try:
+      @database.with_connection:
+        next(request)
+    rescue ConnectionPoolTimeoutError |error|:
+      render(text: "service unavailable", status: :service_unavailable)
+    rescue ConnectionPoolClosedError |error|:
+      render(text: "service unavailable", status: :service_unavailable)
+    rescue ConnectionPoolLeaseError |error|:
+      render(text: "service unavailable", status: :service_unavailable)

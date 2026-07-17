@@ -1,0 +1,48 @@
+package ember.http_selftest
+
+import ember
+import task
+from net.http import Client, Server
+
+export main
+
+def hello(request, name):
+  ember.render(
+    json: {
+      greeting: "hello " + name,
+      query: request.query(:source),
+      request_id: request.header("x-request-id")
+    },
+    headers: {"x-ember": "yes"})
+
+routes = ember.routes:
+  get "/hello/:name", to: &hello, as: :hello
+
+def assert(condition, message):
+  raise ArgumentError(message) unless condition
+
+def main():
+  app = ember.App(routes: routes, expose_exceptions: true)
+  server = Server(
+    host: "127.0.0.1",
+    port: 0,
+    workers: 1,
+    max_concurrent_per_worker: 2)
+  port = server.port()
+  runner = task.spawn:
+    server.serve(max_requests: 1) |request|:
+      app.call(request).to_server_response
+
+  response = Client().get(
+    "http://127.0.0.1:#{port}/hello/Amber?source=loopback",
+    headers: {"x-request-id": "http-selftest"})
+  body = response.body_text()
+  runner.wait
+
+  assert(response.status == 200, "loopback status")
+  assert(response.headers.first("content-type") == "application/json; charset=utf-8", "loopback type")
+  assert(response.headers.first("x-ember") == "yes", "loopback response header")
+  assert(body.contains?("hello Amber"), "loopback route capture")
+  assert(body.contains?("loopback"), "loopback query parsing")
+  assert(body.contains?("http-selftest"), "loopback request header")
+  true

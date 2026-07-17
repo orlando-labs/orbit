@@ -1,0 +1,52 @@
+package ember.middleware
+
+import ember
+
+export request_id, access_log, RequestIdMiddleware, AccessLogMiddleware
+export macro before
+
+def request_id(request, next):
+  RequestIdMiddleware()(request, next)
+
+class RequestIdMiddleware:
+  def call(request, next):
+    request_id = request.header("x-request-id") or Uuid.v4.to_str
+    response = ember.normalize_response(next(request))
+    headers = response.headers.merge({"x-request-id": request_id})
+    ember.Response(status: response.status, headers: headers, body: response.body)
+
+def access_log(request, next):
+  AccessLogMiddleware()(request, next)
+
+class AccessLogMiddleware:
+  def init(@to: io.stderr)
+
+  def call(request, next):
+    response = ember.normalize_response(next(request))
+    @to.write_line("#{request.method} #{request.path} -> #{response.status}")
+    @to.flush
+    response
+
+macro def before(middleware as Ast, declaration as Ast) -> Ast:
+  unless declaration.kind == "AstDefStmt":
+    raise ArgumentError("EMBER_BEFORE_DECLARATION: before supports module functions")
+  params = declaration.signature.params
+  if params.empty? or params[0].param_kind != "positional":
+    raise ArgumentError("EMBER_BEFORE_REQUEST: annotated function must accept request first")
+
+  request_name = params[0].local_name
+  request = Ast.node("AstName", {name: request_name})
+  original = Ast.node("AstBlock", {
+    params: [Ast.node("AstPatternParam", {pattern: request_name})],
+    body: declaration.body
+  })
+  wrapped = quote:
+    return ember.__before(#{middleware}, __ember_before_request__) |__ember_before_next__|:
+      __ember_before_body__(__ember_before_next__)
+  wrapped = wrapped.replace_name("__ember_before_request__", request)
+  wrapped = wrapped.replace_name("__ember_before_body__", original)
+  return Ast.node("AstDefStmt", {
+    name: declaration.name,
+    signature: declaration.signature,
+    body: [wrapped]
+  })
