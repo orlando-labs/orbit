@@ -30,8 +30,10 @@ export UnknownStatusError, UnknownServiceError, UnsafeRedirectError
 class EmberError < Exception:
   attr message
 
-  def init(@message)
+  def init(@message as Str)
   def to_str():
+    @message
+  def str():
     @message
 
 class RouteError < EmberError
