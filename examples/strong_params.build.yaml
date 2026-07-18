@@ -1,0 +1,14 @@
+schema: amber.build.v1
+name: ember.example.strong_params
+root: ember.example.strong_params
+
+profiles:
+  required: [core.v1, macro.v1]
+  optional: []
+  forbidden: []
+
+modules:
+  - name: ember
+    path: ../src/ember.am
+  - name: ember.example.strong_params
+    path: strong_params.am

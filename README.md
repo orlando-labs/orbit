@@ -14,6 +14,7 @@ The current preview includes:
 - named paths, scopes, mounts, route middleware, automatic OPTIONS, and
   optional HEAD-from-GET;
 - RFC 10008 `QUERY` routes with request content and mandatory `Content-Type`;
+- declarative strong-parameter schemas for JSON bodies and query strings;
 - request/response values, JSON/text/HTML rendering, safe redirects, and
   production-safe exception responses;
 - cooperative full-duplex HTTP/1.1 request/response streams with chunk
@@ -113,6 +114,43 @@ Supported normalized return values are `ember.Response`, `ember.Html`, `Str`,
 `Bytes`, `ember.StreamingResponse`, and `null`. Other values must be passed
 explicitly to `render`, for example `ember.render(json: value)`.
 
+## Strong parameters
+
+Parameter sources stay explicit: use `request.params.json` for a JSON request
+body and `request.params.query` for the parsed query string. A schema filters
+every undeclared key and checks the declared transport shape before returning
+a deeply immutable `Map`.
+
+```amber
+create_user_params = ember.params(root: :user):
+  field(:name, required: true)
+  field(:age, type: Int)
+  array(:tags, of: Str)
+  object(:profile):
+    field(:bio)
+
+def create_user(request):
+  attrs = request.params.json.expect(create_user_params)
+  ember.render(json: attrs, status: :created)
+```
+
+`Str` is the default field type, so `field(:name)` is equivalent to
+`field(:name, type: Str)`. Fields are optional and non-null by default; use
+`required: true` and `nullable: true` explicitly. Arrays accept either a scalar
+element type through `of:` or a block describing each object. A schema with
+`root:` requires and unwraps that object.
+
+Unknown keys are dropped recursively. Use
+`ember.params(root: :user, unknown: :reject): ...` when an endpoint should
+reject them instead. `check` returns `Result[Map, ParamsShapeError]`; `expect`
+raises the structured error and lets `App` return a safe 400 response. Missing
+or non-JSON content types return 415. Parsing a JSON body after manual
+`request.body_stream` consumption returns 400.
+
+Strong parameters do not normalize strings, sanitize HTML, coerce query
+values, or replace domain/ORM validation. See `examples/strong_params.am` for
+a complete server.
+
 ## Streaming
 
 Selecting a streaming response freezes its status, headers, and declared
@@ -209,6 +247,12 @@ See `examples/sqlite_users.am` and `test/orm_selftest.am` for complete graphs.
 ../amber-lang/build/amberc build test/core_selftest.build.yaml \
   --target native --out-dir out-native --cache-dir cache-native --no-cache
 ./out-native/ember.core_selftest
+
+# Strong-parameter schemas and request sources
+../amber-lang/build/amberc build test/strong_params_selftest.build.yaml \
+  --target native --out-dir out-params-native \
+  --cache-dir cache-params-native --no-cache
+./out-params-native/ember.strong_params_selftest
 
 # Real amber-orm + sqlite3-amber integration
 ../amber-lang/build/amberc build test/orm_selftest.build.yaml \

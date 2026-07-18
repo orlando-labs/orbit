@@ -1,0 +1,119 @@
+package ember.strong_params_selftest
+
+import ember
+import ember.testing
+
+export main
+
+create_user_params = ember.params(root: :user):
+  field(:name, required: true)
+  field(:age, type: Int)
+  field(:newsletter, type: Bool)
+  field(:nickname, nullable: true)
+  array(:tags, of: Str)
+  object(:profile):
+    field(:bio)
+  array(:addresses):
+    field(:city, required: true)
+    field(:zip)
+
+strict_user_params = ember.params(root: :user, unknown: :reject):
+  field(:name, required: true)
+
+search_params = ember.params:
+  field(:q)
+  array(:tag, of: Str)
+
+def create_user_schema():
+  create_user_params
+
+class Users < ember.Controller:
+  def create():
+    attrs = params().json.expect(create_user_schema())
+    render(json: attrs, status: :created)
+
+routes = ember.routes:
+  post "/users", to: &Users#create
+
+def assert(condition, message):
+  raise ArgumentError(message) unless condition
+
+def main():
+  app = ember.App(routes: routes, expose_exceptions: true)
+
+  user_response = app.call(testing.post("/users", json: {
+    user: {
+      name: "Ada",
+      age: 36,
+      newsletter: false,
+      nickname: null,
+      admin: true,
+      tags: ["amber", "web"],
+      profile: {bio: "builder", private: "drop"},
+      addresses: [{city: "Moscow", zip: "101000", secret: "drop"}]
+    }
+  }))
+  assert(user_response.status == 201, "strong params controller status")
+  assert(user_response.body_text.contains?("Ada"), "strong params keep permitted values")
+  assert(not user_response.body_text.contains?("admin"), "strong params drop unknown root fields")
+  assert(not user_response.body_text.contains?("private"), "strong params drop unknown nested fields")
+  assert(not user_response.body_text.contains?("secret"), "strong params drop unknown array object fields")
+  assert(user_response.body_text.contains?("nickname"), "strong params preserve explicit nullable fields")
+
+  invalid_user = app.call(testing.post("/users", json: {user: {name: 42}}))
+  assert(invalid_user.status == 400, "field defaults to Str")
+  missing_user = app.call(testing.post("/users", json: {other: {name: "Ada"}}))
+  assert(missing_user.status == 400, "strong params require root")
+  wrong_array = app.call(testing.post("/users", json: {user: {name: "Ada", tags: "amber"}}))
+  assert(wrong_array.status == 400, "strong params enforce array shape")
+  wrong_media = app.call(testing.post(
+    "/users",
+    headers: {"content-type": "text/plain"},
+    body: "{}"))
+  assert(wrong_media.status == 415, "JSON params require JSON media type")
+  missing_media = app.call(testing.post("/users", body: "{}"))
+  assert(missing_media.status == 415, "JSON params require Content-Type")
+  malformed_json = app.call(testing.post(
+    "/users",
+    headers: {"content-type": "application/json"},
+    body: "{"))
+  assert(malformed_json.status == 400, "malformed JSON params are bad request")
+
+  direct_params = testing.post("/users", json: {
+    user: {name: "Grace", admin: true, addresses: [{city: "London"}]}
+  }).params.json.expect(create_user_params)
+  assert(direct_params[:name] == "Grace", "permitted params indexing")
+  assert(not direct_params.has_key?(:admin), "permitted params exclude unknown keys")
+  assert(direct_params[:addresses][0][?"city"] == "London", "nested permitted params")
+  stream_after_params = false
+  try:
+    parsed_request = testing.post("/users", json: {user: {name: "Ada"}})
+    parsed_request.params.json.expect(create_user_params)
+    parsed_request.body_stream.read_chunk()
+  rescue |error|:
+    stream_after_params = ParamsBodyConsumedError === error
+  assert(stream_after_params, "body stream cannot be read after JSON params")
+
+  vendor_json = testing.post(
+    "/users",
+    headers: {"content-type": "application/vnd.api+json"},
+    json: {user: {name: "Vendor"}}
+  ).params.json.expect(create_user_params)
+  assert(vendor_json[:name] == "Vendor", "structured JSON media types are accepted")
+  strict_result = testing.post("/users", json: {
+    user: {name: "Lin", admin: true}
+  }).params.json.check(strict_user_params)
+  assert(strict_result.err?, "strict params reject unknown fields")
+  assert(strict_result.error.issues[0].code == :unpermitted, "strict params structured issue")
+
+  query_values = testing.get(
+    "/users?q=amber&tag[]=one&tag[]=two"
+  ).params.query.expect(search_params)
+  assert(query_values[:q] == "amber", "query strong params scalar")
+  assert(query_values[:tag] == ["one", "two"], "query strong params array")
+
+  consumed_request = testing.post("/users", json: {user: {name: "Ada"}})
+  consumed_request.body_stream.read_chunk(max_bytes: 1)
+  consumed_response = app.call(consumed_request)
+  assert(consumed_response.status == 400, "strong params reject a previously consumed body stream")
+  true

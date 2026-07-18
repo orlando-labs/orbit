@@ -10,8 +10,17 @@ def request(
   target,
   headers: {},
   query: null,
-  body: ""
+  body: "",
+  json: null
 ):
+  if json != null and body != "":
+    raise ArgumentError("testing.request accepts either body: or json:")
+  request_headers = headers.copy
+  request_body = body
+  if json != null:
+    request_body = Json.generate(json)
+    unless request_headers[?"content-type"]:
+      request_headers.store!("content-type", "application/json")
   path = target
   raw_query = query
   if target.contains?("?"):
@@ -28,9 +37,9 @@ def request(
     target: full_target,
     path: path,
     raw_query: raw_query,
-    headers: headers,
-    body_text: body.to_str,
-    body_bytes: if Bytes === body then body else body.to_str.bytes)
+    headers: request_headers,
+    body_text: request_body.to_str,
+    body_bytes: if Bytes === request_body then request_body else request_body.to_str.bytes)
 
 def get(target, **opts):
   request("GET", target, **opts)

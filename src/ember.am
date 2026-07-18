@@ -7,6 +7,10 @@ from net.http import Server, ServerRequest, ServerResponse
 # package.
 
 export macro routes
+export macro params
+export macro field
+export macro object
+export macro array
 export macro get
 export macro query
 export macro post
@@ -21,12 +25,16 @@ export __route, __scope, __mount, __before
 export App, Routes, Route, RouteMatch, RouteLookup, Request, Response
 export RequestBodyStream, RequestChunk, StreamingResponse, StreamBody
 export Controller, Target, Html
+export ParamSchema, ParamField, ParamObject, ParamArray, ParamIssue
+export RequestParams, RequestParamSource
 export render, redirect, stream, normalize_response, status_code
 export EmberError, RouteError, InvalidRouteError, DuplicateRouteError
 export DuplicateRouteNameError, InvalidPathError, RouteParamError
 export RouteNotFoundError, UnknownRouteNameError, PathGenerationError
 export InvalidResponseError, DoubleRenderError, ResponseCommittedError
 export UnknownStatusError, UnknownServiceError, UnsafeRedirectError
+export RequestParamsError, ParamsParseError, ParamsShapeError
+export ParamsUnsupportedMediaTypeError, ParamsBodyConsumedError
 
 class EmberError < Exception:
   attr message
@@ -52,6 +60,21 @@ class ResponseCommittedError < EmberError
 class UnknownStatusError < EmberError
 class UnknownServiceError < EmberError
 class UnsafeRedirectError < EmberError
+class RequestParamsError < EmberError
+
+class ParamsParseError < RequestParamsError
+
+class ParamsUnsupportedMediaTypeError < RequestParamsError
+
+class ParamsBodyConsumedError < RequestParamsError
+
+class ParamsShapeError < RequestParamsError:
+  attr issues
+
+  def init(@issues):
+    count = @issues.count
+    suffix = if count == 1 then " issue" else " issues"
+    @message = "invalid request parameters: #{count}" + suffix
 
 def _status_codes():
   {
@@ -310,6 +333,326 @@ def _redirect_response(to, status: :temporary_redirect, headers: {}, external: f
 def redirect(to, status: :temporary_redirect, headers: {}, external: false):
   _redirect_response(to, status: status, headers: headers, external: external)
 
+class ParamIssue:
+  attr path
+  attr code
+  attr expected
+  attr actual
+
+  def init(path:, code:, expected: null, actual: null):
+    @path = path.copy.freeze
+    @code = code
+    @expected = expected
+    @actual = actual
+
+  def data():
+    {
+      path: @path,
+      code: @code,
+      expected: @expected,
+      actual: @actual
+    }
+
+class ParamField:
+  attr name
+  attr type
+  attr required
+  attr nullable
+
+  def init(@name, @type: Str, @required: false, @nullable: false):
+    _validate_param_name!(@name)
+    _validate_param_flags!(@required, @nullable)
+    unless _param_scalar_type?(@type):
+      raise ArgumentError("unsupported strong parameter field type: " + @type.to_str)
+
+class ParamObject:
+  attr name
+  attr fields
+  attr required
+  attr nullable
+  attr unknown
+
+  def init(@name, fields:, @required: false, @nullable: false, @unknown: null):
+    _validate_param_name!(@name)
+    _validate_param_flags!(@required, @nullable)
+    if @unknown != null:
+      _validate_unknown_params!(@unknown)
+    @fields = _validate_param_fields!(fields.copy).freeze
+
+class ParamArray:
+  attr name
+  attr element_type
+  attr fields
+  attr required
+  attr nullable
+  attr unknown
+
+  def init(
+    @name,
+    of: null,
+    fields: [],
+    @required: false,
+    @nullable: false,
+    @unknown: null
+  ):
+    _validate_param_name!(@name)
+    _validate_param_flags!(@required, @nullable)
+    if @unknown != null:
+      _validate_unknown_params!(@unknown)
+    if of != null and fields.present?:
+      raise ArgumentError("strong parameter array accepts either of: or a field block")
+    if of == null and fields.empty?:
+      raise ArgumentError("strong parameter array requires of: or a field block")
+    if of != null and not _param_scalar_type?(of):
+      raise ArgumentError("unsupported strong parameter array element type: " + of.to_str)
+    @element_type = of
+    @fields = if fields.empty? then [].freeze else _validate_param_fields!(fields.copy).freeze
+
+class ParamSchema:
+  attr root
+  attr fields
+  attr unknown
+
+  def init(fields, @root: null, @unknown: :drop):
+    if @root != null:
+      _validate_param_name!(@root)
+    _validate_unknown_params!(@unknown)
+    @fields = _validate_param_fields!(fields.copy).freeze
+
+  def check(value):
+    issues = []
+    source = value
+    path = []
+    if @root != null:
+      unless Map === source or StrictMap === source:
+        issues.push!(ParamIssue(
+          path: path,
+          code: :wrong_shape,
+          expected: :object,
+          actual: _param_actual_kind(source)))
+        return Err(ParamsShapeError(issues.freeze))
+      unless source.has_key?(@root):
+        issues.push!(ParamIssue(
+          path: [@root],
+          code: :missing,
+          expected: :object,
+          actual: :absent))
+        return Err(ParamsShapeError(issues.freeze))
+      source = source[@root]
+      path = [@root]
+    unless Map === source or StrictMap === source:
+      issues.push!(ParamIssue(
+        path: path,
+        code: :wrong_shape,
+        expected: :object,
+        actual: _param_actual_kind(source)))
+      return Err(ParamsShapeError(issues.freeze))
+    values = _sanitize_param_object(source, @fields, path, @unknown, issues)
+    if issues.present?:
+      Err(ParamsShapeError(issues.freeze))
+    else:
+      Ok(values)
+
+  def expect(value):
+    check(value).or_raise
+
+class RequestParamSource:
+  attr source
+
+  def init(value, @source):
+    @value = value
+
+  def check(schema):
+    unless ParamSchema === schema:
+      raise ArgumentError("RequestParamSource#check expects ember.ParamSchema")
+    schema.check(@value)
+
+  def expect(schema):
+    check(schema).or_raise
+
+class RequestParams:
+  def init(@request):
+    @json = null
+    @query = null
+
+  def query():
+    unless @query:
+      @query = RequestParamSource(@request.query_params(), :query)
+    @query
+
+  def json():
+    return @json if @json
+    content_type = @request.header("content-type")
+    unless content_type:
+      raise ParamsUnsupportedMediaTypeError("JSON parameters require Content-Type")
+    media_type = content_type.to_str.split(";")[0].trim().downcase
+    json_type = media_type == "application/json"
+    json_type = true if media_type.starts_with?("application/") and media_type.ends_with?("+json")
+    unless json_type:
+      raise ParamsUnsupportedMediaTypeError("request Content-Type is not JSON")
+    @request.body_stream.claim_params!
+    value = try:
+      Json.parse(@request.body_text())
+    rescue JsonParseError |error|:
+      raise ParamsParseError("malformed JSON request body")
+    @json = RequestParamSource(value, :json)
+    @json
+
+def _validate_param_name!(name):
+  unless Str === name or Symbol === name:
+    raise ArgumentError("strong parameter name must be a Str or Symbol")
+  if name.to_str == "":
+    raise ArgumentError("strong parameter name cannot be empty")
+  name
+
+def _validate_param_flags!(required, nullable):
+  unless Bool === required and Bool === nullable:
+    raise ArgumentError("strong parameter required: and nullable: must be Bool")
+  true
+
+def _validate_unknown_params!(unknown):
+  unless unknown == :drop or unknown == :reject:
+    raise ArgumentError("strong parameter unknown: must be :drop or :reject")
+  unknown
+
+def _param_scalar_type?(type):
+  type == Str or type == Int or type == Float or type == Bool
+
+def _param_type_name(type):
+  return :string if type == Str
+  return :integer if type == Int
+  return :float if type == Float
+  return :boolean if type == Bool
+  :scalar
+
+def _param_actual_kind(value):
+  return :null_value if value == null
+  return :string if Str === value
+  return :integer if Int === value
+  return :float if Float === value
+  return :boolean if Bool === value
+  return :array if Array === value
+  return :object if Map === value or StrictMap === value
+  :unknown
+
+def _param_matches_type?(value, type):
+  return Str === value if type == Str
+  return Int === value if type == Int
+  return Float === value if type == Float
+  return Bool === value if type == Bool
+  false
+
+def _validate_param_fields!(fields):
+  unless Array === fields:
+    raise ArgumentError("strong parameter fields must be an Array")
+  seen = {}
+  fields.each |field|:
+    unless ParamField === field or ParamObject === field or ParamArray === field:
+      raise ArgumentError("unsupported strong parameter declaration")
+    name = field.name.to_str
+    if seen[?name]:
+      raise ArgumentError("duplicate strong parameter field: " + name)
+    seen.store!(name, true)
+  fields
+
+def _param_field_named?(fields, name):
+  fields.any? |field|: field.name.to_str == name.to_str
+
+def _sanitize_param_object(source, fields, path, unknown, issues):
+  result = {}
+  fields.each |field|:
+    name = field.name
+    unless source.has_key?(name):
+      if field.required:
+        expected = case field:
+          when ParamField: _param_type_name(field.type)
+          when ParamObject: :object
+          when ParamArray: :array
+        issues.push!(ParamIssue(
+          path: path + [name],
+          code: :missing,
+          expected: expected,
+          actual: :absent))
+      next
+    value = source[name]
+    if value == null:
+      if field.nullable:
+        result.store!(name, null)
+      else:
+        expected = case field:
+          when ParamField: _param_type_name(field.type)
+          when ParamObject: :object
+          when ParamArray: :array
+        issues.push!(ParamIssue(
+          path: path + [name],
+          code: :wrong_type,
+          expected: expected,
+          actual: :null_value))
+      next
+    case field:
+      when ParamField:
+        if _param_matches_type?(value, field.type):
+          result.store!(name, value)
+        else:
+          issues.push!(ParamIssue(
+            path: path + [name],
+            code: :wrong_type,
+            expected: _param_type_name(field.type),
+            actual: _param_actual_kind(value)))
+      when ParamObject:
+        if Map === value or StrictMap === value:
+          nested_unknown = field.unknown or unknown
+          nested = _sanitize_param_object(value, field.fields, path + [name], nested_unknown, issues)
+          result.store!(name, nested)
+        else:
+          issues.push!(ParamIssue(
+            path: path + [name],
+            code: :wrong_shape,
+            expected: :object,
+            actual: _param_actual_kind(value)))
+      when ParamArray:
+        if Array === value:
+          result.store!(name, _sanitize_param_array(value, field, path + [name], unknown, issues))
+        else:
+          issues.push!(ParamIssue(
+            path: path + [name],
+            code: :wrong_shape,
+            expected: :array,
+            actual: _param_actual_kind(value)))
+  if unknown == :reject:
+    source.each |name, value|:
+      unless _param_field_named?(fields, name):
+        issues.push!(ParamIssue(
+          path: path + [name],
+          code: :unpermitted,
+          expected: :declared,
+          actual: _param_actual_kind(value)))
+  result.freeze
+
+def _sanitize_param_array(source, field, path, inherited_unknown, issues):
+  result = []
+  source.each_with_index |value, index|:
+    item_path = path + [index]
+    if field.element_type != null:
+      if _param_matches_type?(value, field.element_type):
+        result.push!(value)
+      else:
+        issues.push!(ParamIssue(
+          path: item_path,
+          code: :wrong_type,
+          expected: _param_type_name(field.element_type),
+          actual: _param_actual_kind(value)))
+    elif Map === value or StrictMap === value:
+      nested_unknown = field.unknown or inherited_unknown
+      result.push!(_sanitize_param_object(value, field.fields, item_path, nested_unknown, issues))
+    else:
+      issues.push!(ParamIssue(
+        path: item_path,
+        code: :wrong_shape,
+        expected: :object,
+        actual: _param_actual_kind(value)))
+  result.freeze
+
 class RequestChunk:
   def init(@native = null, data: null, extensions: []):
     @data = data
@@ -331,6 +674,8 @@ class RequestBodyStream:
   def init(@native = null, bytes: null):
     @bytes = bytes
     @offset = 0
+    @started = false
+    @claimed_by = null
     @local_closed = bytes == null or bytes.empty?
     @local_framing = if @local_closed then :empty else :content_length
 
@@ -341,6 +686,10 @@ class RequestBodyStream:
       @local_framing
 
   def read_chunk(max_bytes: null):
+    if @claimed_by == :params:
+      raise ParamsBodyConsumedError("request body has already been consumed as parameters")
+    @claimed_by = :stream
+    @started = true
     unless @native:
       return null if @local_closed
       remaining = @bytes.count - @offset
@@ -373,6 +722,15 @@ class RequestBodyStream:
 
   def closed?():
     if @native then @native.closed? else @local_closed
+
+  def started?():
+    @started
+
+  def claim_params!():
+    if @claimed_by == :stream or @started:
+      raise ParamsBodyConsumedError("request body stream has already been consumed")
+    @claimed_by = :params
+    self
 
 class Request:
   attr method
@@ -419,6 +777,7 @@ class Request:
     @path_params = path_params
     @services = services
     @query_params = null
+    @params = null
 
   class_method def from_server(request as ServerRequest):
     Request(
@@ -464,6 +823,11 @@ class Request:
     unless @query_params:
       @query_params = if @raw_query then Url.parse_query(@raw_query) else {}
     @query_params
+
+  def params():
+    unless @params:
+      @params = RequestParams(self)
+    @params
 
   def service(name):
     value = @services[?name]
@@ -1000,6 +1364,10 @@ class App:
       render(text: "bad request", status: :bad_request)
     rescue RouteParamError |error|:
       render(text: "bad request", status: :bad_request)
+    rescue ParamsUnsupportedMediaTypeError |error|:
+      render(text: "unsupported media type", status: :unsupported_media_type)
+    rescue RequestParamsError |error|:
+      render(text: "bad request", status: :bad_request)
     rescue Exception |error|:
       message = if @expose_exceptions then error.message else "internal server error"
       render(text: message, status: :internal_server_error)
@@ -1086,6 +1454,9 @@ class Controller:
   def query(name):
     @request.query(name)
 
+  def params():
+    @request.params()
+
   def _ensure_mutable!():
     if @committed:
       raise ResponseCommittedError("response has already been committed")
@@ -1104,6 +1475,116 @@ def __scope(prefix, entries, before: []):
 
 def __mount(routes, at: "/", before: []):
   RouteMount(routes, at, _middleware_list(before))
+
+macro def params(root as Ast: null, unknown as Ast: null, &blk) -> Ast:
+  unless blk:
+    raise ArgumentError("EMBER_PARAMS_BLOCK: ember.params requires a block")
+  root_node = root
+  unless root_node:
+    root_node = quote:
+      null
+  unknown_node = unknown
+  unless unknown_node:
+    unknown_node = quote:
+      :drop
+  fields = blk().expressions
+  return quote:
+    ember.ParamSchema([#{*fields}], root: #{root_node}, unknown: #{unknown_node})
+
+macro def field(
+  name as Ast,
+  type as Ast: null,
+  required as Ast: null,
+  nullable as Ast: null
+) -> Ast:
+  type_node = type
+  unless type_node:
+    type_node = quote:
+      Str
+  required_node = required
+  unless required_node:
+    required_node = quote:
+      false
+  nullable_node = nullable
+  unless nullable_node:
+    nullable_node = quote:
+      false
+  return quote:
+    ember.ParamField(
+      #{name},
+      type: #{type_node},
+      required: #{required_node},
+      nullable: #{nullable_node})
+
+macro def object(
+  name as Ast,
+  required as Ast: null,
+  nullable as Ast: null,
+  unknown as Ast: null,
+  &blk
+) -> Ast:
+  unless blk:
+    raise ArgumentError("EMBER_PARAMS_OBJECT_BLOCK: object requires a block")
+  required_node = required
+  unless required_node:
+    required_node = quote:
+      false
+  nullable_node = nullable
+  unless nullable_node:
+    nullable_node = quote:
+      false
+  unknown_node = unknown
+  unless unknown_node:
+    unknown_node = quote:
+      null
+  fields = blk().expressions
+  return quote:
+    ember.ParamObject(
+      #{name},
+      fields: [#{*fields}],
+      required: #{required_node},
+      nullable: #{nullable_node},
+      unknown: #{unknown_node})
+
+macro def array(
+  name as Ast,
+  of as Ast: null,
+  required as Ast: null,
+  nullable as Ast: null,
+  unknown as Ast: null,
+  &blk
+) -> Ast:
+  if of and blk:
+    raise ArgumentError("EMBER_PARAMS_ARRAY_SHAPE: array accepts either of: or a field block")
+  unless of or blk:
+    raise ArgumentError("EMBER_PARAMS_ARRAY_SHAPE: array requires of: or a field block")
+  of_node = of
+  unless of_node:
+    of_node = quote:
+      null
+  required_node = required
+  unless required_node:
+    required_node = quote:
+      false
+  nullable_node = nullable
+  unless nullable_node:
+    nullable_node = quote:
+      false
+  unknown_node = unknown
+  unless unknown_node:
+    unknown_node = quote:
+      null
+  fields = []
+  if blk:
+    fields = blk().expressions
+  return quote:
+    ember.ParamArray(
+      #{name},
+      of: #{of_node},
+      fields: [#{*fields}],
+      required: #{required_node},
+      nullable: #{nullable_node},
+      unknown: #{unknown_node})
 
 macro def routes(&blk) -> Ast:
   unless blk:
