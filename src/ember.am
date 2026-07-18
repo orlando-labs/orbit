@@ -18,8 +18,9 @@ export macro scope
 export macro mount
 export __route, __scope, __mount, __before
 export App, Routes, Route, RouteMatch, RouteLookup, Request, Response
+export RequestBodyStream, RequestChunk, StreamingResponse, StreamBody
 export Controller, Target, Html
-export render, redirect, normalize_response, status_code
+export render, redirect, stream, normalize_response, status_code
 export EmberError, RouteError, InvalidRouteError, DuplicateRouteError
 export DuplicateRouteNameError, InvalidPathError, RouteParamError
 export RouteNotFoundError, UnknownRouteNameError, PathGenerationError
@@ -89,12 +90,10 @@ def _method_name(method):
 
 def _header_map(headers):
   return {} unless headers
-  if Map === headers or StrictMap === headers:
-    result = {}
-    headers.each |name, value|:
-      result.store!(name.to_str.downcase, value)
-    return result
-  headers
+  result = {}
+  headers.each |name, value|:
+    result.store!(name.to_str.downcase, value)
+  result
 
 def _header_value(headers, name):
   return null unless headers
@@ -175,10 +174,65 @@ class Response:
       payload = ""
     ServerResponse(status: @status, headers: @headers, body: payload)
 
+class StreamBody:
+  def init(@native)
+
+  def write(data, extensions: null):
+    if extensions == null:
+      @native.write(data)
+    else:
+      @native.write(data, extensions: extensions)
+    self
+
+  def close():
+    @native.close
+    self
+
+  def trailer(name, value):
+    @native.trailer(name, value)
+    self
+
+  def finish():
+    @native.finish
+    self
+
+  def closed?():
+    @native.closed?
+
+class StreamingResponse:
+  attr status
+  attr headers
+  attr trailers
+
+  def init(status: 200, headers: {}, trailers: [], &producer):
+    unless producer:
+      raise ArgumentError("streaming response requires a producer block")
+    @status = status_code(status)
+    @headers = _header_map(headers).freeze
+    @trailers = trailers.copy.freeze
+    @producer = producer
+
+  def to_server_response():
+    producer = @producer
+    ServerResponse.stream(
+      status: @status,
+      headers: @headers,
+      trailers: @trailers) |native_body|:
+        producer(StreamBody(native_body))
+
+def stream(status: :ok, headers: {}, trailers: [], &producer):
+  StreamingResponse(
+    status: status,
+    headers: headers,
+    trailers: trailers) |body|:
+      producer(body)
+
 def normalize_response(value):
   return Response(status: :no_content, body: "") if value == null
   case value:
     when Response:
+      value
+    when StreamingResponse:
       value
     when Html:
       Response(headers: {"content-type": "text/html; charset=utf-8"}, body: value)
@@ -252,14 +306,77 @@ def _redirect_response(to, status: :temporary_redirect, headers: {}, external: f
 def redirect(to, status: :temporary_redirect, headers: {}, external: false):
   _redirect_response(to, status: status, headers: headers, external: external)
 
+class RequestChunk:
+  def init(@native = null, data: null, extensions: []):
+    @data = data
+    @extensions = extensions.copy.freeze
+
+  def data():
+    if @native then @native.data else @data
+
+  def bytes():
+    if @native then @native.bytes else @data
+
+  def text():
+    if @native then @native.text else @data.to_str
+
+  def extensions():
+    if @native then @native.extensions else @extensions
+
+class RequestBodyStream:
+  def init(@native = null, bytes: null):
+    @bytes = bytes
+    @offset = 0
+    @local_closed = bytes == null or bytes.empty?
+    @local_framing = if @local_closed then :empty else :content_length
+
+  def framing():
+    if @native:
+      @native.framing
+    else:
+      @local_framing
+
+  def read_chunk(max_bytes: null):
+    unless @native:
+      return null if @local_closed
+      remaining = @bytes.count - @offset
+      count = if max_bytes == null or max_bytes > remaining then remaining else max_bytes
+      unless Int === count and count > 0:
+        raise ArgumentError("max_bytes must be a positive Int")
+      data = @bytes.slice(@offset, count)
+      @offset += count
+      @local_closed = true if @offset == @bytes.count
+      return RequestChunk(data: data)
+    native_chunk = if max_bytes == null:
+      @native.read_chunk
+    else:
+      @native.read_chunk(max_bytes: max_bytes)
+    if native_chunk then RequestChunk(native_chunk) else null
+
+  def each_chunk(max_bytes: null, &block):
+    unless block:
+      raise ArgumentError("RequestBodyStream#each_chunk requires a block")
+    while chunk = read_chunk(max_bytes: max_bytes):
+      block(chunk)
+    self
+
+  def trailers():
+    if @native:
+      return @native.trailers
+    unless @local_closed:
+      raise EmberError("request trailers are available after body completion")
+    {}.freeze
+
+  def closed?():
+    if @native then @native.closed? else @local_closed
+
 class Request:
   attr method
   attr target
   attr path
   attr raw_query
   attr headers
-  attr body_text
-  attr body_bytes
+  attr body_stream
   attr remote_endpoint
   attr local_endpoint
   attr routes
@@ -273,6 +390,8 @@ class Request:
     headers: {},
     body_text: "",
     body_bytes: null,
+    body_stream: null,
+    server_request: null,
     remote_endpoint: null,
     local_endpoint: null,
     routes: null,
@@ -285,8 +404,10 @@ class Request:
     @path = path
     @raw_query = raw_query
     @headers = headers
-    @body_text = body_text
-    @body_bytes = body_bytes or body_text.bytes
+    @body_text_cache = body_text
+    @body_bytes_cache = body_bytes or (if body_text == null then null else body_text.bytes)
+    @body_stream = body_stream or RequestBodyStream(bytes: @body_bytes_cache)
+    @server_request = server_request
     @remote_endpoint = remote_endpoint
     @local_endpoint = local_endpoint
     @routes = routes
@@ -302,14 +423,26 @@ class Request:
       path: request.path,
       raw_query: request.query,
       headers: request.headers,
-      body_text: request.body_text,
-      body_bytes: request.body_bytes,
+      body_text: null,
+      body_bytes: null,
+      body_stream: RequestBodyStream(request.body_stream),
+      server_request: request,
       remote_endpoint: request.remote_endpoint,
       local_endpoint: request.local_endpoint
     )
 
   def header(name):
     _header_value(@headers, name)
+
+  def body_text():
+    if @body_text_cache == null:
+      @body_text_cache = @server_request.body_text
+    @body_text_cache
+
+  def body_bytes():
+    if @body_bytes_cache == null:
+      @body_bytes_cache = @server_request.body_bytes
+    @body_bytes_cache
 
   def path_param(name):
     @path_params[?name]
@@ -346,8 +479,10 @@ class Request:
       path: @path,
       raw_query: @raw_query,
       headers: @headers,
-      body_text: @body_text,
-      body_bytes: @body_bytes,
+      body_text: @body_text_cache,
+      body_bytes: @body_bytes_cache,
+      body_stream: @body_stream,
+      server_request: @server_request,
       remote_endpoint: @remote_endpoint,
       local_endpoint: @local_endpoint,
       routes: routes,
@@ -913,6 +1048,20 @@ class Controller:
       status: status,
       headers: @response_headers.merge(_header_map(headers)),
       external: external)
+    @committed = true
+    response
+
+  def stream(status: null, headers: {}, trailers: [], &producer):
+    _ensure_renderable!
+    unless producer:
+      raise ArgumentError("Controller#stream requires a producer block")
+    chosen_status = if status == null then @response_status else status
+    merged_headers = @response_headers.merge(_header_map(headers))
+    response = StreamingResponse(
+      status: chosen_status,
+      headers: merged_headers,
+      trailers: trailers) |body|:
+        producer(body)
     @committed = true
     response
 

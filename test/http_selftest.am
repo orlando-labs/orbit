@@ -2,7 +2,7 @@ package ember.http_selftest
 
 import ember
 import task
-from net.http import Client, Server
+from net.http import Client, RequestBody, Server
 
 export main
 
@@ -15,8 +15,28 @@ def hello(request, name):
     },
     headers: {"x-ember": "yes"})
 
+def events(request):
+  ember.stream(
+    headers: {"content-type": "text/event-stream"},
+    trailers: ["x-stream-state"]) |body|:
+      body.write("event: one\n\n", extensions: [["sequence", "1"]])
+      body.write("event: two\n\n")
+      body.close
+      body.trailer("x-stream-state", "complete")
+      body.finish
+
+def echo(request):
+  ember.stream(trailers: ["x-echo-state"]) |body|:
+    request.body_stream.each_chunk |chunk|:
+      body.write(chunk.bytes, extensions: chunk.extensions)
+    body.close
+    body.trailer("x-echo-state", "complete")
+    body.finish
+
 routes = ember.routes:
   get "/hello/:name", to: &hello, as: :hello
+  get "/events", to: &events
+  post "/echo", to: &echo
 
 def assert(condition, message):
   raise ArgumentError(message) unless condition
@@ -30,13 +50,26 @@ def main():
     max_concurrent_per_worker: 2)
   port = server.port()
   runner = task.spawn:
-    server.serve(max_requests: 1) |request|:
+    server.serve(max_requests: 3) |request|:
       app.call(request).to_server_response
 
   response = Client().get(
     "http://127.0.0.1:#{port}/hello/Amber?source=loopback",
     headers: {"x-request-id": "http-selftest"})
   body = response.body_text()
+
+  events_response = Client().get("http://127.0.0.1:#{port}/events")
+  events_body = events_response.body_text()
+  events_trailer = events_response.body.trailers.first("x-stream-state")
+
+  payload = RequestBody.stream(length: null) |writer|:
+    writer.write_all!("left".bytes)
+    writer.write_all!("right".bytes)
+  echo_response = Client().post(
+    "http://127.0.0.1:#{port}/echo",
+    body: payload)
+  echo_body = echo_response.body_text()
+  echo_trailer = echo_response.body.trailers.first("x-echo-state")
   runner.wait
 
   assert(response.status == 200, "loopback status")
@@ -45,4 +78,9 @@ def main():
   assert(body.contains?("hello Amber"), "loopback route capture")
   assert(body.contains?("loopback"), "loopback query parsing")
   assert(body.contains?("http-selftest"), "loopback request header")
+  assert(events_response.headers.first("transfer-encoding") == "chunked", "stream chunked framing")
+  assert(events_body == "event: one\n\nevent: two\n\n", "stream body")
+  assert(events_trailer == "complete", "stream response trailer")
+  assert(echo_body == "leftright", "streaming request echo")
+  assert(echo_trailer == "complete", "echo response trailer")
   true

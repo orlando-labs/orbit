@@ -15,6 +15,8 @@ The current preview includes:
   optional HEAD-from-GET;
 - request/response values, JSON/text/HTML rendering, safe redirects, and
   production-safe exception responses;
+- cooperative full-duplex HTTP/1.1 request/response streams with chunk
+  extensions and trailers;
 - inline escaped `html"""..."""` templates and ordinary typed Amber view
   modules;
 - in-memory request builders and response assertions;
@@ -106,8 +108,33 @@ helpers. Rendering twice or mutating status/headers after commit raises a
 framework error.
 
 Supported normalized return values are `ember.Response`, `ember.Html`, `Str`,
-`Bytes`, and `null`. Other values must be passed explicitly to `render`, for
-example `ember.render(json: value)`.
+`Bytes`, `ember.StreamingResponse`, and `null`. Other values must be passed
+explicitly to `render`, for example `ember.render(json: value)`.
+
+## Streaming
+
+Selecting a streaming response freezes its status, headers, and declared
+trailer names. Ember supplies `Transfer-Encoding: chunked`; every `write` is
+one HTTP chunk and may carry an ordered list of extension pairs. Close the body
+before writing declared trailers, then finish the trailer section. Returning
+from the producer also closes and finishes an open stream safely.
+
+```amber
+def echo(request):
+  ember.stream(trailers: ["x-state"]) |response|:
+    request.body_stream.each_chunk |chunk|:
+      response.write(chunk.bytes, extensions: chunk.extensions)
+    response.close
+    response.trailer("x-state", "complete")
+    response.finish
+```
+
+`request.body_stream.framing` is `:chunked`, `:content_length`, or `:empty`.
+Chunked requests preserve wire chunk boundaries, ordered/repeated extensions,
+and trailers. Content-Length requests yield bounded application parts with no
+extensions or trailers; an unframed request is immediately empty. The producer
+runs cooperatively, so it may alternate request reads and response writes
+without draining the request first.
 
 ## Middleware and `before`
 
@@ -195,9 +222,10 @@ See `examples/sqlite_users.am` and `test/orm_selftest.am` for complete graphs.
 
 ## Current transport boundary
 
-The low-level server is plaintext HTTP/1.1 with buffered request/response
-bodies, one request per accepted connection, and explicit `Connection: close`.
-Ember therefore does not claim TLS, HTTP/2, keep-alive, streaming, WebSocket,
+The low-level server is plaintext HTTP/1.1 with one request per accepted
+connection and explicit `Connection: close`. Buffered and chunked full-duplex
+bodies are supported, including `Expect: 100-continue`, chunk extensions, and
+trailers. Ember does not yet claim TLS, HTTP/2, keep-alive, WebSocket,
 multipart, sessions, cookies, CSRF, or production-ready proxy trust. Those are
 later layers, not hidden behavior in the preview.
 

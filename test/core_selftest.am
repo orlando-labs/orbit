@@ -84,4 +84,20 @@ def main():
 
   missing = app.call(ember.Request(path: "/missing/deep/path", target: "/missing/deep/path", method: "POST"))
   assert(missing.status == 405, "method not allowed")
+
+  streaming = ember.stream(
+    status: :created,
+    headers: {"x-selected": "yes"},
+    trailers: ["x-finished"]) |body|:
+      null
+  assert(streaming.status == 201, "streaming status selection")
+  assert(streaming.headers[?"x-selected"] == "yes", "streaming selected headers")
+  assert(streaming.trailers == ["x-finished"], "streaming declared trailers")
+
+  local_stream = ember.Request(method: "POST", body_text: "hello").body_stream
+  local_a = local_stream.read_chunk(max_bytes: 2)
+  local_b = local_stream.read_chunk(max_bytes: 3)
+  assert(local_stream.framing == :content_length, "in-memory request stream framing")
+  assert(local_a.text == "he" and local_b.text == "llo", "in-memory request chunks")
+  assert(local_stream.read_chunk() == null and local_stream.trailers.empty?, "in-memory request stream eof")
   true
