@@ -643,8 +643,11 @@ class Route:
     RouteMatch(self, converted, captures)
 
   def path(params):
-    unknown = params.keys.map: _1.to_str .reject |name|:
-      @segments.any? |segment|: segment.segment_kind != :literal and segment.value == name
+    unknown = params
+      .keys
+      .map: _1.to_str
+      .reject |name|:
+        @segments.any? |segment|: segment.segment_kind != :literal and segment.value == name
     if unknown.present?:
       raise PathGenerationError("unknown route path param: " + unknown[0])
     pieces = []
