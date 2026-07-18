@@ -33,10 +33,14 @@ def echo(request):
     body.trailer("x-echo-state", "complete")
     body.finish
 
+def search(request):
+  ember.render(text: request.method + ":" + request.body_text())
+
 routes = ember.routes:
   get "/hello/:name", to: &hello, as: :hello
   get "/events", to: &events
   post "/echo", to: &echo
+  query "/search", to: &search
 
 def assert(condition, message):
   raise ArgumentError(message) unless condition
@@ -50,7 +54,7 @@ def main():
     max_concurrent_per_worker: 2)
   port = server.port()
   runner = task.spawn:
-    server.serve(max_requests: 3) |request|:
+    server.serve(max_requests: 4) |request|:
       app.call(request).to_server_response
 
   response = Client().get(
@@ -70,6 +74,12 @@ def main():
     body: payload)
   echo_body = echo_response.body_text()
   echo_trailer = echo_response.body.trailers.first("x-echo-state")
+
+  query_response = Client().query(
+    "http://127.0.0.1:#{port}/search",
+    headers: {"content-type": "application/sql"},
+    body: "SELECT 1")
+  query_body = query_response.body_text()
   runner.wait
 
   assert(response.status == 200, "loopback status")
@@ -83,4 +93,5 @@ def main():
   assert(events_trailer == "complete", "stream response trailer")
   assert(echo_body == "leftright", "streaming request echo")
   assert(echo_trailer == "complete", "echo response trailer")
+  assert(query_response.status == 200 and query_body == "QUERY:SELECT 1", "RFC 10008 QUERY route")
   true

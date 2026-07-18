@@ -2,7 +2,7 @@ package ember.testing
 
 import ember
 
-export request, get, post, put, patch, delete, head, options
+export request, get, query, post, put, patch, delete, head, options
 export assert_status, assert_header, assert_body
 
 def request(
@@ -34,6 +34,9 @@ def request(
 
 def get(target, **opts):
   request("GET", target, **opts)
+
+def query(target, **opts):
+  request("QUERY", target, **opts)
 
 def post(target, **opts):
   request("POST", target, **opts)

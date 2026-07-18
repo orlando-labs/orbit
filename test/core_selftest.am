@@ -13,6 +13,9 @@ def home(request):
 def person(request, id):
   ember.render(text: "person #{id}")
 
+def search(request):
+  ember.render(text: "query " + request.body_text())
+
 annotation_order = []
 
 def annotation_outer(request, next):
@@ -42,6 +45,7 @@ routes = ember.routes:
   get "/people/:id", to: &person, params: {id: Int}, as: :person
   get "/posts/new", to: &home
   get "/posts/:slug", to: &Posts#show, as: :post
+  query "/search", to: &search
   get "/*path", to: &home
 
 def assert(condition, message):
@@ -59,6 +63,14 @@ def main():
 
   typed = app.call(testing.get("/people/42"))
   assert(typed.status == 200 and typed.body_text == "person 42", "typed param")
+
+  query_response = app.call(testing.query(
+    "/search",
+    headers: {"content-type": "application/sql"},
+    body: "SELECT 1"))
+  assert(query_response.status == 200 and query_response.body_text == "query SELECT 1", "QUERY route and body")
+  invalid_query = app.call(testing.query("/search", body: "SELECT 1"))
+  assert(invalid_query.status == 400, "QUERY requires Content-Type")
 
   controller = app.call(testing.get("/posts/amber"))
   assert(controller.status == 201, "controller status #{controller.status}: #{controller.body_text}")

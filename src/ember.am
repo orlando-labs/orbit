@@ -8,6 +8,7 @@ from net.http import Server, ServerRequest, ServerResponse
 
 export macro routes
 export macro get
+export macro query
 export macro post
 export macro put
 export macro patch
@@ -67,6 +68,7 @@ def _status_codes():
     not_found: 404,
     method_not_allowed: 405,
     gone: 410,
+    unsupported_media_type: 415,
     unprocessable_entity: 422,
     internal_server_error: 500,
     service_unavailable: 503
@@ -86,7 +88,7 @@ def status_code(status):
 
 def _method_name(method):
   name = method.to_str.upcase
-  unless ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"].include?(name):
+  unless ["GET", "QUERY", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"].include?(name):
     raise InvalidRouteError("unsupported HTTP method: " + name)
   name
 
@@ -967,6 +969,8 @@ class App:
     unless Request === normalized:
       raise ArgumentError("App#call expects ember.Request or net.http.ServerRequest")
     try:
+      if normalized.method == "QUERY" and not normalized.header("content-type"):
+        return render(text: "QUERY request requires Content-Type", status: :bad_request)
       lookup = @routes.lookup(normalized.path, normalized.method,
         head_fallback: @head_fallback,
         automatic_options: @automatic_options)
@@ -1139,6 +1143,9 @@ macro def _route_macro(method, pattern as Ast, target as Ast, **opts) -> Ast:
 
 macro def get(pattern as Ast, to as Ast:, **opts) -> Ast:
   return _route_macro("GET", pattern, to, **opts)
+
+macro def query(pattern as Ast, to as Ast:, **opts) -> Ast:
+  return _route_macro("QUERY", pattern, to, **opts)
 
 macro def post(pattern as Ast, to as Ast:, **opts) -> Ast:
   return _route_macro("POST", pattern, to, **opts)

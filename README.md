@@ -13,6 +13,7 @@ The current preview includes:
   precedence;
 - named paths, scopes, mounts, route middleware, automatic OPTIONS, and
   optional HEAD-from-GET;
+- RFC 10008 `QUERY` routes with request content and mandatory `Content-Type`;
 - request/response values, JSON/text/HTML rendering, safe redirects, and
   production-safe exception responses;
 - cooperative full-duplex HTTP/1.1 request/response streams with chunk
@@ -73,6 +74,7 @@ routes = ember.routes:
   get "/posts/new", to: &new_post
   get "/posts/:id", to: &Posts#show,
     params: {id: Int}, as: :post
+  query "/posts/search", to: &search_posts
 
   scope "/api", before: [&authenticate]:
     get "/profile", to: &Profiles#show
