@@ -1,6 +1,6 @@
 package ember
 
-from net.http import Server, ServerRequest, ServerResponse
+from net.http import Headers as NativeHeaders, Server, ServerRequest, ServerResponse
 
 # Ember core is deliberately source-only. The router, application pipeline,
 # controller lifecycle, and HTTP adapter do not depend on an ORM or an FFI
@@ -22,12 +22,13 @@ export macro options
 export macro scope
 export macro mount
 export __route, __scope, __mount, __before
-export App, Routes, Route, RouteMatch, RouteLookup, Request, Response
+export App, Routes, Route, RouteMatch, RouteLookup, Request, Response, Headers
 export RequestBodyStream, RequestChunk, StreamingResponse, StreamBody
-export Controller, Target, Html
+export Controller, Target, Html, ErrorEvent
 export ParamSchema, ParamField, ParamObject, ParamArray, ParamIssue
 export RequestParams, RequestParamSource
 export render, redirect, stream, normalize_response, status_code
+export request_method, request_path, request_id_context, response_status, with_response_header
 export EmberError, RouteError, InvalidRouteError, DuplicateRouteError
 export DuplicateRouteNameError, InvalidPathError, RouteParamError
 export RouteNotFoundError, UnknownRouteNameError, PathGenerationError
@@ -115,26 +116,156 @@ def _method_name(method):
     raise InvalidRouteError("unsupported HTTP method: " + name)
   name
 
-def _header_map(headers):
-  return {} unless headers
-  result = {}
-  headers.each |name, value|:
-    result.store!(name.to_str.downcase, value)
-  result
+def _immutable_copy(value):
+  if Map === value or StrictMap === value:
+    result = {}
+    value.each |key, child|:
+      result.store!(key, _immutable_copy(child))
+    return result.freeze
+  if Array === value:
+    return value.map |child|: _immutable_copy(child) .freeze
+  value
 
-def _header_value(headers, name):
-  return null unless headers
-  key = name.to_str.downcase
-  if Map === headers or StrictMap === headers:
-    return headers[?key]
-  headers.first(key)
+def _header_content_length!(headers):
+  values = headers.all("content-length")
+  return null if values.empty?
+  canonical = null
+  values.each |raw|:
+    raw.split(",").each |piece|:
+      token = piece.trim
+      invalid_digit = token.chars.any? |char|:
+        not "0123456789".contains?(char)
+      if token.empty? or invalid_digit:
+        raise InvalidHeaderError("Content-Length must contain decimal digits")
+      if canonical == null:
+        canonical = token
+      elif canonical != token:
+        raise InvalidHeaderError("conflicting Content-Length values")
+  canonical
+
+def _validate_header_semantics!(headers):
+  content_length = _header_content_length!(headers)
+  if content_length != null and headers.include?("transfer-encoding"):
+    raise InvalidHeaderError("Content-Length and Transfer-Encoding must not both be present")
+  if headers.all("host").count > 1:
+    raise InvalidHeaderError("Host must not be repeated")
+  headers
+
+def _valid_header_name?(name):
+  return false if name.empty?
+  allowed = "!#$%&'*+-.^_`|~"
+  valid = true
+  name.chars.each |char|:
+    letter = char.downcase != char.upcase
+    digit = "0123456789".contains?(char)
+    valid = false unless letter or digit or allowed.contains?(char)
+  valid
+
+def _validated_header_pair(name, value):
+  unless Str === name or Symbol === name:
+    raise TypeError("header name must be a Str or Symbol")
+  unless Str === value:
+    raise TypeError("header value must be a Str, got " + Amber.stringify(value, mode: :inspect))
+  normalized_name = name.to_str.downcase
+  unless _valid_header_name?(normalized_name):
+    raise InvalidHeaderError("invalid HTTP header name: " + name.to_str)
+  if value.contains?("\r") or value.contains?("\n"):
+    raise InvalidHeaderError("HTTP header value contains CR or LF")
+  [normalized_name, value.trim].freeze
+
+class Headers:
+  attr pairs
+
+  def init(source = null):
+    normalized_pairs = []
+    if source != null:
+      case source:
+        when Headers:
+          source.each |name, value|:
+            normalized_pairs.push!(_validated_header_pair(name, value))
+        when Map:
+          source.each |name, value|:
+            normalized_pairs.push!(_validated_header_pair(name, value))
+        when StrictMap:
+          source.each |name, value|:
+            normalized_pairs.push!(_validated_header_pair(name, value))
+        when Array:
+          source.each |pair|:
+            unless pair.count == 2:
+              raise ArgumentError("header pairs must contain name and value")
+            normalized_pairs.push!(_validated_header_pair(pair[0], pair[1]))
+        when NativeHeaders:
+          source.each |name, value|:
+            normalized_pairs.push!(_validated_header_pair(name, value))
+        else:
+          raise ArgumentError("headers must be ember.Headers, net.http.Headers, a Map, or ordered pairs")
+    @pairs = normalized_pairs.freeze
+    _validate_header_semantics!(self)
+
+  def first(name):
+    key = name.to_str.downcase
+    pair = @pairs.find |entry|: entry[0] == key
+    if pair then pair[1] else null
+
+  def all(name):
+    key = name.to_str.downcase
+    @pairs.select |entry|: entry[0] == key .map: _1[1] .freeze
+
+  def include?(name):
+    first(name) != null
+
+  def size():
+    @pairs.count
+
+  def empty?():
+    @pairs.empty?
+
+  def keys():
+    result = []
+    @pairs.each |pair|:
+      result.push!(pair[0]) unless result.include?(pair[0])
+    result.freeze
+
+  def each(&block):
+    unless block:
+      raise ArgumentError("Headers#each requires a block")
+    @pairs.each |pair|:
+      block(pair[0], pair[1])
+    self
+
+  def to_pairs():
+    @pairs
+
+  def add(name, value):
+    Headers(@pairs + [[name, value]])
+
+  def set(name, value):
+    key = name.to_str.downcase
+    kept = @pairs.reject |pair|: pair[0] == key
+    Headers(kept + [[name, value]])
+
+  def delete(name):
+    key = name.to_str.downcase
+    Headers(@pairs.reject |pair|: pair[0] == key)
+
+  def merge(other):
+    replacement = Headers(other)
+    names = replacement.keys
+    kept = @pairs.reject |pair|: names.include?(pair[0])
+    Headers(kept + replacement.to_pairs)
+
+  def to_native():
+    native = NativeHeaders()
+    @pairs.each |pair|:
+      native.add!(pair[0], pair[1])
+    native
+
+def _headers(value):
+  if Headers === value then value else Headers(value)
 
 def _content_type(headers, value):
-  result = _header_map(headers)
-  if Map === result or StrictMap === result:
-    unless result[?"content-type"]:
-      result.store!("content-type", value)
-  result
+  result = _headers(headers)
+  if result.include?("content-type") then result else result.set("content-type", value)
 
 class Html:
   attr value
@@ -171,11 +302,23 @@ class Response:
 
   def init(status: 200, headers: {}, body: ""):
     @status = status_code(status)
-    @headers = _header_map(headers)
+    @headers = _headers(headers)
+    if @headers.include?("transfer-encoding"):
+      raise InvalidHeaderError("buffered response framing does not accept Transfer-Encoding")
     @body = body
 
   def header(name):
-    _header_value(@headers, name)
+    @headers.first(name)
+
+  def response_status():
+    @status
+
+  def with_header(name, value, append: false):
+    selected = if append then @headers.add(name, value) else @headers.set(name, value)
+    Response(status: @status, headers: selected, body: @body)
+
+  def merge_headers(headers):
+    Response(status: @status, headers: @headers.merge(headers), body: @body)
 
   def body_text():
     if @body == null:
@@ -199,7 +342,7 @@ class Response:
       payload = payload.to_str
     if payload == null:
       payload = ""
-    ServerResponse(status: @status, headers: @headers, body: payload)
+    ServerResponse(status: @status, headers: @headers.to_native, body: payload)
 
 class StreamBody:
   def init(@native)
@@ -235,15 +378,43 @@ class StreamingResponse:
     unless producer:
       raise ArgumentError("streaming response requires a producer block")
     @status = status_code(status)
-    @headers = _header_map(headers).freeze
+    @headers = _headers(headers)
+    if @headers.include?("content-length") or @headers.include?("transfer-encoding"):
+      raise InvalidHeaderError("streaming response owns Content-Length and Transfer-Encoding")
     @trailers = trailers.copy.freeze
     @producer = producer
+
+  def header(name):
+    @headers.first(name)
+
+  def response_status():
+    @status
+
+  def _producer_block():
+    @producer
+
+  def with_header(name, value, append: false):
+    selected = if append then @headers.add(name, value) else @headers.set(name, value)
+    producer = @producer
+    StreamingResponse(
+      status: @status,
+      headers: selected,
+      trailers: @trailers) |body|:
+        producer(body)
+
+  def merge_headers(headers):
+    producer = @producer
+    StreamingResponse(
+      status: @status,
+      headers: @headers.merge(headers),
+      trailers: @trailers) |body|:
+        producer(body)
 
   def to_server_response():
     producer = @producer
     ServerResponse.stream(
       status: @status,
-      headers: @headers,
+      headers: @headers.to_native,
       trailers: @trailers) |native_body|:
         producer(StreamBody(native_body))
 
@@ -256,19 +427,61 @@ def stream(status: :ok, headers: {}, trailers: [], &producer):
 
 def normalize_response(value):
   return Response(status: :no_content, body: "") if value == null
-  case value:
-    when Response:
-      value
-    when StreamingResponse:
-      value
-    when Html:
-      Response(headers: {"content-type": "text/html; charset=utf-8"}, body: value)
-    when Str:
-      Response(headers: {"content-type": "text/plain; charset=utf-8"}, body: value)
-    when Bytes:
-      Response(headers: {"content-type": "application/octet-stream"}, body: value)
-    else:
-      raise InvalidResponseError("handler returned an unsupported response value")
+  return value if StreamingResponse === value
+  return value if Response === value
+  if Html === value:
+    return Response(headers: {"content-type": "text/html; charset=utf-8"}, body: value)
+  if Str === value:
+    return Response(headers: {"content-type": "text/plain; charset=utf-8"}, body: value)
+  if Bytes === value:
+    return Response(headers: {"content-type": "application/octet-stream"}, body: value)
+  raise InvalidResponseError("handler returned an unsupported response value")
+
+def response_status(response):
+  return _streaming_response_status(response) if StreamingResponse === response
+  return _buffered_response_status(response) if Response === response
+  raise InvalidResponseError("response_status expects an Ember response")
+
+def _buffered_response_status(response as Response):
+  response.status
+
+def _streaming_response_status(response as StreamingResponse):
+  response.status
+
+def with_response_header(response, name, value, append: false):
+  if StreamingResponse === response:
+    return _with_streaming_response_header(response, name, value, append)
+  if Response === response:
+    return _with_buffered_response_header(response, name, value, append)
+  raise InvalidResponseError("with_response_header expects an Ember response")
+
+def _with_buffered_response_header(response as Response, name, value, append):
+  response.with_header(name, value, append: append)
+
+def _with_streaming_response_header(response as StreamingResponse, name, value, append):
+  selected = if append then response.headers.add(name, value) else response.headers.set(name, value)
+  producer = response._producer_block()
+  StreamingResponse(
+    status: response.status,
+    headers: selected,
+    trailers: response.trailers) |body|:
+      producer(body)
+
+def _merge_response_headers(headers, response):
+  return response if headers.empty?
+  if StreamingResponse === response:
+    producer = response._producer_block()
+    return StreamingResponse(
+      status: response.status,
+      headers: response.headers.merge(headers),
+      trailers: response.trailers) |body|:
+        producer(body)
+  if Response === response:
+    return Response(
+      status: response.status,
+      headers: response.headers.merge(headers),
+      body: response.body)
+  raise InvalidResponseError("response header merge expects an Ember response")
 
 def _render_response(
   value = null,
@@ -291,7 +504,7 @@ def _render_response(
   code = status_code(status)
   if value != null:
     response = normalize_response(value)
-    return Response(status: code, headers: response.headers.merge(_header_map(headers)), body: response.body)
+    return Response(status: code, headers: response.headers.merge(headers), body: response.body)
   if text != null:
     return Response(status: code, headers: _content_type(headers, "text/plain; charset=utf-8"), body: text.to_str)
   if html != null:
@@ -326,8 +539,7 @@ def _redirect_response(to, status: :temporary_redirect, headers: {}, external: f
   unless external:
     unless location.starts_with?("/") and not location.starts_with?("//"):
       raise UnsafeRedirectError("redirect target must be an absolute application path")
-  result_headers = _header_map(headers)
-  result_headers.store!("location", location)
+  result_headers = _headers(headers).set("location", location)
   Response(status: status, headers: result_headers, body: "")
 
 def redirect(to, status: :temporary_redirect, headers: {}, external: false):
@@ -743,6 +955,8 @@ class Request:
   attr local_endpoint
   attr routes
   attr selected_route
+  attr services
+  attr response_header_sink
 
   def init(
     method: "GET",
@@ -759,13 +973,18 @@ class Request:
     routes: null,
     selected_route: null,
     path_params: {},
-    services: {}
+    services: {},
+    response_header_sink: null
   ):
     @method = method.to_str.upcase
     @target = target
     @path = path
     @raw_query = raw_query
-    @headers = headers
+    @headers = _headers(headers)
+    header_lookup = {}
+    @headers.each |name, value|:
+      header_lookup.store!(name, value) unless header_lookup[?name]
+    @header_lookup = header_lookup.freeze
     @body_text_cache = body_text
     @body_bytes_cache = body_bytes or (if body_text == null then null else body_text.bytes)
     @body_stream = body_stream or RequestBodyStream(bytes: @body_bytes_cache)
@@ -774,8 +993,11 @@ class Request:
     @local_endpoint = local_endpoint
     @routes = routes
     @selected_route = selected_route
-    @path_params = path_params
-    @services = services
+    @path_params = _immutable_copy(path_params)
+    @services = services.copy.freeze
+    @response_header_sink = response_header_sink or {}
+    unless @response_header_sink.has_key?("__ember_input_request_id"):
+      @response_header_sink.store!("__ember_input_request_id", @header_lookup[?"x-request-id"])
     @query_params = null
     @params = null
 
@@ -795,7 +1017,16 @@ class Request:
     )
 
   def header(name):
-    _header_value(@headers, name)
+    if name == "__ember_request_id_context":
+      return [@header_lookup[?"x-request-id"], @response_header_sink]
+    return @response_header_sink if name == "__ember_response_header_sink"
+    @header_lookup[?name.to_str.downcase]
+
+  def method_name():
+    @method
+
+  def request_path():
+    @path
 
   def body_text():
     if @body_text_cache == null:
@@ -821,7 +1052,8 @@ class Request:
 
   def query_params():
     unless @query_params:
-      @query_params = if @raw_query then Url.parse_query(@raw_query) else {}
+      parsed = if @raw_query then Url.parse_query(@raw_query) else {}
+      @query_params = _immutable_copy(parsed)
     @query_params
 
   def params():
@@ -856,8 +1088,24 @@ class Request:
       routes: routes,
       selected_route: selected_route,
       path_params: path_params,
-      services: services
-    )
+      services: services,
+      response_header_sink: @response_header_sink)
+
+def request_method(request):
+  unless Request === request:
+    raise ArgumentError("request_method expects ember.Request")
+  request.method
+
+def request_path(request):
+  unless Request === request:
+    raise ArgumentError("request_path expects ember.Request")
+  request.path
+
+def request_id_context(request):
+  unless Request === request:
+    raise ArgumentError("request_id_context expects ember.Request")
+  sink = request.response_header_sink
+  [sink[?"__ember_input_request_id"], sink, request]
 
 class Target:
   attr kind
@@ -894,8 +1142,12 @@ class TargetEndpoint:
     @target._invoke(request, @captures)
 
 class IntegrationNext:
-  def init(@integrations, @index, @endpoint)
+  def init(@integrations, @index, @endpoint):
+    @called = false
   def call(request):
+    if @called:
+      raise EmberError("integration next may only be called once")
+    @called = true
     if @index >= @integrations.count:
       return @endpoint(request)
     integration = @integrations[@index]
@@ -919,14 +1171,17 @@ class RouteMatch:
   attr path_params
   attr captures
 
-  def init(@route, @path_params, @captures)
+  def init(@route, path_params, captures):
+    @path_params = _immutable_copy(path_params)
+    @captures = captures.copy.freeze
 
 class RouteLookup:
   attr kind
   attr match
   attr allowed_methods
 
-  def init(@kind, @match: null, @allowed_methods: [])
+  def init(@kind, @match: null, allowed_methods: []):
+    @allowed_methods = allowed_methods.copy.freeze
 
 class Route:
   attr method
@@ -943,9 +1198,9 @@ class Route:
     @pattern = pattern
     @target = target
     @name = name
-    @middleware = _middleware_list(before)
-    @param_types = params.copy
-    @segments = _compile_pattern(pattern)
+    @middleware = _middleware_list(before).freeze
+    @param_types = params.copy.freeze
+    @segments = _compile_pattern(pattern).freeze
     @shape = _shape(@segments)
     _validate_params!
 
@@ -1037,14 +1292,17 @@ class RouteGroup:
   attr entries
   attr middleware
 
-  def init(@prefix, @entries, @middleware)
+  def init(@prefix, entries, middleware):
+    @entries = entries.copy.freeze
+    @middleware = _middleware_list(middleware).freeze
 
 class RouteMount:
   attr routes
   attr prefix
   attr middleware
 
-  def init(@routes, @prefix, @middleware)
+  def init(@routes, @prefix, middleware):
+    @middleware = _middleware_list(middleware).freeze
 
 class Routes:
   attr routes
@@ -1056,7 +1314,7 @@ class Routes:
     if @routes.count > 4096:
       raise InvalidRouteError("route table exceeds maximum route count")
     _validate!
-    @routes = @routes.copy
+    @routes = @routes.copy.freeze
 
   def _append(entry, prefix, before):
     case entry:
@@ -1089,7 +1347,7 @@ class Routes:
         if names[?name]:
           raise DuplicateRouteNameError("duplicate route name: " + name)
         names.store!(name, route)
-    @named = names.copy
+    @named = names.copy.freeze
     self
 
   def lookup(path, method, head_fallback: false, automatic_options: true):
@@ -1289,8 +1547,12 @@ def _parse_route_int(raw):
   if negative then 0 - value else value
 
 class MiddlewareNext:
-  def init(@middleware, @index, @endpoint)
+  def init(@middleware, @index, @endpoint):
+    @called = false
   def call(request):
+    if @called:
+      raise EmberError("middleware next may only be called once")
+    @called = true
     if @index >= @middleware.count:
       return @endpoint(request)
     layer = @middleware[@index]
@@ -1311,6 +1573,93 @@ class RouteEndpoint:
   def call(request):
     @match.route.target.invoke(request, @match.captures, @integrations)
 
+class ApplicationEndpoint:
+  def init(@routes, @match, @services, @integrations)
+
+  def call(request):
+    routed = request._routed(@routes, @match.route, @match.path_params, @services)
+    endpoint = RouteEndpoint(@match, @integrations)
+    MiddlewareNext(@match.route.middleware, 0, endpoint)(routed)
+
+class DispatchEndpoint:
+  def init(@routes, @head_fallback, @automatic_options, @services, @integrations)
+
+  def call(request):
+    lookup = @routes.lookup(request.path, request.method,
+      head_fallback: @head_fallback,
+      automatic_options: @automatic_options)
+    if lookup.kind == :not_found:
+      return render(text: "not found", status: :not_found)
+    if lookup.kind == :method_not_allowed:
+      return render(text: "method not allowed", status: :method_not_allowed,
+        headers: {"allow": lookup.allowed_methods.join(", ")})
+    if lookup.kind == :options:
+      return Response(status: :no_content,
+        headers: {"allow": lookup.allowed_methods.join(", ")}, body: "")
+    match = lookup.match
+    request.response_header_sink.store!("__ember_route_pattern", match.route.pattern)
+    ApplicationEndpoint(@routes, match, @services, @integrations)(request)
+
+class ErrorEvent:
+  attr error
+  attr method
+  attr route_pattern
+
+  def init(@error, request, route_pattern: null):
+    @method = request.method
+    @route_pattern = route_pattern
+
+def _propagated_error?(error):
+  return true if CancelledError === error or FlowCancelledError === error
+  return true if IsolationError === error or LifetimeError === error
+  return true if CapabilityError === error or EffectViolationError === error
+  return true if DeterminismError === error or UnsupportedProfileError === error
+  return true if WorldFrozenError === error
+  return true if ConnectionResetError === error or BrokenPipeError === error
+  return true if UnexpectedEofError === error
+  false
+
+def _report_error(hook, error, request, route_pattern):
+  return null unless hook
+  try:
+    hook(ErrorEvent(error, request, route_pattern: route_pattern))
+  rescue Exception |hook_error|:
+    raise hook_error if _propagated_error?(hook_error)
+    null
+
+def _validate_server_options!(
+  port,
+  workers,
+  max_concurrent_per_worker,
+  backlog,
+  reuse_addr,
+  max_header_bytes,
+  max_body_bytes,
+  read_timeout,
+  write_timeout,
+  max_requests
+):
+  unless Int === port and port >= 0 and port <= 65535:
+    raise ArgumentError("port must be an Int between 0 and 65535")
+  {
+    workers: workers,
+    max_concurrent_per_worker: max_concurrent_per_worker,
+    backlog: backlog,
+    max_header_bytes: max_header_bytes
+  }.each |name, value|:
+    unless Int === value and value > 0:
+      raise ArgumentError(name.to_str + " must be a positive Int")
+  unless Int === max_body_bytes and max_body_bytes >= 0:
+    raise ArgumentError("max_body_bytes must be a non-negative Int")
+  unless Bool === reuse_addr:
+    raise ArgumentError("reuse_addr must be Bool")
+  {read_timeout: read_timeout, write_timeout: write_timeout}.each |name, value|:
+    unless (Int === value or Float === value) and value >= 0:
+      raise ArgumentError(name.to_str + " must be a finite non-negative number")
+  unless max_requests == null or (Int === max_requests and max_requests >= 0):
+    raise ArgumentError("max_requests must be a non-negative Int or null")
+  true
+
 class App:
   attr routes
 
@@ -1321,41 +1670,38 @@ class App:
     services: {},
     head_fallback: true,
     automatic_options: true,
-    expose_exceptions: false
+    expose_exceptions: false,
+    on_error: null
   ):
     @routes = routes
-    @middleware = _middleware_list(middleware)
-    @integrations = integrations.copy
-    @services = services.copy
+    @middleware = _middleware_list(middleware).freeze
+    @integrations = integrations.copy.freeze
+    @services = services.copy.freeze
     @head_fallback = head_fallback
     @automatic_options = automatic_options
     @expose_exceptions = expose_exceptions
+    @on_error = on_error
+    @dispatch_endpoint = DispatchEndpoint(
+      @routes,
+      @head_fallback,
+      @automatic_options,
+      @services,
+      @integrations)
 
   def call(request):
     normalized = if ServerRequest === request then Request.from_server(request) else request
     unless Request === normalized:
       raise ArgumentError("App#call expects ember.Request or net.http.ServerRequest")
-    try:
-      if normalized.method == "QUERY" and not normalized.header("content-type"):
-        return render(text: "QUERY request requires Content-Type", status: :bad_request)
-      lookup = @routes.lookup(normalized.path, normalized.method,
-        head_fallback: @head_fallback,
-        automatic_options: @automatic_options)
-      if lookup.kind == :not_found:
-        return render(text: "not found", status: :not_found)
-      if lookup.kind == :method_not_allowed:
-        return render(text: "method not allowed", status: :method_not_allowed,
-          headers: {"allow": lookup.allowed_methods.join(", ")})
-      if lookup.kind == :options:
-        return Response(status: :no_content,
-          headers: {"allow": lookup.allowed_methods.join(", ")}, body: "")
+    _call_normalized(normalized)
 
-      match = lookup.match
-      routed = normalized._routed(@routes, match.route, match.path_params, @services)
-      endpoint = RouteEndpoint(match, @integrations)
-      chain = MiddlewareNext(@middleware + match.route.middleware, 0, endpoint)
-      response = normalize_response(chain(routed))
-      if normalized.method == "HEAD":
+  def _call_normalized(request as Request):
+    observed_request = request
+    try:
+      if request.method == "QUERY" and not request.header("content-type"):
+        return render(text: "QUERY request requires Content-Type", status: :bad_request)
+      chain = MiddlewareNext(@middleware, 0, @dispatch_endpoint)
+      response = normalize_response(chain(request))
+      if request.method == "HEAD":
         return Response(status: response.status, headers: response.headers, body: "")
       response
     rescue InvalidPathError |error|:
@@ -1369,6 +1715,9 @@ class App:
     rescue RequestParamsError |error|:
       render(text: "bad request", status: :bad_request)
     rescue Exception |error|:
+      raise error if _propagated_error?(error)
+      route_pattern = request.response_header_sink[?"__ember_route_pattern"]
+      _report_error(@on_error, error, observed_request, route_pattern)
       message = if @expose_exceptions then error.message else "internal server error"
       render(text: message, status: :internal_server_error)
 
@@ -1377,13 +1726,36 @@ class App:
     port: 3000,
     workers: 1,
     max_concurrent_per_worker: 32,
+    backlog: 128,
+    reuse_addr: true,
+    max_header_bytes: 65536,
+    max_body_bytes: 1048576,
+    read_timeout: 30.0,
+    write_timeout: 30.0,
     max_requests: null
   ):
+    _validate_server_options!(
+      port,
+      workers,
+      max_concurrent_per_worker,
+      backlog,
+      reuse_addr,
+      max_header_bytes,
+      max_body_bytes,
+      read_timeout,
+      write_timeout,
+      max_requests)
     server = Server(
       host: host,
       port: port,
       workers: workers,
-      max_concurrent_per_worker: max_concurrent_per_worker)
+      max_concurrent_per_worker: max_concurrent_per_worker,
+      backlog: backlog,
+      reuse_addr: reuse_addr,
+      max_header_bytes: max_header_bytes,
+      max_body_bytes: max_body_bytes,
+      read_timeout: read_timeout,
+      write_timeout: write_timeout)
     server.serve(max_requests: max_requests) |server_request|:
       call(Request.from_server(server_request)).to_server_response
 
@@ -1392,7 +1764,7 @@ class Controller:
 
   def init(@request as Request):
     @response_status = :ok
-    @response_headers = {}
+    @response_headers = Headers()
     @committed = false
 
   def status(value):
@@ -1402,13 +1774,18 @@ class Controller:
 
   def header(name, value):
     _ensure_mutable!
-    @response_headers.store!(name.to_str.downcase, value)
+    @response_headers = @response_headers.set(name, value)
+    self
+
+  def append_header(name, value):
+    _ensure_mutable!
+    @response_headers = @response_headers.add(name, value)
     self
 
   def render(value = null, text: null, html: null, json: null, body: null, status: null, headers: {}):
     _ensure_renderable!
     chosen_status = if status == null then @response_status else status
-    merged_headers = @response_headers.merge(_header_map(headers))
+    merged_headers = @response_headers.merge(headers)
     response = _render_response(value,
       text: text,
       html: html,
@@ -1423,7 +1800,7 @@ class Controller:
     _ensure_renderable!
     response = _redirect_response(to,
       status: status,
-      headers: @response_headers.merge(_header_map(headers)),
+      headers: @response_headers.merge(headers),
       external: external)
     @committed = true
     response
@@ -1433,7 +1810,7 @@ class Controller:
     unless producer:
       raise ArgumentError("Controller#stream requires a producer block")
     chosen_status = if status == null then @response_status else status
-    merged_headers = @response_headers.merge(_header_map(headers))
+    merged_headers = @response_headers.merge(headers)
     response = StreamingResponse(
       status: chosen_status,
       headers: merged_headers,

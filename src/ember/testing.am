@@ -15,12 +15,12 @@ def request(
 ):
   if json != null and body != "":
     raise ArgumentError("testing.request accepts either body: or json:")
-  request_headers = headers.copy
+  request_headers = ember.Headers(headers)
   request_body = body
   if json != null:
     request_body = Json.generate(json)
-    unless request_headers[?"content-type"]:
-      request_headers.store!("content-type", "application/json")
+    unless request_headers.include?("content-type"):
+      request_headers = request_headers.set("content-type", "application/json")
   path = target
   raw_query = query
   if target.contains?("?"):

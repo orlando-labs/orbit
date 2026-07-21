@@ -103,7 +103,7 @@ def main():
     trailers: ["x-finished"]) |body|:
       null
   assert(streaming.status == 201, "streaming status selection")
-  assert(streaming.headers[?"x-selected"] == "yes", "streaming selected headers")
+  assert(streaming.header("x-selected") == "yes", "streaming selected headers")
   assert(streaming.trailers == ["x-finished"], "streaming declared trailers")
 
   local_stream = ember.Request(method: "POST", body_text: "hello").body_stream

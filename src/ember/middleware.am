@@ -10,10 +10,15 @@ def request_id(request, next):
 
 class RequestIdMiddleware:
   def call(request, next):
-    request_id = request.header("x-request-id") or Uuid.v4.to_str
-    response = ember.normalize_response(next(request))
-    headers = response.headers.merge({"x-request-id": request_id})
-    ember.Response(status: response.status, headers: headers, body: response.body)
+    RequestIdContinuation(request, next).call
+
+class RequestIdContinuation:
+  def init(@request, @next)
+
+  def call():
+    @request_id = @request.header("x-request-id") or Uuid.v4.to_str
+    response = ember.normalize_response(@next(@request))
+    ember.with_response_header(response, "x-request-id", @request_id)
 
 def access_log(request, next):
   AccessLogMiddleware()(request, next)
@@ -22,8 +27,14 @@ class AccessLogMiddleware:
   def init(@to: io.stderr)
 
   def call(request, next):
-    response = ember.normalize_response(next(request))
-    @to.write_line("#{request.method} #{request.path} -> #{response.status}")
+    AccessLogContinuation(request, next, @to).call
+
+class AccessLogContinuation:
+  def init(@request, @next, @to)
+
+  def call():
+    response = ember.normalize_response(@next(@request))
+    @to.write_line("#{@request.method} #{@request.path} -> #{ember.response_status(response)}")
     @to.flush
     response
 
