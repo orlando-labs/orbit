@@ -1,0 +1,16 @@
+schema: amber.build.v1
+name: ember.contract_selftest
+root: ember.contract_selftest
+
+profiles:
+  required: [core.v1, macro.v1]
+  optional: []
+  forbidden: []
+
+modules:
+  - name: ember
+    path: ../src/ember.am
+  - name: ember.testing
+    path: ../src/ember/testing.am
+  - name: ember.contract_selftest
+    path: contract_selftest.am

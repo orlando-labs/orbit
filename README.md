@@ -12,7 +12,7 @@ The current preview includes:
 - literal, typed parameter, and terminal wildcard routes with deterministic
   precedence;
 - named paths, scopes, mounts, route middleware, automatic OPTIONS, and
-  optional HEAD-from-GET;
+  HEAD-from-GET by default with an explicit opt-out;
 - RFC 10008 `QUERY` routes with request content and mandatory `Content-Type`;
 - declarative strong-parameter schemas for JSON bodies and query strings;
 - request/response values, JSON/text/HTML rendering, safe redirects, and
@@ -88,6 +88,10 @@ before percent decoding, malformed encodings are rejected, trailing slashes
 match strictly, and route/path/segment sizes are bounded. A wildcard must be
 terminal. Duplicate normalized shapes and duplicate names are rejected when a
 `Routes` value is constructed.
+
+The normative Ember 1.0 routing and response rules, including `HEAD`, trailing
+slashes, status/content combinations, 404/405, and automatic `OPTIONS`, are in
+the [HTTP contract](docs/HTTP_CONTRACT.md).
 
 Use `routes.path(:post, id: 42)`,
 `routes.url(:post, id: 42, origin: "https://example.test")`, and
@@ -243,6 +247,12 @@ See `examples/sqlite_users.am` and `test/orm_selftest.am` for complete graphs.
 ## Verification
 
 ```sh
+# Stage 0 HTTP/routing contract
+../amber-lang/build/amberc build test/contract_selftest.build.yaml \
+  --target native --out-dir out-contract-native \
+  --cache-dir cache-contract-native --no-cache
+./out-contract-native/ember.contract_selftest
+
 # Source-only framework behavior
 ../amber-lang/build/amberc build test/core_selftest.build.yaml \
   --target native --out-dir out-native --cache-dir cache-native --no-cache
@@ -265,6 +275,17 @@ See `examples/sqlite_users.am` and `test/orm_selftest.am` for complete graphs.
   --grant net.listen --grant net.connect
 ./out-http-native/ember.http_selftest
 ```
+
+## Ember 1.0 contract
+
+The accepted [Ember 1.0 contract ADR](docs/adr/0001-ember-1-0-contract.md)
+closes the semantic decisions from roadmap stage 0. Its supporting documents
+define the [public API boundary](docs/PUBLIC_API.md),
+[edge deployment model](docs/DEPLOYMENT.md),
+[compatibility policy](docs/COMPATIBILITY.md), and measurable
+[production-readiness gates](docs/PRODUCTION_READINESS.md). These documents are
+the target contract; the current preview does not yet satisfy the production
+gates.
 
 ## Current transport boundary
 
