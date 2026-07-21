@@ -19,6 +19,8 @@ The current preview includes:
   production-safe exception responses;
 - cooperative full-duplex HTTP/1.1 request/response streams with chunk
   extensions and trailers;
+- bounded HTTP/1.1 keep-alive, immediate overload rejection, and an explicit
+  readiness/drain/deadline-shutdown server lifecycle;
 - inline escaped `html"""..."""` templates and ordinary typed Amber view
   modules;
 - in-memory request builders and response assertions;
@@ -241,8 +243,37 @@ Bare handlers have no hidden controller lifecycle. Use route middleware
 `before: [ember_orm.connection(database)]` or the `before` annotation.
 Pool timeout, closed, and lease failures become a safe 503 response.
 Transactions remain explicit business boundaries through the ORM model/pool.
+The pool integration participates in server startup/readiness/shutdown, so a
+deadline cancellation unwinds request leases before the pool closes.
 
 See `examples/sqlite_users.am` and `test/orm_selftest.am` for complete graphs.
+
+## Production transport lifecycle
+
+Use `App#start` when the process adapter needs readiness and graceful shutdown:
+
+```amber
+server = app.start(
+  port: 3000,
+  workers: 2,
+  max_concurrent_per_worker: 64,
+  idle_timeout: 15.0,
+  max_requests_per_connection: 100,
+  shutdown_timeout: 30.0,
+  overload: :reject)
+
+# In the signal/platform adapter:
+server.stop_accepting()
+clean = server.shutdown()
+stats = server.wait()
+```
+
+`ready?`, `accepting?`, `in_flight`, and `stats` expose lifecycle state.
+Shutdown first stops admission, drains buffered and streaming requests, then
+closes streams and cooperatively cancels remaining tasks at the deadline.
+Integration stop hooks run once, in reverse order, after all request `ensure`
+scopes have unwound. See the complete [transport contract](docs/TRANSPORT.md)
+and [edge deployment model](docs/DEPLOYMENT.md).
 
 ## Verification
 
@@ -252,6 +283,19 @@ See `examples/sqlite_users.am` and `test/orm_selftest.am` for complete graphs.
   --target native --out-dir out-contract-native \
   --cache-dir cache-contract-native --no-cache
 ./out-contract-native/ember.contract_selftest
+
+# Stage 1 correctness and lifecycle invariants
+../amber-lang/build/amberc build test/stage1_selftest.build.yaml \
+  --target native --out-dir out-stage1-native \
+  --cache-dir cache-stage1-native --no-cache --grant random.secure
+./out-stage1-native/ember.stage1_selftest
+
+# Stage 2 production transport and raw HTTP conformance
+../amber-lang/build/amberc build test/stage2_selftest.build.yaml \
+  --target native --out-dir out-stage2-native \
+  --cache-dir cache-stage2-native --no-cache \
+  --grant net.listen --grant net.connect
+./out-stage2-native/ember.stage2_selftest
 
 # Source-only framework behavior
 ../amber-lang/build/amberc build test/core_selftest.build.yaml \
@@ -283,18 +327,20 @@ closes the semantic decisions from roadmap stage 0. Its supporting documents
 define the [public API boundary](docs/PUBLIC_API.md),
 [edge deployment model](docs/DEPLOYMENT.md),
 [compatibility policy](docs/COMPATIBILITY.md), and measurable
-[production-readiness gates](docs/PRODUCTION_READINESS.md). These documents are
-the target contract; the current preview does not yet satisfy the production
-gates.
+[production-readiness gates](docs/PRODUCTION_READINESS.md). Contract,
+correctness, and production-transport gates 0–2 are complete; security,
+observability/performance, release engineering, and RC validation remain.
 
 ## Current transport boundary
 
-The low-level server is plaintext HTTP/1.1 with one request per accepted
-connection and explicit `Connection: close`. Buffered and chunked full-duplex
-bodies are supported, including `Expect: 100-continue`, chunk extensions, and
-trailers. Ember does not yet claim TLS, HTTP/2, keep-alive, WebSocket,
-multipart, sessions, cookies, CSRF, or production-ready proxy trust. Those are
-later layers, not hidden behavior in the preview.
+The low-level server is plaintext HTTP/1.1 with bounded sequential keep-alive
+and pipelining, finite idle/request limits, hard connection capacity, and
+immediate `503` overload rejection. Buffered and chunked full-duplex bodies are
+supported, including `Expect: 100-continue`, chunk extensions, and trailers.
+The server handle implements stop-accepting, clean drain, deadline
+cancellation, and idempotent shutdown. Ember does not claim direct TLS,
+HTTP/2/3, WebSocket, multipart, sessions, cookies, CSRF, or production-ready
+proxy trust; those remain later or edge layers, not hidden behavior.
 
 Dynamic slugs and CMS paths remain database data behind static parameter or
 lowest-precedence wildcard routes. Normalization, history, tenant/locale

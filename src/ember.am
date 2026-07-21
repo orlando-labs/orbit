@@ -1,6 +1,8 @@
 package ember
 
-from net.http import Headers as NativeHeaders, Server, ServerRequest, ServerResponse
+from net.http import Server, ServerRequest, ServerResponse
+from sync import Atomic, Mutex
+import task
 
 # Ember core is deliberately source-only. The router, application pipeline,
 # controller lifecycle, and HTTP adapter do not depend on an ORM or an FFI
@@ -22,7 +24,7 @@ export macro options
 export macro scope
 export macro mount
 export __route, __scope, __mount, __before
-export App, Routes, Route, RouteMatch, RouteLookup, Request, Response, Headers
+export App, ServerHandle, Routes, Route, RouteMatch, RouteLookup, Request, Response, Headers
 export RequestBodyStream, RequestChunk, StreamingResponse, StreamBody
 export Controller, Target, Html, ErrorEvent
 export ParamSchema, ParamField, ParamObject, ParamArray, ParamIssue
@@ -33,6 +35,7 @@ export EmberError, RouteError, InvalidRouteError, DuplicateRouteError
 export DuplicateRouteNameError, InvalidPathError, RouteParamError
 export RouteNotFoundError, UnknownRouteNameError, PathGenerationError
 export InvalidResponseError, DoubleRenderError, ResponseCommittedError
+export ServerLifecycleError
 export UnknownStatusError, UnknownServiceError, UnsafeRedirectError
 export RequestParamsError, ParamsParseError, ParamsShapeError
 export ParamsUnsupportedMediaTypeError, ParamsBodyConsumedError
@@ -56,6 +59,7 @@ class RouteNotFoundError < RouteError
 class UnknownRouteNameError < RouteError
 class PathGenerationError < RouteError
 class InvalidResponseError < EmberError
+class ServerLifecycleError < EmberError
 class DoubleRenderError < EmberError
 class ResponseCommittedError < EmberError
 class UnknownStatusError < EmberError
@@ -83,7 +87,9 @@ def _status_codes():
     created: 201,
     accepted: 202,
     no_content: 204,
+    reset_content: 205,
     moved_permanently: 301,
+    not_modified: 304,
     temporary_redirect: 307,
     permanent_redirect: 308,
     bad_request: 400,
@@ -143,6 +149,16 @@ def _header_content_length!(headers):
         raise InvalidHeaderError("conflicting Content-Length values")
   canonical
 
+def _decimal_header_value(raw):
+  digits = {
+    "0": 0, "1": 1, "2": 2, "3": 3, "4": 4,
+    "5": 5, "6": 6, "7": 7, "8": 8, "9": 9
+  }
+  value = 0
+  raw.chars.each |char|:
+    value = value * 10 + digits[char]
+  value
+
 def _validate_header_semantics!(headers):
   content_length = _header_content_length!(headers)
   if content_length != null and headers.include?("transfer-encoding"):
@@ -178,7 +194,7 @@ class Headers:
 
   def init(source = null):
     normalized_pairs = []
-    if source != null:
+    if source:
       case source:
         when Headers:
           source.each |name, value|:
@@ -194,11 +210,18 @@ class Headers:
             unless pair.count == 2:
               raise ArgumentError("header pairs must contain name and value")
             normalized_pairs.push!(_validated_header_pair(pair[0], pair[1]))
-        when NativeHeaders:
-          source.each |name, value|:
-            normalized_pairs.push!(_validated_header_pair(name, value))
         else:
-          raise ArgumentError("headers must be ember.Headers, net.http.Headers, a Map, or ordered pairs")
+          try:
+            source.to_pairs.each |pair|:
+              unless pair.count == 2:
+                raise ArgumentError("header pairs must contain name and value")
+              normalized_pairs.push!(_validated_header_pair(pair[0], pair[1]))
+          rescue NoMethodError:
+            try:
+              source.each |name, value|:
+                normalized_pairs.push!(_validated_header_pair(name, value))
+            rescue NoMethodError:
+              raise ArgumentError("headers must be ember.Headers, net.http.Headers, a Map, or ordered pairs")
     @pairs = normalized_pairs.freeze
     _validate_header_semantics!(self)
 
@@ -255,10 +278,7 @@ class Headers:
     Headers(kept + replacement.to_pairs)
 
   def to_native():
-    native = NativeHeaders()
-    @pairs.each |pair|:
-      native.add!(pair[0], pair[1])
-    native
+    @pairs.copy
 
 def _headers(value):
   if Headers === value then value else Headers(value)
@@ -303,8 +323,8 @@ class Response:
   def init(status: 200, headers: {}, body: ""):
     @status = status_code(status)
     @headers = _headers(headers)
-    if @headers.include?("transfer-encoding"):
-      raise InvalidHeaderError("buffered response framing does not accept Transfer-Encoding")
+    if @headers.include?("transfer-encoding") or @headers.include?("trailer"):
+      raise InvalidHeaderError("buffered response framing does not accept Transfer-Encoding or Trailer")
     @body = body
 
   def header(name):
@@ -379,8 +399,8 @@ class StreamingResponse:
       raise ArgumentError("streaming response requires a producer block")
     @status = status_code(status)
     @headers = _headers(headers)
-    if @headers.include?("content-length") or @headers.include?("transfer-encoding"):
-      raise InvalidHeaderError("streaming response owns Content-Length and Transfer-Encoding")
+    if @headers.include?("content-length") or @headers.include?("transfer-encoding") or @headers.include?("trailer"):
+      raise InvalidHeaderError("streaming response owns Content-Length, Transfer-Encoding, and Trailer")
     @trailers = trailers.copy.freeze
     @producer = producer
 
@@ -436,6 +456,55 @@ def normalize_response(value):
   if Bytes === value:
     return Response(headers: {"content-type": "application/octet-stream"}, body: value)
   raise InvalidResponseError("handler returned an unsupported response value")
+
+def _validate_buffered_content_length!(response, expected):
+  raw = _header_content_length!(response.headers)
+  if raw != null and _decimal_header_value(raw) != expected:
+    raise InvalidResponseError("Content-Length does not match the buffered response body")
+  response
+
+def _response_with_headers(response, headers):
+  Response(status: response.status, headers: headers, body: response.body)
+
+def _apply_response_rules(response, method):
+  code = response.status
+  if code >= 100 and code < 200:
+    raise InvalidResponseError("informational responses cannot be final application responses")
+
+  contentless = code == 204 or code == 205 or code == 304
+  if StreamingResponse === response:
+    if contentless:
+      raise InvalidResponseError("streaming response status does not permit content")
+    if method == "HEAD":
+      return Response(status: code, headers: response.headers, body: "")
+    return response
+
+  unless Response === response:
+    raise InvalidResponseError("response rules expect an Ember response")
+
+  body_size = response.body_bytes.count
+  if contentless and body_size != 0:
+    raise InvalidResponseError("response status does not permit content")
+
+  headers = response.headers
+  if code == 204:
+    if headers.include?("content-length"):
+      raise InvalidResponseError("204 response must not include Content-Length")
+  elif code == 205:
+    _validate_buffered_content_length!(response, 0)
+  elif code == 304:
+    # Ember cannot prove the size of the selected 200 representation at this
+    # boundary, so an application-supplied value is omitted rather than
+    # forwarding unverified framing metadata.
+    headers = headers.delete("content-length")
+  else:
+    _validate_buffered_content_length!(response, body_size)
+
+  if method == "HEAD":
+    if not contentless and not headers.include?("content-length"):
+      headers = headers.set("content-length", body_size.to_str)
+    return Response(status: code, headers: headers, body: "")
+  _response_with_headers(response, headers)
 
 def response_status(response):
   return _streaming_response_status(response) if StreamingResponse === response
@@ -1637,6 +1706,10 @@ def _validate_server_options!(
   max_body_bytes,
   read_timeout,
   write_timeout,
+  idle_timeout,
+  max_requests_per_connection,
+  shutdown_timeout,
+  overload,
   max_requests
 ):
   unless Int === port and port >= 0 and port <= 65535:
@@ -1653,12 +1726,211 @@ def _validate_server_options!(
     raise ArgumentError("max_body_bytes must be a non-negative Int")
   unless Bool === reuse_addr:
     raise ArgumentError("reuse_addr must be Bool")
-  {read_timeout: read_timeout, write_timeout: write_timeout}.each |name, value|:
+  {
+    read_timeout: read_timeout,
+    write_timeout: write_timeout,
+    idle_timeout: idle_timeout,
+    shutdown_timeout: shutdown_timeout
+  }.each |name, value|:
     unless (Int === value or Float === value) and value >= 0:
       raise ArgumentError(name.to_str + " must be a finite non-negative number")
+  unless Int === max_requests_per_connection and max_requests_per_connection > 0:
+    raise ArgumentError("max_requests_per_connection must be a positive Int")
+  unless overload == :reject:
+    raise ArgumentError("overload must be :reject")
   unless max_requests == null or (Int === max_requests and max_requests >= 0):
     raise ArgumentError("max_requests must be a non-negative Int or null")
   true
+
+def _integration_start(integration):
+  try:
+    integration.start()
+  rescue NoMethodError:
+    null
+
+def _integration_stop(integration):
+  try:
+    integration.stop()
+  rescue NoMethodError:
+    null
+
+def _integration_ready?(integration):
+  try:
+    integration.ready?()
+  rescue NoMethodError:
+    true
+  rescue Exception |error|:
+    raise error if _propagated_error?(error)
+    false
+
+class ServerHandle:
+  attr app
+
+  def init(
+    @app,
+    integrations,
+    host:,
+    port:,
+    workers:,
+    max_concurrent_per_worker:,
+    backlog:,
+    reuse_addr:,
+    max_header_bytes:,
+    max_body_bytes:,
+    read_timeout:,
+    write_timeout:,
+    idle_timeout:,
+    max_requests_per_connection:,
+    shutdown_timeout:,
+    overload:
+  ):
+    @integrations = integrations
+    @started_integrations = []
+    @lifecycle_mutex = Mutex.new()
+    @serving_mutex = Mutex.new()
+    @shutdown_mutex = Mutex.new()
+    @serving_started = false
+    @ready = Atomic.new(false)
+    @shutdown_started = false
+    @shutdown_clean = true
+    @integrations_stopped = false
+    @shutdown_timeout = shutdown_timeout
+    @runner = null
+
+    try:
+      @integrations.each |integration|:
+        _integration_start(integration)
+        @started_integrations.push!(integration)
+      @native = Server(
+        host: host,
+        port: port,
+        workers: workers,
+        max_concurrent_per_worker: max_concurrent_per_worker,
+        backlog: backlog,
+        reuse_addr: reuse_addr,
+        max_header_bytes: max_header_bytes,
+        max_body_bytes: max_body_bytes,
+        read_timeout: read_timeout,
+        write_timeout: write_timeout,
+        idle_timeout: idle_timeout,
+        max_requests_per_connection: max_requests_per_connection,
+        overload: overload)
+    rescue Exception |error|:
+      _stop_integrations(raise_errors: false)
+      raise error
+
+  def port():
+    @native.port()
+
+  def local_endpoint():
+    @native.local_endpoint()
+
+  def accepting?():
+    @native.accepting?()
+
+  def ready?():
+    return false unless @ready.get() and accepting?()
+    @started_integrations.all? |integration|: _integration_ready?(integration)
+
+  def stats():
+    raw = @native.stats()
+    {
+      accepted: raw["accepted"],
+      completed: raw["completed"],
+      failed: raw["failed"],
+      rejected: raw["rejected"],
+      active: raw["active"],
+      requests: raw["requests"],
+      active_requests: raw["active_requests"],
+      keepalive_requests: raw["keepalive_requests"],
+      forced_shutdowns: raw["forced_shutdowns"],
+      capacity: raw["capacity"]
+    }
+
+  def in_flight():
+    stats()[:active_requests]
+
+  def start(max_requests: null):
+    already_started = false
+    @serving_mutex.synchronize:
+      if @serving_started:
+        already_started = true
+      else:
+        @serving_started = true
+    if already_started:
+      raise ServerLifecycleError("server handle can only be started once")
+    @ready.set(true) if accepting?()
+    @runner = task.spawn:
+      _serve(max_requests)
+    self
+
+  def serve(max_requests: null):
+    already_started = false
+    @serving_mutex.synchronize:
+      if @serving_started:
+        already_started = true
+      else:
+        @serving_started = true
+    if already_started:
+      raise ServerLifecycleError("server handle can only be served once")
+    @ready.set(true) if accepting?()
+    _serve(max_requests)
+
+  def _serve(max_requests):
+    try:
+      @native.serve(max_requests: max_requests) |server_request|:
+        @app.call(Request.from_server(server_request)).to_server_response
+      stats()
+    ensure:
+      @ready.set(false)
+      _stop_integrations()
+
+  def wait():
+    unless @runner:
+      raise ServerLifecycleError("server handle was not started asynchronously")
+    @runner.wait()
+    stats()
+
+  def stop_accepting():
+    @ready.set(false)
+    @native.stop_accepting!()
+    self
+
+  def shutdown(timeout: null):
+    selected_timeout = if timeout == null then @shutdown_timeout else timeout
+    unless (Int === selected_timeout or Float === selected_timeout) and selected_timeout >= 0:
+      raise ArgumentError("shutdown timeout must be a finite non-negative number")
+    result = true
+    @shutdown_mutex.synchronize:
+      if @shutdown_started:
+        result = @shutdown_clean
+      else:
+        @shutdown_started = true
+        clean = false
+        try:
+          @ready.set(false)
+          clean = @native.shutdown!(timeout: selected_timeout)
+          @shutdown_clean = clean
+          result = clean
+        ensure:
+          _stop_integrations()
+    result
+
+  def _stop_integrations(raise_errors: true):
+    first_error = null
+    @lifecycle_mutex.synchronize:
+      unless @integrations_stopped:
+        @integrations_stopped = true
+        index = @started_integrations.count - 1
+        while index >= 0:
+          try:
+            _integration_stop(@started_integrations[index])
+          rescue Exception |error|:
+            first_error = error unless first_error
+          index -= 1
+    if raise_errors and first_error:
+      raise first_error
+    null
 
 class App:
   attr routes
@@ -1701,25 +1973,81 @@ class App:
         return render(text: "QUERY request requires Content-Type", status: :bad_request)
       chain = MiddlewareNext(@middleware, 0, @dispatch_endpoint)
       response = normalize_response(chain(request))
-      if request.method == "HEAD":
-        return Response(status: response.status, headers: response.headers, body: "")
-      response
+      _apply_response_rules(response, request.method)
     rescue InvalidPathError |error|:
-      render(text: "bad request", status: :bad_request)
+      _apply_response_rules(render(text: "bad request", status: :bad_request), request.method)
     rescue UrlDecodeError |error|:
-      render(text: "bad request", status: :bad_request)
+      _apply_response_rules(render(text: "bad request", status: :bad_request), request.method)
     rescue RouteParamError |error|:
-      render(text: "bad request", status: :bad_request)
+      _apply_response_rules(render(text: "bad request", status: :bad_request), request.method)
     rescue ParamsUnsupportedMediaTypeError |error|:
-      render(text: "unsupported media type", status: :unsupported_media_type)
+      _apply_response_rules(
+        render(text: "unsupported media type", status: :unsupported_media_type),
+        request.method)
     rescue RequestParamsError |error|:
-      render(text: "bad request", status: :bad_request)
+      _apply_response_rules(render(text: "bad request", status: :bad_request), request.method)
     rescue Exception |error|:
       raise error if _propagated_error?(error)
       route_pattern = request.response_header_sink[?"__ember_route_pattern"]
       _report_error(@on_error, error, observed_request, route_pattern)
       message = if @expose_exceptions then error.message else "internal server error"
-      render(text: message, status: :internal_server_error)
+      _apply_response_rules(
+        render(text: message, status: :internal_server_error),
+        request.method)
+
+  def server(
+    host: "127.0.0.1",
+    port: 3000,
+    workers: 1,
+    max_concurrent_per_worker: 32,
+    backlog: 128,
+    reuse_addr: true,
+    max_header_bytes: 65536,
+    max_body_bytes: 1048576,
+    read_timeout: 30.0,
+    write_timeout: 30.0,
+    idle_timeout: 15.0,
+    max_requests_per_connection: 100,
+    shutdown_timeout: 30.0,
+    overload: :reject
+  ):
+    _validate_server_options!(
+      port,
+      workers,
+      max_concurrent_per_worker,
+      backlog,
+      reuse_addr,
+      max_header_bytes,
+      max_body_bytes,
+      read_timeout,
+      write_timeout,
+      idle_timeout,
+      max_requests_per_connection,
+      shutdown_timeout,
+      overload,
+      null)
+    ServerHandle(
+      self,
+      @integrations,
+      host: host,
+      port: port,
+      workers: workers,
+      max_concurrent_per_worker: max_concurrent_per_worker,
+      backlog: backlog,
+      reuse_addr: reuse_addr,
+      max_header_bytes: max_header_bytes,
+      max_body_bytes: max_body_bytes,
+      read_timeout: read_timeout,
+      write_timeout: write_timeout,
+      idle_timeout: idle_timeout,
+      max_requests_per_connection: max_requests_per_connection,
+      shutdown_timeout: shutdown_timeout,
+      overload: overload)
+
+  def start(max_requests: null, **options):
+    unless max_requests == null or (Int === max_requests and max_requests >= 0):
+      raise ArgumentError("max_requests must be a non-negative Int or null")
+    server(**options).start(max_requests: max_requests)
 
   def run(
     host: "127.0.0.1",
@@ -1732,6 +2060,10 @@ class App:
     max_body_bytes: 1048576,
     read_timeout: 30.0,
     write_timeout: 30.0,
+    idle_timeout: 15.0,
+    max_requests_per_connection: 100,
+    shutdown_timeout: 30.0,
+    overload: :reject,
     max_requests: null
   ):
     _validate_server_options!(
@@ -1744,8 +2076,12 @@ class App:
       max_body_bytes,
       read_timeout,
       write_timeout,
+      idle_timeout,
+      max_requests_per_connection,
+      shutdown_timeout,
+      overload,
       max_requests)
-    server = Server(
+    handle = server(
       host: host,
       port: port,
       workers: workers,
@@ -1755,9 +2091,12 @@ class App:
       max_header_bytes: max_header_bytes,
       max_body_bytes: max_body_bytes,
       read_timeout: read_timeout,
-      write_timeout: write_timeout)
-    server.serve(max_requests: max_requests) |server_request|:
-      call(Request.from_server(server_request)).to_server_response
+      write_timeout: write_timeout,
+      idle_timeout: idle_timeout,
+      max_requests_per_connection: max_requests_per_connection,
+      shutdown_timeout: shutdown_timeout,
+      overload: overload)
+    handle.serve(max_requests: max_requests)
 
 class Controller:
   attr request

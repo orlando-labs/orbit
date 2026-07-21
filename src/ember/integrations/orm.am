@@ -16,6 +16,18 @@ def connection(database):
 class PoolIntegration:
   def init(@database)
 
+  def start():
+    if @database.closed?():
+      raise ConnectionPoolClosedError("cannot start Ember with a closed ORM pool")
+    self
+
+  def ready?():
+    not @database.closed?
+
+  def stop():
+    @database.close! unless @database.closed?()
+    null
+
   def around_controller(request, next):
     try:
       @database.with_connection:

@@ -1,6 +1,4 @@
-Вердикт: Ember уже выглядит как сильный framework preview, но пока не production-ready. Базовый API работает; главные точки роста — транспортный lifecycle, безопасность, наблюдаемость, доказуемая надёжность и выпуск пакета.
-
-Код не изменялся, рабочее дерево осталось чистым. После чистой сборки прошли все четыре набора self-tests: core, strong params, loopback HTTP и ORM.
+Вердикт: Ember уже выглядит как сильный framework preview, но пока не production-ready. Этапы 0–2 завершены: HTTP correctness, lifecycle, graceful shutdown и production transport реализованы и покрыты conformance/regression-тестами. Оставшиеся главные точки роста — безопасность, наблюдаемость, release engineering и RC-валидация.
 
 ## Текущее состояние
 
@@ -15,20 +13,13 @@
 - HTML escaping для обычного text/quoted-attribute контекста;
 - хороший `App#call` как тестовая граница.
 
-Основные блокеры:
+Основные оставшиеся блокеры:
 
-- [транспорт](/Users/slowpilot/workspace/amber/ember/README.md:290) обслуживает один запрос на соединение и всегда закрывает его; нет keep-alive, TLS, HTTP/2;
-- [App#run](/Users/slowpilot/workspace/amber/ember/src/ember.am:1375) не экспонирует имеющиеся в `net.http.Server` лимиты, read/write timeout, backlog и server handle;
-- нет graceful shutdown, readiness lifecycle и start/stop hooks для интеграций;
-- общий `rescue Exception` потенциально превращает cancellation в 500;
-- [request-id middleware](/Users/slowpilot/workspace/amber/ember/src/ember/middleware.am:11) несовместим со streaming response: он пытается превратить его обратно в buffered `Response`;
-- response headers представлены map-структурой, поэтому нельзя корректно выразить повторяемые поля вроде `Set-Cookie`;
-- `request.origin` доверяет `Host` и всегда считает схему `http`; нет host allowlist и trusted-proxy политики;
+- `request.origin` доверяет `Host` и всегда считает схему `http`; нет Host allowlist и trusted-proxy/CIDR политики;
 - [HTML macro](/Users/slowpilot/workspace/amber/ember/src/ember/html.am:17) не различает HTML, URL, JavaScript и CSS-контексты;
-- заявленная immutable route table требует усиления: итоговый массив копируется, но явно не замораживается;
 - нет CI, версий, тегов, LICENSE, CHANGELOG, SECURITY policy, package lock и воспроизводимого dependency resolution;
-- все пять self-test графов собираются с `native_graph_full_coverage: true` и без bytecode/VM fallback (3165/3165 code objects); дальнейшее расширение native lane остаётся совместной зоной Ember и Amber compiler/runtime;
-- тесты пока являются короткими self-tests, а не conformance/property/fuzz/load suite.
+- нет structured telemetry, метрик, tracing, performance budgets, fuzz/load/soak suite;
+- TLS и HTTP/2/3 остаются ответственностью обязательного trusted edge.
 
 ## Рекомендуемая граница Ember 1.0
 
@@ -43,8 +34,8 @@ TLS и HTTP/2/3 можно оставить нижнему транспортн�
 | Этап | Результат | Критерий выхода |
 |---|---|---|
 | 0. Контракт, 1 неделя — **выполнен 2026-07-19** | Зафиксировать HEAD fallback, trailing slash, status/body semantics, публичный API, edge deployment model и compatibility policy | Принят [ADR-0001](docs/adr/0001-ember-1-0-contract.md), опубликованы контракты и [definition of production-ready](docs/PRODUCTION_READINESS.md), решения закреплены self-test |
-| 1. Correctness и lifecycle, 2–3 недели | Исправить streaming middleware, cancellation propagation, immutable snapshots, multi-value headers; добавить error hook и configurable server limits/timeouts | Все invariants покрыты unit/property tests; shutdown и cancellation не превращаются в 500 |
-| 2. Production transport, 3–4 недели | Server handle, stop accepting, drain in-flight requests, shutdown deadline, keep-alive, overload policy, integration start/stop; корректные HEAD/204/304/1xx semantics | Graceful shutdown воспроизводим; нет потерянных ORM leases и зависших streams; HTTP conformance suite зелёный |
+| 1. Correctness и lifecycle, 2–3 недели — **выполнен 2026-07-21** | Исправить streaming middleware, cancellation propagation, immutable snapshots, multi-value headers; добавить error hook и configurable server limits/timeouts | Все invariants покрыты unit/property tests; shutdown и cancellation не превращаются в 500 |
+| 2. Production transport, 3–4 недели — **выполнен 2026-07-21** | Server handle, stop accepting, drain in-flight requests, shutdown deadline, keep-alive, overload policy, integration start/stop; корректные HEAD/204/304/1xx semantics | Graceful shutdown воспроизводим; нет потерянных ORM leases и зависших streams; HTTP conformance suite зелёный |
 | 3. Security baseline, 3–4 недели | Host authorization, explicit trusted-proxy/CIDR policy, secure request-id validation, security headers, CORS; cookies, signed/encrypted sessions, CSRF, multipart с жёсткими лимитами; context-aware HTML или запрет опасных контекстов | Threat model закрыт; выполнен framework-relevant профиль [OWASP ASVS 5.0](https://owasp.org/www-project-application-security-verification-standard/); нет critical/high findings |
 | 4. Observability и performance, 2–3 недели | Structured access/error logs, redaction, route template вместо raw path, duration/bytes/status; metrics, tracing, health/readiness; router и streaming benchmarks | Совместимость с [OpenTelemetry HTTP conventions](https://opentelemetry.io/docs/specs/semconv/http/http-spans/); определены p50/p95/p99 бюджеты и regression threshold |
 | 5. Release engineering и DX, 2–3 недели | CI matrix, versioned packages вместо sibling paths, SemVer, changelog, license, security policy, supported Amber versions; API reference, deployment/runbook и migration guide | Установка и сборка выполняются из чистого окружения одной документированной командой |
@@ -66,6 +57,23 @@ TLS и HTTP/2/3 можно оставить нижнему транспортн�
 - `test/contract_selftest.am` проверяет уже реализованные решения этапа 0;
   оставшиеся нормативные transport/status invariants явно назначены этапам 1–2.
 
+### Результат этапа 1
+
+- `ember.Headers` сохраняет порядок и повторяемые поля, валидирует имена/значения и исключает неоднозначное framing.
+- Streaming-safe middleware сохраняет тип response и повторяемые заголовки; cancellation/runtime control flow не превращается в `500`.
+- Immutable snapshots усилены для routes, matches, request metadata и headers; `on_error` получает редактированный `ErrorEvent`.
+- Все server limits/timeouts доступны через `App`, валидируются до bind.
+- `test/stage1_selftest.am` покрывает invariants, отрицательные случаи и route/path round-trip property corpus.
+
+### Результат этапа 2
+
+- Публичный `ServerHandle` реализует readiness, `stop_accepting`, in-flight/stats, blocking/async serve, clean drain, deadline cancellation и идемпотентный shutdown.
+- HTTP/1.1 transport поддерживает bounded keep-alive/pipelining, idle timeout, ограничение запросов на соединение и немедленный `503` при исчерпании hard capacity.
+- Integration hooks запускаются до readiness, останавливаются после drain/cancellation в обратном порядке; startup failure выполняет unwind уже запущенных hooks. ORM pool закрывается только после освобождения request lease.
+- Wire rules для `HEAD`, final `1xx`, `204`, `205`, `304`, `Content-Length`, `Transfer-Encoding`, trailers и malformed Host/CL-TE/obs-fold проверяются до/на границе transport.
+- `test/stage2_selftest.am` и `amber-lang/tests/vm_net_http_tests.cpp` воспроизводят keep-alive, raw-socket conformance, overload, clean/forced shutdown и cancel/unwind без потерянных leases или зависших задач.
+- Конкретный API и операционные ограничения опубликованы в [TRANSPORT.md](docs/TRANSPORT.md).
+
 Тестирование должно развиваться параллельно с этапами 1–5:
 
 - property tests для route matching и `path()` round-trip;
@@ -79,20 +87,14 @@ TLS и HTTP/2/3 можно оставить нижнему транспортн�
 
 P0 до первого production deployment:
 
-- lifecycle и graceful shutdown;
-- cancellation и streaming-safe middleware;
-- конфигурируемые лимиты/timeouts;
-- immutable request/route invariants;
-- multi-value headers;
 - Host/trusted-proxy policy;
 - context-aware HTML safety;
 - CI, conformance и fuzz corpus;
-- error reporting и минимальные structured logs.
+- structured logs, redaction и security baseline.
 
 P1 до Ember 1.0:
 
-- keep-alive;
-- metrics/tracing/readiness;
+- metrics/tracing и platform health/readiness endpoints;
 - cookies, sessions, CSRF и bounded multipart;
 - benchmarks и regression gates;
 - package/release/compatibility contract;
@@ -100,4 +102,4 @@ P1 до Ember 1.0:
 
 После 1.0 можно отложить WebSocket, HTTP/2/3 внутри процесса, direct TLS, hot reload, generators/resources, `.amv`, asset pipeline и динамически заменяемые route snapshots.
 
-Оценка для production-ready общего web-профиля: примерно 24–32 инженерные недели, или 14–18 календарных недель для двух опытных разработчиков. Самый значимый риск расписания — необходимые изменения в `amber-lang/net.http`, а не в router/API Ember.
+Оставшаяся оценка для production-ready общего web-профиля: примерно 16–24 инженерные недели. Самый значимый риск расписания теперь сосредоточен в security/HTML контрактах, observability и доказательствах RC, а не в базовом HTTP lifecycle.

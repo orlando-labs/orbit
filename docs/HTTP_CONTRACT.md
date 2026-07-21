@@ -136,14 +136,16 @@ errors become `500`. Production responses do not expose exception messages.
 
 Cancellation, client disconnect, shutdown, process-fatal failures, and runtime
 isolation/policy errors are control flow, not application failures. They MUST
-propagate to the server lifecycle and MUST NOT be converted to `500`. The error
-hook introduced before 1.0 observes reportable failures without changing this
+propagate to the server lifecycle and MUST NOT be converted to `500`. The
+`on_error` hook observes reportable failures without changing this
 classification.
 
 ## Testable invariants
 
 The in-memory and socket adapters must agree on status, method selection,
-headers (apart from hop-by-hop framing), and visible body. The stage 0 behavior
-already implemented is covered by `test/contract_selftest.am`; the remaining
-status/framing rules are release-blocking conformance cases in
+headers (apart from hop-by-hop framing), and visible body. Stage 0 routing is
+covered by `test/contract_selftest.am`; stage 1 application invariants by
+`test/stage1_selftest.am`; and stage 2 status/framing/lifecycle conformance by
+`test/stage2_selftest.am` plus the Amber runtime HTTP regression suite. These
+remain mandatory gates in
 [the production-readiness definition](PRODUCTION_READINESS.md).

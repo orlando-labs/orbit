@@ -37,16 +37,30 @@ are not public application APIs.
 `App` is public with:
 
 - `App(routes:, middleware: [], integrations: [], services: {},
-  head_fallback: true, automatic_options: true, expose_exceptions: false)`;
+  head_fallback: true, automatic_options: true, expose_exceptions: false,
+  on_error: null)`;
 - read-only `routes`;
 - `call(request)` as the primary deterministic test/adapter boundary;
-- blocking `run(host: "127.0.0.1", port: 3000, workers: 1,
-  max_concurrent_per_worker: 32, max_requests: null)`.
+- `server(**options)` returning an unstarted `ServerHandle`;
+- asynchronous `start(max_requests: null, **options)`;
+- blocking `run(**options, max_requests: null)`.
 
-Server limit/timeout keywords may be added to `run`. The lifecycle stage will
-add a public server handle without changing `call` or the meaning of existing
-keywords. `expose_exceptions: true` is a development/test option and MUST NOT be
-used in production.
+The shared server options are `host`, `port`, `workers`,
+`max_concurrent_per_worker`, `backlog`, `reuse_addr`, `max_header_bytes`,
+`max_body_bytes`, `read_timeout`, `write_timeout`, `idle_timeout`,
+`max_requests_per_connection`, `shutdown_timeout`, and `overload`. Their
+defaults and units are normative in [TRANSPORT.md](TRANSPORT.md).
+`expose_exceptions: true` is a development/test option and MUST NOT be used in
+production.
+
+`ServerHandle` is public with `start(max_requests: null)`,
+`serve(max_requests: null)`, `wait()`, `ready?()`, `accepting?()`,
+`stop_accepting()`, `shutdown(timeout: null)`, `in_flight()`, `stats()`,
+`port()`, `local_endpoint()`, and read-only `app`. A handle starts at most once;
+shutdown and stop-accepting are idempotent. `shutdown` returns whether the
+drain was clean. Stats use the stable Symbol keys `accepted`, `completed`,
+`failed`, `rejected`, `active`, `requests`, `active_requests`,
+`keepalive_requests`, `forced_shutdowns`, and `capacity`.
 
 `App#call` accepts `ember.Request` or `net.http.ServerRequest` and returns a
 normalized `Response` or `StreamingResponse` subject to the
@@ -68,10 +82,9 @@ operations are:
 - routed request metadata `routes` and `selected_route`;
 - `service(name)` and `origin()`.
 
-The concrete type of `headers` is provisional: stage 1 replaces the current
-single-value map with a case-insensitive, ordered multi-value header value.
-Applications must use `header(name)` for a single combined/selected value until
-that API lands. Direct map mutation is not public.
+Request headers are exposed as the immutable `Headers` value described below.
+Applications may use `header(name)` for the first/selected value or
+`headers.all(name)` when repeated fields matter. Direct mutation is not public.
 
 `origin()` is also security-sensitive: its public meaning for 1.0 is the
 validated effective origin after host authorization and trusted-proxy
@@ -96,11 +109,18 @@ The following are public:
 - `render`, `redirect`, `stream`, `normalize_response`, and `status_code`;
 - `Html`, including `Html.escape`, `Html.raw`, `Html.join`, `to_str`, and `+`.
 
-The concrete type and mutation behavior of `Response#headers` is provisional
-for the same multi-value migration as request headers. Header reads through
-`header(name)` and values passed through constructors/helpers are stable.
+`Response#headers` and `StreamingResponse#headers` are immutable `Headers`
+values. Header reads through `header(name)` and values passed through
+constructors/helpers are stable.
 `to_server_response()` is a public adapter bridge for server integrations, but
 the concrete `net.http` value it returns follows the supported Amber version.
+
+`Headers(source = null)` is a public immutable, case-insensitive, ordered
+multi-value collection. Supported reads are `first`, `all`, `include?`,
+`size`, `empty?`, `keys`, `each`, and `to_pairs`; persistent updates are `add`,
+`set`, `delete`, `without`, and `merge`. Source maps and ordered pairs are
+validated and snapshotted. Header names are canonicalized to lowercase;
+repeated values such as `Set-Cookie` remain separate and ordered.
 
 ### Controllers and extension protocols
 
@@ -114,8 +134,11 @@ Middleware is the callable protocol `(Request, next) -> response-like value`.
 middleware in declaration order.
 
 An integration supplied to `App(integrations:)` implements
-`around_controller(request, next)`. It applies only to controller targets.
-Bare handlers use route/application middleware for equivalent behavior.
+`around_controller(request, next)`. It may also implement the lifecycle hooks
+`start()`, `ready?()`, and `stop()` defined in
+[TRANSPORT.md](TRANSPORT.md). Controller wrapping applies only to controller
+targets. Bare handlers use route/application middleware for equivalent
+behavior.
 
 `Target` and its `function`/`controller` constructors are public for adapter and
 DSL authors. `Target#invoke` is the supported invocation boundary. The helper
@@ -158,7 +181,8 @@ classification are stable, but their exact message strings are not:
   `DuplicateRouteNameError`, `InvalidPathError`, `RouteParamError`,
   `RouteNotFoundError`, `UnknownRouteNameError`, `PathGenerationError`;
 - `InvalidResponseError`, `DoubleRenderError`, `ResponseCommittedError`,
-  `UnknownStatusError`, `UnknownServiceError`, `UnsafeRedirectError`;
+  `ServerLifecycleError`, `UnknownStatusError`, `UnknownServiceError`,
+  `UnsafeRedirectError`;
 - `RequestParamsError`, `ParamsParseError`, `ParamsShapeError`,
   `ParamsUnsupportedMediaTypeError`, and `ParamsBodyConsumedError`.
 
@@ -190,7 +214,10 @@ follow the same HTTP contract as `App#call`.
 Public API: `pool`, `connection`, `PoolIntegration`, and
 `ConnectionMiddleware`. Ember core remains ORM-neutral. The integration's
 request-scoped lease behavior and safe `503` mapping for pool timeout/closed/
-lease failures are stable; ORM model/query APIs belong to `amber-orm`.
+lease failures are stable. `PoolIntegration` also implements the server
+lifecycle: it rejects an already-closed pool at startup, reports readiness,
+and closes the pool after drain/cancellation. ORM model/query APIs belong to
+`amber-orm`.
 
 ## Explicitly out of scope
 

@@ -1,0 +1,314 @@
+package ember.stage2_selftest
+
+import ember
+import ember.testing
+import io
+import net
+import task
+from net.http import Client
+
+export main
+
+def assert(condition, message):
+  raise ArgumentError(message) unless condition
+
+def buffered(request):
+  ember.render(text: request.path)
+
+def streamed(request):
+  ember.stream() |body|:
+    raise ArgumentError("HEAD invoked the streaming producer")
+
+def no_content(request):
+  ember.Response(status: 204, body: "")
+
+def reset_content(request):
+  ember.Response(status: 205, body: "")
+
+def not_modified(request):
+  ember.Response(status: 304, headers: {"content-length": "42"}, body: "")
+
+def invalid_no_content(request):
+  ember.Response(status: 204, body: "not allowed")
+
+def invalid_info(request):
+  ember.Response(status: 103, body: "")
+
+def invalid_length(request):
+  ember.Response(status: 200, headers: {"content-length": "99"}, body: "short")
+
+def failure(request):
+  raise ValueError("private detail")
+
+def slow(request):
+  task.sleep(120)
+  ember.render(text: "slow")
+
+class CancelledController < ember.Controller:
+  def show():
+    task.sleep(5000)
+    render(text: "too late")
+
+class LifecycleIntegration:
+  def init(@events)
+
+  def ready?():
+    true
+
+  def around_controller(request, next):
+    next(request)
+
+class LegacyIntegration:
+  # Lifecycle hooks are optional for integrations that only wrap controllers.
+  def around_controller(request, next):
+    next(request)
+
+class FirstLifecycleIntegration < LifecycleIntegration:
+  def start():
+    @events.push!(1)
+
+  def stop():
+    @events.push!(4)
+
+class SecondLifecycleIntegration < LifecycleIntegration:
+  def start():
+    @events.push!(2)
+
+  def stop():
+    @events.push!(3)
+
+class FailedStartIntegration < LifecycleIntegration:
+  def start():
+    raise ValueError("startup failed")
+
+  def stop():
+    null
+
+class LeaseIntegration:
+  attr active
+  attr stops
+
+  def init():
+    @active = 0
+    @stops = 0
+
+  def start():
+    null
+
+  def ready?():
+    true
+
+  def stop():
+    @stops += 1
+
+  def around_controller(request, next):
+    @active += 1
+    try:
+      next(request)
+    ensure:
+      @active -= 1
+
+routes = ember.routes:
+  get "/one", to: &buffered
+  get "/two", to: &buffered
+  get "/stream", to: &streamed
+  get "/no-content", to: &no_content
+  get "/reset-content", to: &reset_content
+  get "/not-modified", to: &not_modified
+  get "/invalid-no-content", to: &invalid_no_content
+  get "/invalid-info", to: &invalid_info
+  get "/invalid-length", to: &invalid_length
+  get "/failure", to: &failure
+  get "/slow", to: &slow
+  get "/cancelled", to: &CancelledController#show
+
+def wait_for_in_flight(server):
+  attempts = 0
+  while server.in_flight() == 0 and attempts < 1000:
+    task.sleep(1)
+    attempts += 1
+  assert(server.in_flight() > 0, "request entered in-flight accounting")
+
+def raw_exchange(port, payload):
+  socket = net.tcp.connect("127.0.0.1", port)
+  socket.write_all!(payload)
+  socket.read_all!().to_str
+
+def response_semantics():
+  app = ember.App(routes: routes, expose_exceptions: false)
+
+  head_stream = app.call(testing.head("/stream"))
+  assert(ember.Response === head_stream, "HEAD converts stream to buffered metadata")
+  assert(head_stream.body_text == "", "HEAD never starts a streaming producer")
+
+  head_failure = app.call(testing.head("/failure"))
+  assert(head_failure.status == 500 and head_failure.body_text == "",
+    "HEAD suppresses error response content")
+  assert(head_failure.header("content-length") == "21",
+    "HEAD error retains hypothetical representation length")
+
+  assert(app.call(testing.get("/invalid-no-content")).status == 500,
+    "204 content is rejected before commit")
+  assert(app.call(testing.get("/invalid-info")).status == 500,
+    "final informational response is rejected")
+  assert(app.call(testing.get("/invalid-length")).status == 500,
+    "mismatched buffered Content-Length is rejected")
+
+  reset = app.call(testing.get("/reset-content"))
+  cached = app.call(testing.get("/not-modified"))
+  assert(reset.status == 205 and reset.body_text == "", "205 is contentless")
+  assert(cached.status == 304 and cached.header("content-length") == null,
+    "unverified 304 Content-Length is omitted")
+  true
+
+def keepalive_and_conformance():
+  app = ember.App(routes: routes)
+  server = app.start(
+    port: 0,
+    workers: 1,
+    max_concurrent_per_worker: 4,
+    read_timeout: 0.2,
+    write_timeout: 1.0,
+    idle_timeout: 0.2,
+    max_requests_per_connection: 20)
+  assert(server.ready?(), "started server is ready")
+
+  client = Client()
+  first = client.get("http://127.0.0.1:#{server.port()}/one")
+  first_body = first.body_text()
+  second = client.get("http://127.0.0.1:#{server.port()}/two")
+  second_body = second.body_text()
+  assert(first.status == 200 and first_body == "/one",
+    "first keep-alive response: " + first.status.to_str + ":" + first_body)
+  assert(second.status == 200 and second_body == "/two", "reused client response")
+
+  head = client.head("http://127.0.0.1:#{server.port()}/one")
+  head_body = head.body_text()
+  assert(head.status == 200 and head_body == "", "wire HEAD has no content")
+  assert(head.headers.first("content-length") == "4", "wire HEAD representation length")
+
+  no_body = client.get("http://127.0.0.1:#{server.port()}/no-content")
+  no_body.body_text()
+  reset = client.get("http://127.0.0.1:#{server.port()}/reset-content")
+  reset.body_text()
+  cached = client.get("http://127.0.0.1:#{server.port()}/not-modified")
+  cached.body_text()
+  assert(no_body.headers.first("content-length") == null, "wire 204 omits Content-Length")
+  assert(no_body.headers.first("transfer-encoding") == null, "wire 204 omits Transfer-Encoding")
+  assert(reset.headers.first("content-length") == "0", "wire 205 uses zero length")
+  assert(cached.headers.first("transfer-encoding") == null, "wire 304 omits Transfer-Encoding")
+
+  pipelined = raw_exchange(server.port(),
+    "GET /one HTTP/1.1\r\nhost: localhost\r\n\r\n" +
+    "GET /two HTTP/1.1\r\nhost: localhost\r\nconnection: close\r\n\r\n")
+  assert(pipelined.split("HTTP/1.1 200").count == 3,
+    "two pipelined requests share one connection")
+  assert(pipelined.contains?("/one") and pipelined.contains?("/two"),
+    "both pipelined bodies are delivered")
+
+  duplicate_host = raw_exchange(server.port(),
+    "GET /one HTTP/1.1\r\nhost: a\r\nhost: b\r\nconnection: close\r\n\r\n")
+  ambiguous = raw_exchange(server.port(),
+    "POST /one HTTP/1.1\r\nhost: a\r\ncontent-length: 1\r\n" +
+    "transfer-encoding: chunked\r\nconnection: close\r\n\r\n")
+  folded = raw_exchange(server.port(),
+    "GET /one HTTP/1.1\r\nhost: a\r\n folded\r\nconnection: close\r\n\r\n")
+  missing_host = raw_exchange(server.port(),
+    "GET /one HTTP/1.1\r\nconnection: close\r\n\r\n")
+  assert(duplicate_host.contains?("HTTP/1.1 400"), "duplicate Host is rejected")
+  assert(ambiguous.contains?("HTTP/1.1 400"), "CL/TE ambiguity is rejected")
+  assert(folded.contains?("HTTP/1.1 400"), "obs-fold is rejected")
+  assert(missing_host.contains?("HTTP/1.1 400"), "missing HTTP/1.1 Host is rejected")
+
+  client.close!()
+  stats = server.stats()
+  assert(stats[:requests] >= 8 and stats[:keepalive_requests] >= 1,
+    "request and keep-alive accounting")
+  server.stop_accepting()
+  assert(not server.ready?() and not server.accepting?(), "stop accepting clears readiness")
+  assert(server.shutdown(timeout: 1.0), "idle connections drain cleanly")
+  assert(server.shutdown(timeout: 1.0), "clean shutdown is idempotent")
+  server.wait()
+  true
+
+def lifecycle_and_drain():
+  events = []
+  app = ember.App(
+    routes: routes,
+    integrations: [FirstLifecycleIntegration(events), LegacyIntegration(),
+      SecondLifecycleIntegration(events)])
+  server = app.start(port: 0, idle_timeout: 0.1, shutdown_timeout: 1.0)
+  response_task = task.spawn:
+    Client().get("http://127.0.0.1:#{server.port()}/slow").body_text()
+  wait_for_in_flight(server)
+  clean = server.shutdown()
+  body = response_task.wait()
+  server.wait()
+  assert(clean and body == "slow", "graceful shutdown drains in-flight response")
+  assert(server.in_flight() == 0, "drain leaves no in-flight request")
+  assert(events == [1, 2, 3, 4],
+    "integration hooks start forward and stop in reverse")
+
+  failed_events = []
+  failed = false
+  try:
+    ember.App(
+      routes: routes,
+      integrations: [FirstLifecycleIntegration(failed_events), FailedStartIntegration(failed_events)]
+    ).server(port: 0)
+  rescue ValueError:
+    failed = true
+  assert(failed, "failed integration aborts startup")
+  assert(failed_events == [1, 4], "failed startup unwinds started hooks")
+  true
+
+def overload_rejection():
+  server = ember.App(routes: routes).start(
+    port: 0,
+    workers: 1,
+    max_concurrent_per_worker: 1,
+    idle_timeout: 0.1)
+  first = task.spawn:
+    Client().get("http://127.0.0.1:#{server.port()}/slow").body_text()
+  wait_for_in_flight(server)
+  overloaded = Client().get("http://127.0.0.1:#{server.port()}/one")
+  overloaded.body_text()
+  assert(overloaded.status == 503, "excess connection is rejected with 503")
+  assert(server.shutdown(timeout: 1.0), "overload server drains admitted work")
+  assert(first.wait() == "slow", "admitted request is not displaced by overload")
+  stats = server.wait()
+  assert(stats[:rejected] >= 1, "overload rejection is accounted")
+  true
+
+def deadline_cancellation():
+  integration = LeaseIntegration()
+  server = ember.App(
+    routes: routes,
+    integrations: [integration]
+  ).start(port: 0, idle_timeout: 0.1)
+  client_task = task.spawn:
+    try:
+      Client(timeout: 10.0).get(
+        "http://127.0.0.1:#{server.port()}/cancelled").body_text()
+    rescue UnexpectedEofError:
+      null
+    rescue ConnectionResetError:
+      null
+  wait_for_in_flight(server)
+  clean = server.shutdown(timeout: 0.01)
+  client_task.wait()
+  stats = server.wait()
+  assert(not clean and stats[:forced_shutdowns] == 1,
+    "deadline forces cancellation and reports an unclean drain")
+  assert(integration.active == 0, "cancelled controller releases its integration lease")
+  assert(integration.stops == 1, "integration stop hook completes after cancellation")
+  assert(not server.shutdown(timeout: 0.01), "forced shutdown result is idempotent")
+  true
+
+def main():
+  response_semantics()
+  keepalive_and_conformance()
+  lifecycle_and_drain()
+  overload_rejection()
+  deadline_cancellation()
+  true

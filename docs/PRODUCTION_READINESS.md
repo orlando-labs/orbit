@@ -27,45 +27,53 @@ Evidence: [ADR-0001](adr/0001-ember-1-0-contract.md),
 [HTTP_CONTRACT.md](HTTP_CONTRACT.md), [PUBLIC_API.md](PUBLIC_API.md),
 [DEPLOYMENT.md](DEPLOYMENT.md), and [COMPATIBILITY.md](COMPATIBILITY.md).
 
-## Gate 1: correctness and lifecycle invariants
+## Gate 1: correctness and lifecycle invariants — complete
 
-- [ ] Request-id/access-log/error middleware preserves buffered and streaming
+- [x] Request-id/access-log/error middleware preserves buffered and streaming
   response kinds and multi-value headers.
-- [ ] Cancellation, shutdown, client disconnect, fatal runtime failures, and
+- [x] Cancellation, shutdown, client disconnect, fatal runtime failures, and
   policy/isolation errors are never converted to application `500` responses.
-- [ ] Routes, request metadata, strong-parameter results, and exposed snapshots
+- [x] Routes, request metadata, strong-parameter results, and exposed snapshots
   are deeply immutable under concurrent access.
-- [ ] Headers preserve ordered repeated fields where required, including
+- [x] Headers preserve ordered repeated fields where required, including
   separate `Set-Cookie` values, with validated names/values and no CL/TE
   ambiguity.
-- [ ] A documented error hook observes uncaught application failures with
+- [x] A documented error hook observes uncaught application failures with
   redaction and cannot replace cancellation semantics.
-- [ ] All server limits, timeouts, backlog, and concurrency settings used by the
+- [x] All server limits, timeouts, backlog, and concurrency settings used by the
   production profile are explicit, finite, validated, and test-covered.
 
 Required evidence: unit and property tests for every invariant, including both
 buffered and streaming middleware paths and negative validation cases.
 
-## Gate 2: production transport
+Evidence: `test/stage1_selftest.am`, the core/strong-params/HTTP/ORM self-tests,
+[PUBLIC_API.md](PUBLIC_API.md), and the server configuration reference in
+[TRANSPORT.md](TRANSPORT.md).
 
-- [ ] A public server handle implements readiness, stop-accepting, in-flight
+## Gate 2: production transport — complete
+
+- [x] A public server handle implements readiness, stop-accepting, in-flight
   accounting, graceful drain, deadline cancellation, and idempotent shutdown.
-- [ ] Start hooks run before readiness; stop hooks run in reverse order after
+- [x] Start hooks run before readiness; stop hooks run in reverse order after
   drain/cancellation. Failed startup unwinds already-started integrations.
-- [ ] HTTP/1.1 keep-alive supports multiple bounded requests per trusted edge
+- [x] HTTP/1.1 keep-alive supports multiple bounded requests per trusted edge
   connection with correct close/error behavior.
-- [ ] Overload behavior is bounded and documented; excess work is rejected
+- [x] Overload behavior is bounded and documented; excess work is rejected
   predictably without unbounded tasks, queues, or memory.
-- [ ] HEAD, 1xx, 204, 205, and 304 plus `Content-Length`, `Transfer-Encoding`,
+- [x] HEAD, 1xx, 204, 205, and 304 plus `Content-Length`, `Transfer-Encoding`,
   trailers, `Expect: 100-continue`, and disconnect behavior conform to
   [RFC 9110](https://www.rfc-editor.org/rfc/rfc9110.html) and
   [RFC 9112](https://www.rfc-editor.org/rfc/rfc9112.html).
-- [ ] Shutdown/disconnect tests show no lost ORM leases, unfinished integration
+- [x] Shutdown/disconnect tests show no lost ORM leases, unfinished integration
   hooks, orphan tasks, or hung request/response streams.
 
 Required evidence: deterministic lifecycle tests, raw-socket HTTP conformance
 corpus, and loopback integration tests for buffered, streaming, slow, malformed,
 and cancelled requests.
+
+Evidence: `test/stage2_selftest.am`, [TRANSPORT.md](TRANSPORT.md), and the
+`amber-lang` runtime suites `tests/vm_net_http_tests.cpp` (691 checks) and
+`tests/stdlib_task_tests.cpp`.
 
 ## Gate 3: security baseline
 

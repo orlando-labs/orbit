@@ -103,6 +103,21 @@ failure, fatal runtime failure, or an exceeded shutdown deadline. Orchestrators
 must allow at least the Ember drain deadline plus readiness propagation and
 hook overhead before sending an unconditional kill.
 
+Roadmap stage 2 implements this lifecycle through `App#server`, `App#start`,
+and the public `ServerHandle`. A signal adapter should first make the instance
+unready at the platform, call `stop_accepting()`, wait for the configured
+propagation interval, and then call `shutdown()`. `shutdown` returns `false`
+when its deadline forced cancellation, allowing the process adapter to select
+the documented non-zero exit status. `wait()` joins the accept task and returns
+final counters. See [TRANSPORT.md](TRANSPORT.md) for the exact API, defaults,
+keep-alive bounds, overload policy, and stats.
+
+Integration `start()` hooks run before listener bind, `ready?()` participates
+in handle readiness, and `stop()` runs in reverse order after clean drain or
+forced cancellation. A startup error unwinds only integrations whose start
+hook completed. Request-task cancellation resumes the persistent handler VM so
+`ensure` scopes finish before resource-pool stop hooks.
+
 ## Streaming and proxy behavior
 
 The edge MUST permit streaming without unbounded buffering, preserve response
