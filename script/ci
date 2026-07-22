@@ -1,0 +1,143 @@
+#!/usr/bin/env python3
+"""Run Ember CI lanes locally or on the hosted matrix."""
+
+import argparse
+import os
+import subprocess
+import sys
+from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parents[1]
+BUILD = ROOT / ".build" / "ci"
+
+
+def run(*args: str, cwd: Path = ROOT) -> None:
+    print("+", " ".join(args), flush=True)
+    subprocess.run(list(args), cwd=cwd, check=True)
+
+
+def sync(scope: str) -> Path:
+    command = [sys.executable, str(ROOT / "script/dependencies.py"), "sync", "--scope", scope]
+    local = os.environ.get("EMBER_LOCAL_SOURCE_ROOT")
+    if local:
+        command += ["--local-source-root", local]
+    run(*command)
+    amber_source = ROOT / ".build/dependencies/amber-lang"
+    jobs = str(max(1, min(4, os.cpu_count() or 1)))
+    run("make", f"-j{jobs}", "build/amberc", cwd=amber_source)
+    return amber_source / "build/amberc"
+
+
+def build_and_run(amberc: Path, manifest: str, grants: tuple[str, ...] = ()) -> None:
+    slug = Path(manifest).stem.replace(".build", "").replace("_", "-")
+    out = BUILD / slug / "out"
+    cache = BUILD / slug / "cache"
+    command = [
+        str(amberc), "build", manifest, "--target", "native",
+        "--out-dir", str(out), "--cache-dir", str(cache), "--no-cache",
+    ]
+    for grant in grants:
+        command += ["--grant", grant]
+    run(*command)
+    root_module = ""
+    for line in (ROOT / manifest).read_text(encoding="utf-8").splitlines():
+        if line.startswith("root:"):
+            root_module = line.split(":", 1)[1].strip()
+            break
+    if not root_module:
+        raise RuntimeError(f"missing root module in {manifest}")
+    run(str(out / root_module))
+
+
+def expect_compile_failure(amberc: Path, manifest: str, diagnostic: str) -> None:
+    out = BUILD / "negative"
+    result = subprocess.run(
+        [str(amberc), "build", manifest, "--target", "bytecode",
+         "--out-dir", str(out), "--cache-dir", str(out / "cache"), "--no-cache"],
+        cwd=ROOT, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+    )
+    if result.returncode == 0 or diagnostic not in result.stdout:
+        print(result.stdout)
+        raise RuntimeError(f"{manifest} did not fail with {diagnostic}")
+
+
+def static(amberc: Path) -> None:
+    run("git", "diff", "--check", "HEAD")
+    run(sys.executable, "script/stage5_checks.py", "--amberc", str(amberc))
+    run(
+        sys.executable, "benchmark/performance_gate.py",
+        "--current", "benchmark/results/core.json",
+        "--current", "benchmark/results/orm.json",
+        "--baseline", "benchmark/baseline.json",
+        "--budgets", "benchmark/performance_budgets.json",
+    )
+
+
+def core(amberc: Path) -> None:
+    suites = [
+        ("test/contract_selftest.build.yaml", ()),
+        ("test/stage1_selftest.build.yaml", ("random.secure",)),
+        ("test/stage2_selftest.build.yaml", ("net.listen", "net.connect")),
+        ("test/stage3_selftest.build.yaml", ("random.secure",)),
+        ("test/stage4_selftest.build.yaml", ("random.secure", "net.listen")),
+        ("test/core_selftest.build.yaml", ()),
+        ("test/strong_params_selftest.build.yaml", ()),
+        ("test/http_selftest.build.yaml", ("net.listen", "net.connect")),
+        ("test/api_reference_selftest.build.yaml", ("random.secure",)),
+        ("test/stage5_fuzz_smoke.build.yaml", ("net.listen", "net.connect")),
+    ]
+    for manifest, grants in suites:
+        build_and_run(amberc, manifest, grants)
+    expect_compile_failure(amberc, "test/stage3_html_unquoted_rejected.build.yaml", "EMBER_HTML_CONTEXT")
+    expect_compile_failure(amberc, "test/stage3_html_comment_rejected.build.yaml", "EMBER_HTML_CONTEXT")
+    amber_source = ROOT / ".build/dependencies/amber-lang"
+    jobs = str(max(1, min(4, os.cpu_count() or 1)))
+    run("make", f"-j{jobs}", "build/vm_net_http_tests", cwd=amber_source)
+    run(str(amber_source / "build/vm_net_http_tests"))
+    for manifest, grants in (
+        ("examples/hello.build.yaml", ("net.listen", "random.secure")),
+        ("examples/strong_params.build.yaml", ("net.listen", "random.secure")),
+    ):
+        slug = Path(manifest).stem
+        out = BUILD / "examples" / slug
+        command = [str(amberc), "build", manifest, "--target", "native",
+                   "--out-dir", str(out), "--cache-dir", str(out / "cache"), "--no-cache"]
+        for grant in grants:
+            command += ["--grant", grant]
+        run(*command)
+
+
+def integration(amberc: Path) -> None:
+    build_and_run(amberc, "test/orm_selftest.build.yaml")
+    out = BUILD / "examples" / "sqlite-users"
+    run(
+        str(amberc), "build", "examples/sqlite_users.build.yaml", "--target", "native",
+        "--out-dir", str(out), "--cache-dir", str(out / "cache"), "--no-cache",
+        "--grant", "net.listen", "--grant", "random.secure",
+    )
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("lane", choices=("static", "core", "integration", "full"), nargs="?", default="full")
+    args = parser.parse_args()
+    scope = "all" if args.lane in ("integration", "full") else "core"
+    amberc = sync(scope)
+    static(amberc)
+    if args.lane in ("core", "full"):
+        core(amberc)
+    if args.lane in ("integration", "full"):
+        integration(amberc)
+    if args.lane == "full":
+        run(sys.executable, "script/clean-room-build")
+    print(f"CI lane {args.lane} passed")
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        raise SystemExit(main())
+    except (OSError, RuntimeError, subprocess.CalledProcessError) as error:
+        print(f"CI failed: {error}", file=sys.stderr)
+        raise SystemExit(1)

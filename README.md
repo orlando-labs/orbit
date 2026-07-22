@@ -4,7 +4,7 @@ Ember is a source-first web framework for Amber. It implements the contract in
 `amber-lang/DESIGN-web-framework-2026-07-13.md` over the existing
 `net.http.Server`; it does not add another scheduler or socket layer.
 
-The current preview includes:
+The `1.0.0-rc.1` release candidate includes:
 
 - central, immutable route tables built by `ember.routes`;
 - function, class-side, and per-request controller targets through Amber
@@ -58,14 +58,18 @@ def main():
   ember.App(routes: routes).run(port: 3000)
 ```
 
-Build a server with an explicit listen grant:
+Resolve the exact Amber revision, build and install the reproducible Ember
+package, compile the API example, and compile this server with one command:
 
 ```sh
-../amber-lang/build/amberc build examples/hello.build.yaml \
-  --target native --out-dir out-example --cache-dir cache-example \
-  --grant net.listen --grant random.secure
-./out-example/ember.example.hello
+./script/clean-room-build
+./.build/clean-room/hello/ember.example.hello
 ```
+
+The resolver uses `release/dependencies.lock.json`; it does not require a
+sibling checkout. Core is the versioned `ember` package. ORM support is the
+separate `ember-orm` companion package, so core applications do not inherit
+ORM, SQLite, or FFI dependencies.
 
 `App#call` is the primary boundary. Most tests should avoid sockets:
 
@@ -337,68 +341,21 @@ and [edge deployment model](docs/DEPLOYMENT.md).
 ## Verification
 
 ```sh
-# Stage 0 HTTP/routing contract
-../amber-lang/build/amberc build test/contract_selftest.build.yaml \
-  --target native --out-dir out-contract-native \
-  --cache-dir cache-contract-native --no-cache
-./out-contract-native/ember.contract_selftest
+# Package/install/API/server clean-room gate, without sibling checkouts
+./script/clean-room-build
 
-# Stage 1 correctness and lifecycle invariants
-../amber-lang/build/amberc build test/stage1_selftest.build.yaml \
-  --target native --out-dir out-stage1-native \
-  --cache-dir cache-stage1-native --no-cache --grant random.secure
-./out-stage1-native/ember.stage1_selftest
-
-# Stage 2 production transport and raw HTTP conformance
-../amber-lang/build/amberc build test/stage2_selftest.build.yaml \
-  --target native --out-dir out-stage2-native \
-  --cache-dir cache-stage2-native --no-cache \
-  --grant net.listen --grant net.connect
-./out-stage2-native/ember.stage2_selftest
-
-# Stage 3 security baseline
-../amber-lang/build/amberc build test/stage3_selftest.build.yaml \
-  --target native --out-dir out-stage3-native \
-  --cache-dir cache-stage3-native --no-cache --grant random.secure
-./out-stage3-native/ember.stage3_selftest
-
-# Stage 4 observability and lifecycle telemetry
-../amber-lang/build/amberc build test/stage4_selftest.build.yaml \
-  --target native --out-dir out-stage4-native \
-  --cache-dir cache-stage4-native --no-cache \
-  --grant random.secure --grant net.listen
-./out-stage4-native/ember.stage4_selftest
-
-# These two builds must fail with EMBER_HTML_CONTEXT
-../amber-lang/build/amberc build test/stage3_html_unquoted_rejected.build.yaml \
-  --target bytecode --out-dir out-html-negative \
-  --cache-dir cache-html-negative --no-cache
-../amber-lang/build/amberc build test/stage3_html_comment_rejected.build.yaml \
-  --target bytecode --out-dir out-html-comment-negative \
-  --cache-dir cache-html-negative --no-cache
-
-# Source-only framework behavior
-../amber-lang/build/amberc build test/core_selftest.build.yaml \
-  --target native --out-dir out-native --cache-dir cache-native --no-cache
-./out-native/ember.core_selftest
-
-# Strong-parameter schemas and request sources
-../amber-lang/build/amberc build test/strong_params_selftest.build.yaml \
-  --target native --out-dir out-params-native \
-  --cache-dir cache-params-native --no-cache
-./out-params-native/ember.strong_params_selftest
-
-# Real amber-orm + sqlite3-amber integration
-../amber-lang/build/amberc build test/orm_selftest.build.yaml \
-  --target native --out-dir out-orm-native --cache-dir cache-orm-native --no-cache
-./out-orm-native/ember.orm_selftest
-
-# Real loopback HTTP adapter
-../amber-lang/build/amberc build test/http_selftest.build.yaml \
-  --target native --out-dir out-http-native --cache-dir cache-http-native \
-  --no-cache --grant net.listen --grant net.connect
-./out-http-native/ember.http_selftest
+# Static/docs/locks, all native self-tests and raw HTTP conformance,
+# parser/framing fuzz smoke, examples, ORM/SQLite integration, and clean-room
+./script/ci full
 ```
+
+CI runs the core lane on Linux x86_64, Linux arm64, and macOS arm64 against the
+exact Amber compiler/runtime revision. The release workflow accepts only an
+annotated `v$VERSION` tag, rebuilds the signed package twice, compares bytes,
+and publishes checksums plus provenance. See the
+[release process](docs/RELEASING.md), [API reference](docs/API_REFERENCE.md),
+[configuration reference](docs/CONFIGURATION.md), and
+[operations runbook](docs/RUNBOOK.md).
 
 ## Ember 1.0 contract
 
@@ -408,8 +365,9 @@ define the [public API boundary](docs/PUBLIC_API.md),
 [edge deployment model](docs/DEPLOYMENT.md),
 [compatibility policy](docs/COMPATIBILITY.md), and measurable
 [production-readiness gates](docs/PRODUCTION_READINESS.md). Contract,
-correctness, production-transport, security, and observability/performance
-gates 0–4 are complete; release engineering and RC validation remain. See the
+correctness, production-transport, security, observability/performance, and
+release-engineering gates 0–5 are complete; RC canary/load/soak/fuzz/rollback
+validation remains. See the
 [observability contract](docs/OBSERVABILITY.md) and
 [performance contract](docs/PERFORMANCE.md).
 
@@ -425,6 +383,11 @@ cookie/session, CSRF/CORS, Host, and proxy-trust primitives. It still does not
 claim direct TLS, HTTP/2/3, WebSocket, user authentication/authorization,
 uploaded-file storage/scanning, or complete application security; those remain
 explicit edge or application layers, not hidden behavior.
+
+The unsupported 1.0 surface also includes WebSocket, hot reload,
+generators/resources, `.amv`, an asset pipeline, and dynamically replaceable
+route snapshots. The complete supported/unsupported boundary is in the
+[versioned API reference](docs/API_REFERENCE.md).
 
 Dynamic slugs and CMS paths remain database data behind static parameter or
 lowest-precedence wildcard routes. Normalization, history, tenant/locale

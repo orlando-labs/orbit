@@ -44,7 +44,7 @@ def main():
 
     found = User.find(1).or_raise
     assert(found[:age] == 36, "pool-backed model lookup")
-    users = User.all.or_raise
+    users = User.where().all.or_raise
     assert(users.count == 1 and User === users[0], "unfiltered model all")
 
     database.close!

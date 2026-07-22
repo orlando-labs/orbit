@@ -1,0 +1,26 @@
+schema: amber.build.v1
+name: ember.api_reference_selftest
+root: ember.api_reference_selftest
+
+profiles:
+  required: [core.v1, macro.v1]
+  optional: []
+  forbidden: []
+
+modules:
+  - name: ember
+    path: ../src/ember.am
+  - name: ember.html
+    path: ../src/ember/html.am
+  - name: ember.middleware
+    path: ../src/ember/middleware.am
+  - name: ember.multipart
+    path: ../src/ember/multipart.am
+  - name: ember.security
+    path: ../src/ember/security.am
+  - name: ember.telemetry
+    path: ../src/ember/telemetry.am
+  - name: ember.testing
+    path: ../src/ember/testing.am
+  - name: ember.api_reference_selftest
+    path: api_reference_selftest.am

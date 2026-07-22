@@ -172,5 +172,12 @@ The following do not satisfy the Ember 1.0 production contract:
 - claiming full-duplex streaming through a buffering proxy without an
   integration test.
 
-Concrete proxy examples and platform runbooks are release-engineering
-deliverables. They must implement this boundary rather than redefine it.
+The tracked [nginx example](../deploy/nginx.conf) overwrites forwarding fields,
+uses HTTP/1.1 upstream keep-alive, and disables response/request buffering for
+streaming. The [systemd unit](../deploy/systemd/ember.service) and
+[Kubernetes deployment](../deploy/kubernetes/ember.yaml) reserve 45 seconds
+for the documented 5-second readiness propagation plus 30-second Ember drain
+and hook overhead. Adapt paths, addresses, resources, probes, and certificates
+without weakening the boundary. Operational response, backup, restore, and
+rollback procedures are in [RUNBOOK.md](RUNBOOK.md); the complete setting
+matrix is in [CONFIGURATION.md](CONFIGURATION.md).

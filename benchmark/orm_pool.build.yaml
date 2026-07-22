@@ -9,17 +9,17 @@ profiles:
 
 modules:
   - name: sqlite3
-    path: ../../sqlite3-amber/src/sqlite3.am
+    path: ../.build/dependencies/sqlite3-amber/src/sqlite3.am
   - name: orm
-    path: ../../amber-orm/src/orm.am
+    path: ../.build/dependencies/amber-orm/src/orm.am
   - name: orm.pool
-    path: ../../amber-orm/src/orm/pool.am
+    path: ../.build/dependencies/amber-orm/src/orm/pool.am
   - name: orm.sqlite3.adapter
-    path: ../../amber-orm/src/orm/sqlite3/adapter.am
+    path: ../.build/dependencies/amber-orm/src/orm/sqlite3/adapter.am
   - name: orm.sqlite3.pool
-    path: ../../amber-orm/src/orm/sqlite3/pool.am
+    path: ../.build/dependencies/amber-orm/src/orm/sqlite3/pool.am
   - name: orm.sqlite3
-    path: ../../amber-orm/src/orm/sqlite3.am
+    path: ../.build/dependencies/amber-orm/src/orm/sqlite3.am
   - name: ember.benchmark.orm_pool
     path: orm_pool.am
 
@@ -27,10 +27,10 @@ native_extensions:
   - name: sqlite3
     language: c
     sources:
-      - ../../sqlite3-amber/native/sqlite3_ext.c
-      - ../../sqlite3-amber/native/sqlite3.c
+      - ../.build/dependencies/sqlite3-amber/native/sqlite3_ext.c
+      - ../.build/dependencies/sqlite3-amber/native/sqlite3.c
     headers:
-      - ../../sqlite3-amber/native/sqlite3.h
+      - ../.build/dependencies/sqlite3-amber/native/sqlite3.h
     defines:
       - SQLITE_THREADSAFE=1
       - SQLITE_ENABLE_COLUMN_METADATA=1

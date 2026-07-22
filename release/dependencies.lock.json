@@ -1,0 +1,33 @@
+{
+  "schema": "ember.dependencies.v1",
+  "ember_version": "1.0.0-rc.1",
+  "generated_at": "2026-07-22",
+  "dependencies": [
+    {
+      "name": "amber-lang",
+      "package_version": "0.1.0-dev",
+      "scope": "core",
+      "source": "https://github.com/orlando-labs/amber-lang.git",
+      "revision": "14b32257e0e7b3b10e4dff6bf97a1bd0c757380c",
+      "tree": "1e5453d25f11699364fc67d43cc6da1b1007fb36"
+    },
+    {
+      "name": "amber-orm",
+      "package_version": "0.1.0-dev",
+      "scope": "orm-integration",
+      "source": "https://github.com/orlando-labs/amber-orm.git",
+      "revision": "1e64d37859f7e1b6f92ebcebb01df9c4f599ff86",
+      "tree": "69fd72f6a0262d99b4ceeaa7734dcd24a44615df"
+    },
+    {
+      "name": "sqlite3-amber",
+      "package_version": "0.1.0-dev",
+      "scope": "orm-integration",
+      "source": "https://github.com/orlando-labs/sqlite3-amber.git",
+      "revision": "8ffb543bf7678e3011dce8e8e58276b6d9725f88",
+      "tree": "ec8429f8dd09e729673ba6a972944de348ac71c7",
+      "upstream_version": "3.51.0",
+      "upstream_source_id": "fb2c931ae597f8d00a37574ff67aeed3eced4e5547f9120744ae4bfa8e74527b"
+    }
+  ]
+}

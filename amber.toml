@@ -1,0 +1,36 @@
+[package]
+name = "ember"
+version = "1.0.0-rc.1"
+root = "ember"
+
+[[modules]]
+name = "ember"
+path = "src/ember.am"
+
+[[modules]]
+name = "ember.html"
+path = "src/ember/html.am"
+
+[[modules]]
+name = "ember.middleware"
+path = "src/ember/middleware.am"
+
+[[modules]]
+name = "ember.multipart"
+path = "src/ember/multipart.am"
+
+[[modules]]
+name = "ember.security"
+path = "src/ember/security.am"
+
+[[modules]]
+name = "ember.telemetry"
+path = "src/ember/telemetry.am"
+
+[[modules]]
+name = "ember.testing"
+path = "src/ember/testing.am"
+
+[capabilities]
+net.listen = true
+random.secure = true

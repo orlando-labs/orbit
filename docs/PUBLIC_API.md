@@ -1,6 +1,6 @@
 # Ember 1.0 public API boundary
 
-Status: normative 1.0 target, accepted 2026-07-19 by
+Status: normative `1.0.0-rc.1` candidate, accepted 2026-07-19 by
 [ADR-0001](adr/0001-ember-1-0-contract.md).
 
 An Ember name is public only when it is listed here or in a versioned API
@@ -277,7 +277,8 @@ follow the same HTTP contract as `App#call`.
 ### `ember.integrations.orm`
 
 Public API: `pool`, `connection`, `PoolIntegration`, and
-`ConnectionMiddleware`. Ember core remains ORM-neutral. The integration's
+`ConnectionMiddleware`. This module is distributed by the separate versioned
+`ember-orm` companion package; Ember core remains ORM-neutral. The integration's
 request-scoped lease behavior and safe `503` mapping for pool timeout/closed/
 lease failures are stable. `PoolIntegration` also implements the server
 lifecycle: it rejects an already-closed pool at startup, reports readiness,

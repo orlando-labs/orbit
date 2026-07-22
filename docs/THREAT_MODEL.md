@@ -2,7 +2,7 @@
 
 Version: 1.0  
 Review date: 2026-07-22  
-Scope: Ember source at roadmap gates 0–3 and the supported trusted-edge profile.
+Scope: Ember source at roadmap gates 0–5 and the supported trusted-edge profile.
 
 This is the framework threat model required by roadmap stage 3. Application
 teams must extend it with their identities, authorization model, data classes,
@@ -55,8 +55,9 @@ remain deployment/application boundaries.
 - Production disables exception exposure, keeps all documented limits finite,
   and supplies unpredictable secrets through a secret manager.
 - The supported Amber compiler/runtime revision and native build chain are
-  reviewed release inputs. Stage 5 must replace sibling source paths with
-  locked, reproducible packages.
+  reviewed release inputs. Versioned packages, exact revision/tree locks,
+  clean-room resolution, reproducible package comparison, checksums, and
+  release provenance enforce this assumption.
 - Authentication and authorization are application concerns; the framework
   session envelope does not grant identity or permissions by itself.
 
@@ -74,7 +75,7 @@ remain deployment/application boundaries.
 | Resource exhaustion | Huge headers, bodies, cookies, multipart parts/files, connections, or slow streams exhaust memory/workers | Finite transport timeouts/capacity, immediate overload rejection, bounded cookies/tokens/multipart, hop count and route bounds | Align transport/multipart limits; edge rate/slow-client policy; application file/user quotas and expensive-operation limits |
 | Path confusion and file traversal | Encoded route segments or uploaded filenames choose unintended resources | Single percent-decode path pipeline, strict trailing slash, typed routes, filename separator/dot rejection | Generate server-side storage names; canonicalize under a fixed root; never use client filename as a path |
 | Secrets and sensitive logs | Keys, cookies, bodies, raw URLs, errors, or versions leak through source/logs/responses | Production-safe 500 body, structured route-template logs, configured field redaction, privacy-safe traces | Secret manager/rotation; keep application/exporter extensions free of cookie/session/body values |
-| Dependency/compiler/native compromise | Unpinned or vulnerable compiler/runtime/ORM/SQLite code changes security behavior | Source-first small dependency surface, stage-2 native HTTP tests, stage-3 source/native review | Stage 5 package lock, provenance, CI scans, supported version matrix, signed release artifacts |
+| Dependency/compiler/native compromise | Unpinned or vulnerable compiler/runtime/ORM/SQLite code changes security behavior | Versioned core/companion packages, exact revision/tree locks, clean-room build, platform/integration CI, reproducible signed release artifacts and provenance | Registry/hosting and signing-key protection; dependency review and rebuild for every changed row |
 | Crypto misuse | Nonce reuse, weak keys, unauthenticated ciphertext, timing leakage | Secure random 96-bit nonce, minimum 32-byte secrets, RFC 8439 vector, encrypt-then-authenticate AEAD semantics, fixed-size constant-time tag checks, versioned rotation | Independent cryptographic review remains required before 1.0; inventory and rotate keys; do not reuse secrets across purposes |
 
 ## Abuse cases that must remain regression tests
@@ -103,7 +104,7 @@ lower-severity risks are tracked here and in [SECURITY_REVIEW.md](SECURITY_REVIE
 | Severity | Risk | Owner / closure gate |
 |---|---|---|
 | Medium | ChaCha20-Poly1305 is a standards-conformant source implementation with an RFC vector but has not received independent cryptographic validation | Security/release owner; independent review or vetted runtime primitive before 1.0 RC |
-| Medium | Dependencies are sibling source paths without a lock/provenance manifest | Release engineering; gate 5 clean-room locked build and dependency scan |
+| Resolved | Dependencies were sibling source paths without a lock/provenance manifest | Gate 5 introduced versioned packages, revision/tree locks, internal clean-room checkouts, reproducibility, CI, checksums, and provenance |
 | Resolved | Preview access logging included the raw path and lacked redaction | Gate 4 introduced the structured route-template telemetry boundary and schema tests |
 | Low | Trusted-proxy IPv6 networks support exact `/128` entries only | Runtime/security owner; retain safe rejection or add canonical IPv6 CIDR parsing before broader IPv6 deployment |
 | Low | Multipart parsing buffers within the transport body bound before applying finer part limits | Framework owner; keep transport `max_body_bytes <= max_total_bytes`, add streaming parser only with equivalent invariant tests |

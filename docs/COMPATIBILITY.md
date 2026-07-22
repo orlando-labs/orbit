@@ -26,10 +26,10 @@ available for the rest of the current Ember major and is removed only in the
 next major. Vulnerable behavior may be disabled earlier under the security
 exception above.
 
-The repository is currently a pre-1.0 framework preview. Preview source/API may
-still change to satisfy ADR-0001, but every intentional contract change must be
-recorded in the changelog and, for a decision in ADR-0001, in a superseding ADR.
-The compatibility guarantees above become release guarantees at `1.0.0`.
+`1.0.0-rc.1` freezes the candidate public surface. A release-blocking defect
+may still require an RC change, recorded in the changelog and migration guide;
+a decision in ADR-0001 requires a superseding ADR. The compatibility guarantees
+above become final release guarantees at `1.0.0`.
 
 ## What compatibility includes
 
@@ -79,20 +79,24 @@ Rules for Ember 1.x:
 Unsupported combinations may happen to build but receive no compatibility or
 security guarantee.
 
-### Preview baseline
+### `1.0.0-rc.1` release matrix
 
-The stage 0 contract was verified against:
-
-| Component | Baseline |
+| Component | Supported candidate row |
 |---|---|
-| Ember | repository `main` at ADR acceptance |
-| Amber compiler/runtime | `amberc 0.1.0-dev`, source revision `9c79ca61eea9110c665f48c246b4d4ad38e23c09` |
-| Build profiles | required `core.v1`, `macro.v1`; no optional profiles in core |
-| Production status | unsupported preview |
+| Ember core package | `ember 1.0.0-rc.1` |
+| Amber compiler/runtime/stdlib | `amberc 0.1.0-dev`, revision `14b32257e0e7b3b10e4dff6bf97a1bd0c757380c`, tree `1e5453d25f11699364fc67d43cc6da1b1007fb36` |
+| Build profiles | required `core.v1`, `macro.v1`; no optional core profile |
+| Linux production targets | x86_64 and arm64, native target, required CI rows |
+| Development target | macOS arm64, native target, required CI row |
+| Other targets | unsupported unless added by a later release matrix |
+| Production claim | not yet: the separate RC validation gates remain open |
 
-This table records the reproducible decision baseline; it is not a release
-support promise. Stage 5 replaces sibling source paths with versioned,
-locked dependencies and publishes the release matrix.
+The compiler, standard library, runtime, and `net.http` always come from the
+single locked Amber revision. `release/dependencies.lock.json` is the
+source/provenance lock; `amber.lock` is the deterministic package lock. The
+three platform jobs run core/property/security/telemetry, native HTTP
+conformance, fuzz smoke, examples, and API-example compilation. A matrix row is
+publishable only when its immutable tag CI job is green.
 
 ## Optional integrations
 
@@ -101,11 +105,20 @@ matrix in the Ember release notes. An integration is supported only when Ember,
 Amber, the integration package, its native client/library, and the target
 platform all appear in one tested row.
 
-For the ORM integration, the 1.0 release must pin compatible `amber-orm` and
-`sqlite3-amber` versions. Updating either outside its declared compatible range
-requires at least an Ember patch plus the full ORM integration suite. Core
-applications do not inherit native/SQLite dependencies merely because those
-integrations exist.
+The tested `1.0.0-rc.1` ORM row is:
+
+| Component | Exact row |
+|---|---|
+| Integration package | `ember-orm 1.0.0-rc.1` |
+| Ember | `1.0.0-rc.1` |
+| Amber ORM | `0.1.0-dev`, revision `1e64d37859f7e1b6f92ebcebb01df9c4f599ff86`, tree `69fd72f6a0262d99b4ceeaa7734dcd24a44615df` |
+| SQLite adapter | `sqlite3-amber 0.1.0-dev`, revision `8ffb543bf7678e3011dce8e8e58276b6d9725f88`, tree `ec8429f8dd09e729673ba6a972944de348ac71c7` |
+| Bundled SQLite | `3.51.0`, source ID `fb2c931ae597f8d00a37574ff67aeed3eced4e5547f9120744ae4bfa8e74527b` |
+| Tested platform | Linux x86_64 native integration CI; other platform rows are unsupported for this optional package until listed |
+
+Updating any entry requires at least an Ember patch plus the full integration
+suite. Core applications do not inherit native/SQLite dependencies merely
+because the companion package exists.
 
 ## Support window
 

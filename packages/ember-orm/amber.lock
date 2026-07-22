@@ -1,0 +1,20 @@
+# amber.lock v1
+schema = "amber.lock.v1"
+
+[package]
+name = "ember-orm"
+version = "1.0.0-rc.1"
+root = "ember.integrations.orm"
+
+[[dependencies]]
+name = "amber-orm"
+version = "0.1.0-dev"
+source = "registry"
+checksum = "sha256:afef3dd66789aec5a366bced47186ca227efc20888b5ed0e429ed16364558f4c"
+
+[[dependencies]]
+name = "ember"
+version = "1.0.0-rc.1"
+source = "registry"
+checksum = "sha256:e3dd8fa26a9642748eefbb7cbfe0ebbf8520cb0030e0a06ed455e990d04fa5bd"
+

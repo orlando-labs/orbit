@@ -1,0 +1,92 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "17 2 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  static:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Static, lock, API, documentation, and budget checks
+        run: ./script/ci static
+
+  compatibility:
+    name: Amber 0.1.0-dev / ${{ matrix.platform }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux-x86_64
+            runner: ubuntu-24.04
+          - platform: linux-arm64
+            runner: ubuntu-24.04-arm
+          - platform: macos-arm64
+            runner: macos-15
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Core, property, HTTP conformance, fuzz smoke, native, and examples
+        run: ./script/ci core
+
+  integration:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: orlando-labs/amber-lang
+          ref: 14b32257e0e7b3b10e4dff6bf97a1bd0c757380c
+          path: .dependency-source/amber-lang
+          token: ${{ secrets.DEPENDENCY_READ_TOKEN || github.token }}
+      - uses: actions/checkout@v4
+        with:
+          repository: orlando-labs/amber-orm
+          ref: 1e64d37859f7e1b6f92ebcebb01df9c4f599ff86
+          path: .dependency-source/amber-orm
+          token: ${{ secrets.DEPENDENCY_READ_TOKEN || github.token }}
+      - uses: actions/checkout@v4
+        with:
+          repository: orlando-labs/sqlite3-amber
+          ref: 8ffb543bf7678e3011dce8e8e58276b6d9725f88
+          path: .dependency-source/sqlite3-amber
+          token: ${{ secrets.DEPENDENCY_READ_TOKEN || github.token }}
+      - name: ORM, SQLite native extension, and integration example
+        env:
+          EMBER_LOCAL_SOURCE_ROOT: ${{ github.workspace }}/.dependency-source
+        run: ./script/ci integration
+
+  clean-room:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Resolve, package twice, verify, install, and build API/server examples
+        run: ./script/clean-room-build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: clean-room-evidence
+          path: .build/clean-room/evidence.json
+          if-no-files-found: error
+
+  all-required:
+    if: always()
+    runs-on: ubuntu-24.04
+    needs: [static, compatibility, integration, clean-room]
+    steps:
+      - name: Enforce required jobs
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          python3 -c 'import json, os, sys; data=json.loads(os.environ["NEEDS"]); bad={k:v["result"] for k,v in data.items() if v["result"] != "success"}; print(bad); sys.exit(bool(bad))'

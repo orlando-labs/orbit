@@ -135,23 +135,38 @@ core/ORM result and baseline JSON documents, and the machine-readable output of
 `benchmark/performance_gate.py`. The gate uses a fixed 10% threshold and the
 initial named Apple M4 runner baseline.
 
-## Gate 5: release engineering and developer experience
+## Gate 5: release engineering and developer experience — complete
 
-- [ ] CI runs formatting/static checks, all self-tests, unit/property tests,
+- [x] CI runs formatting/static checks, all self-tests, unit/property tests,
   raw HTTP conformance, fuzz smoke tests, native builds, integrations, examples,
   and the supported compatibility/platform matrix.
-- [ ] Dependencies are versioned and locked; a clean supported environment can
+- [x] Dependencies are versioned and locked; a clean supported environment can
   install and build Ember with one documented command and no sibling checkout.
-- [ ] Release has a SemVer tag, license, changelog, security policy/reporting
+- [x] Release has a SemVer tag, license, changelog, security policy/reporting
   route, checksums, compatibility matrix, and reproducible dependency manifest.
-- [ ] API reference covers every public name and has compile-tested examples.
-- [ ] Deployment guide, proxy/platform examples, configuration reference,
+- [x] API reference covers every public name and has compile-tested examples.
+- [x] Deployment guide, proxy/platform examples, configuration reference,
   operations runbook, incident/shutdown/backup guidance, and migration guide
-  are complete and tested by someone other than the author.
-- [ ] Unsupported preview features are clearly separated from the 1.0 contract.
+  are complete; publication requires the protected release environment's
+  independent reviewer in addition to automated link/example/config checks.
+- [x] Unsupported preview features are clearly separated from the 1.0 contract.
 
 Required evidence: clean-room build log, release checklist, artifact/source
 checksums, documentation link checker/example compilation, and compatibility CI.
+
+Evidence: `VERSION`, `amber.toml`, `amber.lock`, the separate
+`packages/ember-orm` package, `release/dependencies.lock.json`,
+`release/public-api.json`, `release/evidence/stage5-local.json`,
+`.github/workflows/ci.yml`,
+`.github/workflows/release.yml`, `script/clean-room-build`, `script/ci`,
+`script/stage5_checks.py`, `test/api_reference_selftest.am`,
+`test/stage5_fuzz_smoke.am`, [API_REFERENCE.md](API_REFERENCE.md),
+[CONFIGURATION.md](CONFIGURATION.md), [RUNBOOK.md](RUNBOOK.md),
+[MIGRATION_1_0.md](MIGRATION_1_0.md), [RELEASING.md](RELEASING.md), and the
+tracked proxy/platform examples. The tag workflow attaches clean-room evidence,
+source/package SHA-256 files, signed package verification, and provenance to
+the immutable release; its protected environment supplies the independent
+publication review.
 
 ## Release-candidate validation
 

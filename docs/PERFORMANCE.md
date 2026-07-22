@@ -30,12 +30,12 @@ exception.
 ## Reproduction
 
 ```sh
-../amber-lang/build/amberc build benchmark/core.build.yaml \
+.build/dependencies/amber-lang/build/amberc build benchmark/core.build.yaml \
   --target native --out-dir out-bench-core --cache-dir cache-bench-core --no-cache \
   --grant net.listen --grant net.connect
 ./out-bench-core/ember.benchmark.core
 
-../amber-lang/build/amberc build benchmark/orm_pool.build.yaml \
+.build/dependencies/amber-lang/build/amberc build benchmark/orm_pool.build.yaml \
   --target native --out-dir out-bench-orm --cache-dir cache-bench-orm --no-cache
 ./out-bench-orm/ember.benchmark.orm_pool
 

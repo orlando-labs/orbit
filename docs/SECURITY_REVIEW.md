@@ -2,7 +2,7 @@
 
 Review date: 2026-07-22  
 Ember base revision: `35f492bb0d2aec40a7849bb327929eb85061b582` plus the stage-3 working-tree change set  
-Compiler: `amberc 0.1.0-dev` from the sibling `amber-lang` source tree  
+Compiler: locked `amberc 0.1.0-dev` revision `14b32257e0e7b3b10e4dff6bf97a1bd0c757380c`
 Verdict: **zero open critical/high findings** in the reviewed stage-3 scope.
 
 This is an internal source/configuration review and regression record, not a
@@ -30,7 +30,7 @@ attestation. Those stronger artifacts remain release/RC gates.
 | Whitespace/patch integrity | `git diff --check` | Clean |
 | Production-source secret pattern scan | `rg` for password/secret/token/API/private-key assignments outside tests/docs | No candidates |
 | Dangerous source primitive scan | `rg` for eval/system/exec/popen/unsafe/raw in `src` | Only documented `Html.raw` trust-boundary calls |
-| Build dependency inventory | Manifest path inventory across YAML/TOML | Core stage-3 graph contains Ember source modules only; optional ORM example/test uses sibling `amber-orm` and `sqlite3-amber` |
+| Build dependency inventory | Package/source locks and manifest path inventory | Core has no package dependency; companion/integration inputs use exact revision/tree locks and internal clean-room paths |
 | Native boundary primitive scan | Targeted search for unsafe C string/process primitives in relevant Amber HTTP runtime paths | No candidate in the searched HTTP paths |
 | Local documentation links | Resolve relative Markdown targets in README, roadmap, and `docs/` | All targets resolve |
 | Fresh stage-3 build | Native `--no-cache --grant random.secure` build and executable | Passed; executable returned `true` |
@@ -64,7 +64,7 @@ following before closure:
 | ID | Severity | Finding | Compensating control | Owner / deadline |
 |---|---|---|---|---|
 | S3-01 | Medium | The source ChaCha20-Poly1305 implementation is standards-vector tested but not independently validated | RFC 8439 vector, authenticated decrypt-before-use, fixed-size tag check, minimum 256-bit material, bounded tokens | Security/release owner; vetted runtime primitive or independent review before 1.0 RC |
-| S3-02 | Medium | Sibling source dependencies are not version-locked or attested | Core stage-3 graph is source-only; optional dependency paths inventoried; compatibility documented | Release engineering; gate 5 locked clean-room build and dependency/provenance scan |
+| S3-02 | Resolved | Sibling source dependencies were not version-locked or attested | Versioned core/companion packages, exact revision/tree lock, clean-room resolver, platform/integration CI, reproducible package comparison, release checksums and provenance | Closed by roadmap gate 5; every dependency change re-runs the full release gate |
 | S3-03 | Resolved | Preview access log wrote the raw path and lacked structured redaction | Stage 4 emits bounded JSON events with route templates, request-ID validation, omission of sensitive request material, and configured field redaction | Closed 2026-07-22 by `test/stage4_selftest.am` and `docs/OBSERVABILITY.md` |
 | S3-04 | Low | Trusted-proxy IPv6 networks accept exact `/128` entries only | Unsupported broader prefixes fail configuration; IPv4 CIDR is complete | Runtime/security; retain restriction or add canonical parser before broader IPv6 deployment |
 | S3-05 | Low | Multipart is bounded but buffered rather than streaming | Default parser and transport aggregate limits are both 1 MiB; strict part/file limits | Framework/application; require `max_body_bytes <= max_total_bytes`, reconsider with streaming parser work |
@@ -89,3 +89,12 @@ boundary reopens the review and roadmap gate 3.
 The stage-4 telemetry regression and schema review on 2026-07-22 closed S3-03;
 its native self-test returned `true` and its sensitive-value corpus was absent
 from serialized events.
+
+The stage-5 release-engineering review on 2026-07-22 closed S3-02. The core
+package and ORM companion have deterministic Amber locks; no tracked build
+manifest reads a sibling checkout. `script/clean-room-build` resolves the exact
+Amber revision into `.build`, builds the package twice, compares bytes,
+verifies/installs it, and compiles/runs the API example. Hosted CI repeats the
+core/native/conformance/fuzz-smoke lane on Linux x86_64, Linux arm64, and macOS
+arm64 and the locked ORM/SQLite integration on Linux x86_64. Official tags add
+package signatures, source/package SHA-256 checksums, and build provenance.

@@ -1,0 +1,20 @@
+# amber.lock v1
+schema = "amber.lock.v1"
+
+[package]
+name = "ember"
+version = "1.0.0-rc.1"
+root = "ember"
+
+[[capabilities]]
+name = "net.listen"
+target = "*"
+reason = "manifest boolean request"
+flags = 1
+
+[[capabilities]]
+name = "random.secure"
+target = "*"
+reason = "manifest boolean request"
+flags = 1
+

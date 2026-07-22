@@ -1,0 +1,78 @@
+{
+  "schema": "ember.public-api.v1",
+  "version": "1.0.0-rc.1",
+  "modules": {
+    "ember": {
+      "public": [
+        "App", "Controller", "DoubleRenderError", "DuplicateRouteError",
+        "DuplicateRouteNameError", "EmberError", "ErrorEvent", "Headers",
+        "Html", "Integration", "InvalidAuthorityError", "InvalidForwardedRequestError",
+        "InvalidPathError", "InvalidResponseError", "InvalidRouteError",
+        "ParamArray", "ParamField", "ParamIssue", "ParamObject", "ParamSchema",
+        "ParamsBodyConsumedError", "ParamsParseError", "ParamsShapeError",
+        "ParamsUnsupportedMediaTypeError", "PathGenerationError", "Request",
+        "RequestBodyStream", "RequestChunk", "RequestParamSource", "RequestParams",
+        "RequestParamsError", "RequestSecurityError", "Response",
+        "ResponseCommittedError", "Route", "RouteError", "RouteLookup", "RouteMatch",
+        "RouteNotFoundError", "RouteParamError", "Routes", "SecurityPolicy",
+        "ServerHandle", "ServerLifecycleError", "StreamBody", "StreamingResponse",
+        "Target", "UnauthorizedHostError", "UnknownRouteNameError", "UnknownServiceError",
+        "UnknownStatusError", "UnsafeRedirectError", "array", "delete", "field", "get",
+        "head", "mount", "normalize_response", "object", "options", "params", "patch",
+        "post", "put", "query", "redirect", "render", "routes", "scope", "status_code",
+        "stream"
+      ],
+      "internal_exports": [
+        "__before", "__mount", "__route", "__scope", "request_id_context",
+        "request_method", "request_path", "request_route_pattern", "response_status",
+        "with_response_header"
+      ]
+    },
+    "ember.html": {
+      "public": [
+        "HtmlUrl", "TrustedScript", "TrustedStyle", "escape", "escape_attribute",
+        "escape_text", "html", "join", "raw", "trusted_script", "trusted_style", "url"
+      ],
+      "internal_exports": [
+        "_script_attribute", "_script_body", "_srcdoc_attribute", "_style_attribute",
+        "_style_body", "_url_attribute"
+      ]
+    },
+    "ember.middleware": {
+      "public": [
+        "AccessLogMiddleware", "RequestIdMiddleware", "access_log", "before", "request_id"
+      ],
+      "internal_exports": []
+    },
+    "ember.multipart": {
+      "public": ["MultipartError", "MultipartForm", "MultipartLimits", "MultipartPart", "parse"],
+      "internal_exports": []
+    },
+    "ember.security": {
+      "public": [
+        "Aead", "CookieError", "CookieJar", "CookieLimits", "CorsMiddleware", "CsrfError",
+        "CsrfMiddleware", "CsrfProtection", "SecurityError", "SessionCodec", "SessionError",
+        "SetCookie", "SignedCookieCodec"
+      ],
+      "internal_exports": []
+    },
+    "ember.telemetry": {
+      "public": [
+        "AccessEvent", "ErrorLogEvent", "HealthProbe", "JsonLogSink", "MemorySink",
+        "MetricsRegistry", "RedactionPolicy", "ServerSpan", "Telemetry", "TraceContext", "Tracer"
+      ],
+      "internal_exports": []
+    },
+    "ember.testing": {
+      "public": [
+        "assert_body", "assert_header", "assert_status", "delete", "get", "head", "options",
+        "patch", "post", "put", "query", "request"
+      ],
+      "internal_exports": []
+    },
+    "ember.integrations.orm": {
+      "public": ["ConnectionMiddleware", "PoolIntegration", "connection", "pool"],
+      "internal_exports": []
+    }
+  }
+}

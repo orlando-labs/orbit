@@ -1,0 +1,110 @@
+#!/usr/bin/env python3
+"""One-command clean dependency, package, install, and API-example build."""
+
+import hashlib
+import json
+import os
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parents[1]
+BUILD = ROOT / ".build" / "clean-room"
+DEPENDENCIES = ROOT / ".build" / "dependencies"
+
+
+def run(*args: str, cwd: Path = ROOT, capture: bool = False) -> str:
+    print("+", " ".join(args))
+    result = subprocess.run(
+        list(args), cwd=cwd, check=True, text=True,
+        stdout=subprocess.PIPE if capture else None,
+    )
+    return result.stdout.strip() if capture else ""
+
+
+def sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def main() -> int:
+    local_root = os.environ.get("EMBER_LOCAL_SOURCE_ROOT")
+    sync = [sys.executable, str(ROOT / "script/dependencies.py"), "sync", "--scope", "core"]
+    if local_root:
+        sync += ["--local-source-root", local_root]
+    run(*sync)
+
+    amber_source = DEPENDENCIES / "amber-lang"
+    jobs = str(max(1, min(4, os.cpu_count() or 1)))
+    run("make", f"-j{jobs}", "build/amberc", cwd=amber_source)
+    amberc = amber_source / "build" / "amberc"
+    if run(str(amberc), "--version", capture=True) != "amberc 0.1.0-dev":
+        raise RuntimeError("resolved compiler does not match the supported Amber version")
+
+    run(sys.executable, str(ROOT / "script/stage5_checks.py"), "--amberc", str(amberc))
+    if BUILD.exists():
+        shutil.rmtree(BUILD)
+    (BUILD / "dist").mkdir(parents=True)
+    (BUILD / "registry").mkdir()
+
+    version = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
+    packages: list[Path] = []
+    for name, manifest in (("ember", "amber.toml"), ("ember-orm", "packages/ember-orm/amber.toml")):
+        first = BUILD / "dist" / f"{name}-{version}.first.amberpkg"
+        second = BUILD / "dist" / f"{name}-{version}.second.amberpkg"
+        run(str(amberc), "package-build", manifest, str(first))
+        run(str(amberc), "package-build", manifest, str(second))
+        if first.read_bytes() != second.read_bytes():
+            raise RuntimeError(f"{name} package builds are not byte-for-byte reproducible")
+        package = BUILD / "dist" / f"{name}-{version}.amberpkg"
+        shutil.copyfile(first, package)
+        run(str(amberc), "package-verify", str(package))
+        run(str(amberc), "package-install", str(package), str(BUILD / "registry"))
+        packages.append(package)
+
+    api_out = BUILD / "api"
+    hello_out = BUILD / "hello"
+    run(
+        str(amberc), "build", "test/api_reference_selftest.build.yaml",
+        "--target", "native", "--out-dir", str(api_out),
+        "--cache-dir", str(BUILD / "cache-api"), "--no-cache",
+        "--grant", "random.secure",
+    )
+    run(str(api_out / "ember.api_reference_selftest"))
+    run(
+        str(amberc), "build", "examples/hello.build.yaml",
+        "--target", "native", "--out-dir", str(hello_out),
+        "--cache-dir", str(BUILD / "cache-hello"), "--no-cache",
+        "--grant", "net.listen", "--grant", "random.secure",
+    )
+
+    dependencies = json.loads((ROOT / "release/dependencies.lock.json").read_text(encoding="utf-8"))
+    evidence = {
+        "schema": "ember.clean-room-evidence.v1",
+        "ember_version": version,
+        "amber_revision": dependencies["dependencies"][0]["revision"],
+        "dependency_lock_sha256": sha256(ROOT / "release/dependencies.lock.json"),
+        "packages": {package.name: sha256(package) for package in packages},
+        "reproducible": True,
+        "package_verified": True,
+        "package_installed": True,
+        "api_example_built_and_ran": True,
+        "server_example_built": True,
+    }
+    evidence_path = BUILD / "evidence.json"
+    evidence_path.write_text(json.dumps(evidence, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    print(f"clean-room build passed; evidence: {evidence_path}")
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        raise SystemExit(main())
+    except (OSError, RuntimeError, subprocess.CalledProcessError) as error:
+        print(f"clean-room build failed: {error}", file=sys.stderr)
+        raise SystemExit(1)
