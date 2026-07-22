@@ -59,10 +59,12 @@ def main():
 
   response = Client().get(
     "http://127.0.0.1:#{port}/hello/Amber?source=loopback",
-    headers: {"x-request-id": "http-selftest"})
+    headers: {"x-request-id": "http-selftest", "connection": "close"})
   body = response.body_text()
 
-  events_response = Client().get("http://127.0.0.1:#{port}/events")
+  events_response = Client().get(
+    "http://127.0.0.1:#{port}/events",
+    headers: {"connection": "close"})
   events_body = events_response.body_text()
   events_trailer = events_response.body.trailers.first("x-stream-state")
 
@@ -71,18 +73,20 @@ def main():
     writer.write_all!("right".bytes)
   echo_response = Client().post(
     "http://127.0.0.1:#{port}/echo",
+    headers: {"connection": "close"},
     body: payload)
   echo_body = echo_response.body_text()
   echo_trailer = echo_response.body.trailers.first("x-echo-state")
 
   query_response = Client().query(
     "http://127.0.0.1:#{port}/search",
-    headers: {"content-type": "application/sql"},
+    headers: {"content-type": "application/sql", "connection": "close"},
     body: "SELECT 1")
   query_body = query_response.body_text()
   runner.wait
 
-  assert(response.status == 200, "loopback status")
+  assert(response.status == 200,
+    "loopback status: " + response.status.to_str + ":" + body)
   assert(response.headers.first("content-type") == "application/json; charset=utf-8", "loopback type")
   assert(response.headers.first("x-ember") == "yes", "loopback response header")
   assert(body.contains?("hello Amber"), "loopback route capture")

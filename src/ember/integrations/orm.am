@@ -1,6 +1,6 @@
 package ember.integrations.orm
 
-from ember import render
+from ember import Integration, render
 from orm.pool import ConnectionPoolClosedError
 from orm.pool import ConnectionPoolLeaseError
 from orm.pool import ConnectionPoolTimeoutError
@@ -13,7 +13,7 @@ def pool(database):
 def connection(database):
   ConnectionMiddleware(database)
 
-class PoolIntegration:
+class PoolIntegration < Integration:
   def init(@database)
 
   def start():

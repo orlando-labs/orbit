@@ -26,7 +26,8 @@ export macro mount
 export __route, __scope, __mount, __before
 export App, ServerHandle, Routes, Route, RouteMatch, RouteLookup, Request, Response, Headers
 export RequestBodyStream, RequestChunk, StreamingResponse, StreamBody
-export Controller, Target, Html, ErrorEvent
+export Controller, Target, Integration, Html, ErrorEvent
+export SecurityPolicy
 export ParamSchema, ParamField, ParamObject, ParamArray, ParamIssue
 export RequestParams, RequestParamSource
 export render, redirect, stream, normalize_response, status_code
@@ -39,6 +40,8 @@ export ServerLifecycleError
 export UnknownStatusError, UnknownServiceError, UnsafeRedirectError
 export RequestParamsError, ParamsParseError, ParamsShapeError
 export ParamsUnsupportedMediaTypeError, ParamsBodyConsumedError
+export RequestSecurityError, InvalidAuthorityError, UnauthorizedHostError
+export InvalidForwardedRequestError
 
 class EmberError < Exception:
   attr message
@@ -66,6 +69,10 @@ class UnknownStatusError < EmberError
 class UnknownServiceError < EmberError
 class UnsafeRedirectError < EmberError
 class RequestParamsError < EmberError
+class RequestSecurityError < EmberError
+class InvalidAuthorityError < RequestSecurityError
+class UnauthorizedHostError < RequestSecurityError
+class InvalidForwardedRequestError < RequestSecurityError
 
 class ParamsParseError < RequestParamsError
 
@@ -1013,6 +1020,310 @@ class RequestBodyStream:
     @claimed_by = :params
     self
 
+def _security_decimal(raw, label):
+  if raw.empty?:
+    raise ArgumentError(label + " cannot be empty")
+  digits_valid = raw.chars.all? |char|: "0123456789".contains?(char)
+  unless digits_valid:
+    raise ArgumentError(label + " must contain decimal digits")
+  raw.to_int()
+
+def _valid_hostname?(host):
+  return false if host.empty? or host.length > 253
+  labels = host.split(".")
+  return false if labels.empty?
+  valid = true
+  labels.each |label|:
+    valid = false if label.empty? or label.length > 63
+    valid = false if label.starts_with?("-") or label.ends_with?("-")
+    label.chars.each |char|:
+      letter = "abcdefghijklmnopqrstuvwxyz".contains?(char)
+      digit = "0123456789".contains?(char)
+      valid = false unless letter or digit or char == "-"
+  valid
+
+def _ipv6_side_slots(raw):
+  return 0 if raw.empty?()
+  groups = raw.split(":")
+  slots = 0
+  index = 0
+  while index < groups.count:
+    group = groups[index]
+    return -1 if group.empty?()
+    if group.contains?("."):
+      return -1 unless index == groups.count - 1 and _parse_ipv4(group) != null
+      slots += 2
+    else:
+      return -1 if group.length < 1 or group.length > 4
+      valid_hex = group.chars.all? |char|: "0123456789abcdef".contains?(char)
+      return -1 unless valid_hex
+      slots += 1
+    index += 1
+  slots
+
+def _valid_ipv6_literal?(host):
+  return false unless Str === host
+  normalized = host.downcase
+  return false if normalized.empty?() or not normalized.contains?(":")
+  return false if normalized.contains?("[") or normalized.contains?("]") or normalized.contains?("%")
+  compressed = normalized.contains?("::")
+  sides = normalized.split("::")
+  return false if sides.count > 2 or (compressed and sides.count != 2)
+  if compressed:
+    left = _ipv6_side_slots(sides[0])
+    right = _ipv6_side_slots(sides[1])
+    return left >= 0 and right >= 0 and left + right < 8
+  slots = _ipv6_side_slots(normalized)
+  slots == 8
+
+def _parse_authority(raw):
+  unless Str === raw:
+    raise InvalidAuthorityError("Host authority must be a string")
+  authority = raw.trim.downcase
+  if authority.empty? or authority != raw.downcase:
+    raise InvalidAuthorityError("Host authority contains surrounding whitespace")
+  forbidden_delimiter = authority.contains?("/") or authority.contains?("\\") or authority.contains?("@") or authority.contains?("#") or authority.contains?("?")
+  if forbidden_delimiter:
+    raise InvalidAuthorityError("Host authority contains a forbidden delimiter")
+
+  host = authority
+  port_text = null
+  if authority.starts_with?("["):
+    close = authority.index("]")
+    unless close and close > 1:
+      raise InvalidAuthorityError("malformed bracketed IPv6 authority")
+    host = authority.slice(1...close)
+    suffix = authority.slice(close + 1...authority.length)
+    if suffix != "":
+      unless suffix.starts_with?(":"):
+        raise InvalidAuthorityError("malformed bracketed IPv6 port")
+      port_text = suffix.slice(1...suffix.length)
+    unless _valid_ipv6_literal?(host):
+      raise InvalidAuthorityError("invalid IPv6 host literal")
+  else:
+    colon = authority.rindex(":")
+    if colon:
+      if authority.index(":") != colon:
+        raise InvalidAuthorityError("IPv6 Host literals must be bracketed")
+      host = authority.slice(0...colon)
+      port_text = authority.slice(colon + 1...authority.length)
+    unless _valid_hostname?(host):
+      raise InvalidAuthorityError("invalid host name")
+
+  if port_text != null:
+    port = try:
+      _security_decimal(port_text, "Host port")
+    rescue ArgumentError |error|:
+      raise InvalidAuthorityError(error.message)
+    unless port >= 1 and port <= 65535:
+      raise InvalidAuthorityError("Host port is outside 1..65535")
+  [authority, host].freeze
+
+def _ipv4_octets(raw):
+  return null unless raw
+  pieces = raw.to_str.split(".")
+  return null unless pieces.count == 4
+  result = []
+  valid = true
+  index = 0
+  while index < pieces.count:
+    piece = pieces[index]
+    valid = false if piece.empty? or (piece.length > 1 and piece.starts_with?("0"))
+    digits_valid = piece.chars.all? |char|: "0123456789".contains?(char)
+    valid = false unless digits_valid
+    if valid:
+      octet = _security_decimal(piece, "IPv4 octet")
+      if octet >= 0 and octet <= 255:
+        result.push!(octet)
+      else:
+        valid = false
+    index += 1
+  return result.freeze if valid
+  null
+
+def _parse_ipv4(raw):
+  octets = _ipv4_octets(raw)
+  return null unless octets
+  octets[0] * 16777216 + octets[1] * 65536 + octets[2] * 256 + octets[3]
+
+class SecurityCidr:
+  def init(source):
+    unless Str === source:
+      raise ArgumentError("trusted proxy CIDR must be a string")
+    pieces = source.split("/")
+    unless pieces.count == 1 or pieces.count == 2:
+      raise ArgumentError("invalid trusted proxy CIDR: " + source)
+    @address = pieces[0].downcase
+    if @address.contains?(":"):
+      prefix = if pieces.count == 2 then _security_decimal(pieces[1], "IPv6 prefix") else 128
+      unless prefix == 128 and _valid_ipv6_literal?(@address):
+        raise ArgumentError("only exact IPv6 /128 trusted proxy entries are supported")
+      @kind = :ipv6_exact
+      return
+    octets = _ipv4_octets(@address)
+    unless octets:
+      raise ArgumentError("invalid IPv4 trusted proxy CIDR: " + source)
+    prefix = if pieces.count == 2 then _security_decimal(pieces[1], "IPv4 prefix") else 32
+    unless prefix >= 0 and prefix <= 32:
+      raise ArgumentError("IPv4 CIDR prefix must be between 0 and 32")
+    @network_octets = octets
+    @prefix = prefix
+    @kind = :ipv4
+
+  def include?(address):
+    candidate = address.to_str.downcase
+    return candidate == @address if @kind == :ipv6_exact
+    raw_octets = candidate.split(".")
+    return false unless raw_octets.count == 4
+    octets = []
+    raw_octets.each |piece|:
+      digits_valid = not piece.empty?
+      all_digits = piece.chars.all? |char|: "0123456789".contains?(char)
+      digits_valid = digits_valid and all_digits
+      return false unless digits_valid
+      value = _security_decimal(piece, "IPv4 octet")
+      return false unless value >= 0 and value <= 255
+      octets.push!(value)
+    full = @prefix // 8
+    remaining = @prefix % 8
+    index = 0
+    while index < full:
+      return false unless octets[index] == @network_octets[index]
+      index += 1
+    if remaining > 0:
+      block = 2 ** (8 - remaining)
+      return false unless octets[full] // block == @network_octets[full] // block
+    true
+
+def _endpoint_host(endpoint):
+  return null if endpoint == null
+  return endpoint.host().downcase unless Str === endpoint
+  text = endpoint.downcase
+  if text.starts_with?("["):
+    close = text.index("]")
+    return null unless close
+    return text.slice(1...close)
+  colon = text.rindex(":")
+  if colon and text.index(":") == colon:
+    return text.slice(0...colon)
+  text
+
+def _forwarded_single(headers, name):
+  values = headers.all(name)
+  if values.count > 1:
+    raise InvalidForwardedRequestError(name + " must not be repeated")
+  return null if values.empty?
+  value = values[0].trim
+  if value.empty? or value.contains?(","):
+    raise InvalidForwardedRequestError(name + " must contain one value")
+  value
+
+class SecurityPolicy:
+  def init(
+    allowed_hosts: ["localhost", "127.0.0.1", "::1"],
+    trusted_proxy_cidrs: [],
+    forwarded: :none,
+    forwarded_hops: 0,
+    security_headers: true,
+    content_security_policy: "default-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'",
+    hsts: false
+  ):
+    unless Array === allowed_hosts and allowed_hosts.present?:
+      raise ArgumentError("allowed_hosts must be a non-empty Array")
+    @allowed_hosts = allowed_hosts.map |entry|:
+      unless Str === entry and entry == entry.trim and entry.present?:
+        raise ArgumentError("allowed host entries must be non-empty strings")
+      entry.downcase
+    .freeze
+    unless Array === trusted_proxy_cidrs:
+      raise ArgumentError("trusted_proxy_cidrs must be an Array")
+    @trusted_proxy_cidrs = trusted_proxy_cidrs.map |entry|: SecurityCidr(entry) .freeze
+    unless forwarded == :none or forwarded == :x_forwarded:
+      raise ArgumentError("forwarded must be :none or :x_forwarded")
+    unless Int === forwarded_hops and forwarded_hops >= 0 and forwarded_hops <= 16:
+      raise ArgumentError("forwarded_hops must be an Int between 0 and 16")
+    if forwarded == :x_forwarded and (@trusted_proxy_cidrs.empty? or forwarded_hops == 0):
+      raise ArgumentError("x_forwarded requires trusted proxy CIDRs and a positive hop bound")
+    @forwarded = forwarded
+    @forwarded_hops = forwarded_hops
+    unless Bool === security_headers and Bool === hsts:
+      raise ArgumentError("security_headers and hsts must be Bool")
+    unless content_security_policy == null or (Str === content_security_policy and content_security_policy.present?() and not content_security_policy.contains?("\r") and not content_security_policy.contains?("\n")):
+      raise ArgumentError("content_security_policy must be null or a non-empty header-safe string")
+    @security_headers = security_headers
+    @content_security_policy = content_security_policy
+    @hsts = hsts
+
+  def _host_allowed?(host):
+    @allowed_hosts.any? |entry|:
+      if entry.starts_with?("*."):
+        suffix = entry.slice(1...entry.length)
+        host.ends_with?(suffix) and host.length > suffix.length
+      else:
+        host == entry
+
+  def _trusted?(address):
+    return false unless address
+    @trusted_proxy_cidrs.any? |cidr|: cidr.include?(address)
+
+  def authorize(request):
+    host_values = request.headers.all("host")
+    if host_values.empty?:
+      raise InvalidAuthorityError("Host header is required")
+    if host_values.count != 1:
+      raise InvalidAuthorityError("Host header must occur exactly once")
+    parsed = _parse_authority(host_values[0])
+    authority = parsed[0]
+    host = parsed[1]
+    unless _host_allowed?(host):
+      raise UnauthorizedHostError("request Host is not authorized")
+
+    scheme = "http"
+    client_ip = _endpoint_host(request.remote_endpoint)
+    peer_trusted = _trusted?(client_ip)
+    if @forwarded == :x_forwarded and peer_trusted:
+      forwarded_host = _forwarded_single(request.headers, "x-forwarded-host")
+      if forwarded_host:
+        forwarded_parsed = _parse_authority(forwarded_host)
+        unless _host_allowed?(forwarded_parsed[1]):
+          raise UnauthorizedHostError("forwarded Host is not authorized")
+        authority = forwarded_parsed[0]
+      forwarded_proto = _forwarded_single(request.headers, "x-forwarded-proto")
+      if forwarded_proto:
+        scheme = forwarded_proto.downcase
+        unless scheme == "http" or scheme == "https":
+          raise InvalidForwardedRequestError("x-forwarded-proto must be http or https")
+      forwarded_for_values = request.headers.all("x-forwarded-for")
+      if forwarded_for_values.count > 1:
+        raise InvalidForwardedRequestError("x-forwarded-for must not be repeated")
+      if forwarded_for_values.present?:
+        chain = forwarded_for_values[0].split(",").map: _1.trim
+        if chain.empty? or chain.count > @forwarded_hops:
+          raise InvalidForwardedRequestError("x-forwarded-for exceeds the configured hop bound")
+        chain.each |address|:
+          if _parse_ipv4(address) == null and not _valid_ipv6_literal?(address.downcase):
+            raise InvalidForwardedRequestError("x-forwarded-for contains an invalid address")
+        index = 1
+        while index < chain.count:
+          unless _trusted?(chain[index]):
+            raise InvalidForwardedRequestError("x-forwarded-for contains an untrusted intermediate proxy")
+          index += 1
+        client_ip = chain[0]
+    request._with_provenance(scheme, authority, client_ip, peer_trusted)
+
+  def protect_response(response, request):
+    return response unless @security_headers
+    result = with_response_header(response, "x-content-type-options", "nosniff")
+    result = with_response_header(result, "x-frame-options", "DENY")
+    result = with_response_header(result, "referrer-policy", "strict-origin-when-cross-origin")
+    result = with_response_header(result, "permissions-policy", "geolocation=(), microphone=(), camera=()")
+    result = with_response_header(result, "cross-origin-opener-policy", "same-origin")
+    if @content_security_policy:
+      result = with_response_header(result, "content-security-policy", @content_security_policy)
+    if @hsts and request.secure?():
+      result = with_response_header(result, "strict-transport-security", "max-age=31536000; includeSubDomains")
+    result
+
 class Request:
   attr method
   attr target
@@ -1026,6 +1337,10 @@ class Request:
   attr selected_route
   attr services
   attr response_header_sink
+  attr effective_scheme
+  attr effective_authority
+  attr client_ip
+  attr trusted_proxy
 
   def init(
     method: "GET",
@@ -1043,7 +1358,11 @@ class Request:
     selected_route: null,
     path_params: {},
     services: {},
-    response_header_sink: null
+    response_header_sink: null,
+    effective_scheme: null,
+    effective_authority: null,
+    client_ip: null,
+    trusted_proxy: false
   ):
     @method = method.to_str.upcase
     @target = target
@@ -1065,6 +1384,10 @@ class Request:
     @path_params = _immutable_copy(path_params)
     @services = services.copy.freeze
     @response_header_sink = response_header_sink or {}
+    @effective_scheme = effective_scheme
+    @effective_authority = effective_authority
+    @client_ip = client_ip
+    @trusted_proxy = trusted_proxy
     unless @response_header_sink.has_key?("__ember_input_request_id"):
       @response_header_sink.store!("__ember_input_request_id", @header_lookup[?"x-request-id"])
     @query_params = null
@@ -1081,8 +1404,8 @@ class Request:
       body_bytes: null,
       body_stream: RequestBodyStream(request.body_stream),
       server_request: request,
-      remote_endpoint: request.remote_endpoint,
-      local_endpoint: request.local_endpoint
+      remote_endpoint: request.remote_endpoint.to_str(),
+      local_endpoint: request.local_endpoint.to_str()
     )
 
   def header(name):
@@ -1137,9 +1460,34 @@ class Request:
     value
 
   def origin():
-    host = header("host")
-    return null unless host
-    "http://" + host.to_str
+    return null unless @effective_scheme and @effective_authority
+    @effective_scheme + "://" + @effective_authority
+
+  def secure?():
+    @effective_scheme == "https"
+
+  def _with_provenance(scheme, authority, client_ip, trusted_proxy):
+    Request(
+      method: @method,
+      target: @target,
+      path: @path,
+      raw_query: @raw_query,
+      headers: @headers,
+      body_text: @body_text_cache,
+      body_bytes: @body_bytes_cache,
+      body_stream: @body_stream,
+      server_request: @server_request,
+      remote_endpoint: @remote_endpoint,
+      local_endpoint: @local_endpoint,
+      routes: @routes,
+      selected_route: @selected_route,
+      path_params: @path_params,
+      services: @services,
+      response_header_sink: @response_header_sink,
+      effective_scheme: scheme,
+      effective_authority: authority,
+      client_ip: client_ip,
+      trusted_proxy: trusted_proxy)
 
   def _routed(routes, selected_route, path_params, services):
     Request(
@@ -1158,7 +1506,11 @@ class Request:
       selected_route: selected_route,
       path_params: path_params,
       services: services,
-      response_header_sink: @response_header_sink)
+      response_header_sink: @response_header_sink,
+      effective_scheme: @effective_scheme,
+      effective_authority: @effective_authority,
+      client_ip: @client_ip,
+      trusted_proxy: @trusted_proxy)
 
 def request_method(request):
   unless Request === request:
@@ -1209,6 +1561,16 @@ class TargetEndpoint:
   def init(@target, @captures)
   def call(request):
     @target._invoke(request, @captures)
+
+class Integration:
+  def start():
+    self
+
+  def ready?():
+    true
+
+  def stop():
+    null
 
 class IntegrationNext:
   def init(@integrations, @index, @endpoint):
@@ -1743,22 +2105,17 @@ def _validate_server_options!(
   true
 
 def _integration_start(integration):
-  try:
-    integration.start()
-  rescue NoMethodError:
-    null
+  return null unless Integration === integration
+  integration.start()
 
 def _integration_stop(integration):
-  try:
-    integration.stop()
-  rescue NoMethodError:
-    null
+  return null unless Integration === integration
+  integration.stop()
 
 def _integration_ready?(integration):
+  return true unless Integration === integration
   try:
     integration.ready?()
-  rescue NoMethodError:
-    true
   rescue Exception |error|:
     raise error if _propagated_error?(error)
     false
@@ -1940,6 +2297,7 @@ class App:
     middleware: [],
     integrations: [],
     services: {},
+    security: null,
     head_fallback: true,
     automatic_options: true,
     expose_exceptions: false,
@@ -1949,6 +2307,9 @@ class App:
     @middleware = _middleware_list(middleware).freeze
     @integrations = integrations.copy.freeze
     @services = services.copy.freeze
+    @security = security or SecurityPolicy()
+    unless SecurityPolicy === @security:
+      raise ArgumentError("security must be an ember.SecurityPolicy")
     @head_fallback = head_fallback
     @automatic_options = automatic_options
     @expose_exceptions = expose_exceptions
@@ -1968,32 +2329,48 @@ class App:
 
   def _call_normalized(request as Request):
     observed_request = request
+    effective_request = request
+    response = null
+    finalized = false
+    phase = "request authorization"
     try:
-      if request.method == "QUERY" and not request.header("content-type"):
-        return render(text: "QUERY request requires Content-Type", status: :bad_request)
-      chain = MiddlewareNext(@middleware, 0, @dispatch_endpoint)
-      response = normalize_response(chain(request))
-      _apply_response_rules(response, request.method)
+      effective_request = @security.authorize(request)
+      if effective_request.method == "QUERY" and not effective_request.header("content-type"):
+        response = render(text: "QUERY request requires Content-Type", status: :bad_request)
+      else:
+        phase = "application dispatch"
+        chain = MiddlewareNext(@middleware, 0, @dispatch_endpoint)
+        response = normalize_response(chain(effective_request))
+      phase = "security response headers"
+      response = @security.protect_response(normalize_response(response), effective_request)
+      phase = "response validation"
+      response = _apply_response_rules(response, request.method)
+      finalized = true
+    rescue UnauthorizedHostError |error|:
+      response = render(text: "forbidden", status: :forbidden)
+    rescue InvalidAuthorityError |error|:
+      response = render(text: "bad request", status: :bad_request)
+    rescue InvalidForwardedRequestError |error|:
+      response = render(text: "bad request", status: :bad_request)
     rescue InvalidPathError |error|:
-      _apply_response_rules(render(text: "bad request", status: :bad_request), request.method)
+      response = render(text: "bad request", status: :bad_request)
     rescue UrlDecodeError |error|:
-      _apply_response_rules(render(text: "bad request", status: :bad_request), request.method)
+      response = render(text: "bad request", status: :bad_request)
     rescue RouteParamError |error|:
-      _apply_response_rules(render(text: "bad request", status: :bad_request), request.method)
+      response = render(text: "bad request", status: :bad_request)
     rescue ParamsUnsupportedMediaTypeError |error|:
-      _apply_response_rules(
-        render(text: "unsupported media type", status: :unsupported_media_type),
-        request.method)
+      response = render(text: "unsupported media type", status: :unsupported_media_type)
     rescue RequestParamsError |error|:
-      _apply_response_rules(render(text: "bad request", status: :bad_request), request.method)
+      response = render(text: "bad request", status: :bad_request)
     rescue Exception |error|:
       raise error if _propagated_error?(error)
       route_pattern = request.response_header_sink[?"__ember_route_pattern"]
       _report_error(@on_error, error, observed_request, route_pattern)
-      message = if @expose_exceptions then error.message else "internal server error"
-      _apply_response_rules(
-        render(text: message, status: :internal_server_error),
-        request.method)
+      message = if @expose_exceptions then phase + ": " + error.message else "internal server error"
+      response = render(text: message, status: :internal_server_error)
+    return response if finalized
+    protected = @security.protect_response(normalize_response(response), effective_request)
+    _apply_response_rules(protected, request.method)
 
   def server(
     host: "127.0.0.1",

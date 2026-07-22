@@ -1,0 +1,331 @@
+package ember.stage3_selftest
+
+import ember
+import ember.multipart
+import ember.testing
+from ember.html import escape, html, join, raw, trusted_script, trusted_style, url
+from ember.middleware import RequestIdMiddleware
+from ember.security import Aead, CookieError, CookieJar, CookieLimits
+from ember.security import CorsMiddleware, CsrfMiddleware, CsrfProtection
+from ember.security import SessionCodec, SessionError, SetCookie, SignedCookieCodec
+
+export main
+
+def assert(condition, message):
+  raise ArgumentError(message) unless condition
+
+def inspect_request(request):
+  ember.render(text: request.origin() + "|" + request.client_ip.to_str + "|" + request.trusted_proxy.to_str)
+
+def ok(request):
+  ember.render(text: "ok")
+
+routes = ember.routes:
+  get "/inspect", to: &inspect_request
+  get "/ok", to: &ok
+  post "/ok", to: &ok
+
+def security_policy_checks():
+  assert(ember.SecurityPolicy(trusted_proxy_cidrs: ["2001:db8::1/128"]) != null,
+    "canonical exact IPv6 trusted proxy entry is accepted")
+  invalid_ipv6 = false
+  try:
+    ember.SecurityPolicy(trusted_proxy_cidrs: ["::::/128"])
+  rescue ArgumentError:
+    invalid_ipv6 = true
+  assert(invalid_ipv6, "malformed IPv6 trusted proxy entry is rejected")
+  policy = ember.SecurityPolicy(
+    allowed_hosts: ["app.example.test", "internal.example", "localhost"],
+    trusted_proxy_cidrs: ["10.0.0.0/8"],
+    forwarded: :x_forwarded,
+    forwarded_hops: 2,
+    hsts: true)
+  app = ember.App(routes: routes, security: policy)
+
+  missing = app.call(ember.Request(path: "/ok", target: "/ok"))
+  invalid = app.call(ember.Request(
+    path: "/ok", target: "/ok", headers: {"host": "bad host"}))
+  unauthorized = app.call(ember.Request(
+    path: "/ok", target: "/ok", headers: {"host": "evil.example"}))
+  assert(missing.status == 400, "missing Host is rejected before routing")
+  assert(invalid.status == 400, "malformed Host is rejected before routing: " + invalid.status.to_str + ":" + invalid.body_text)
+  assert(unauthorized.status == 403, "unauthorized Host is rejected before routing")
+
+  direct = app.call(ember.Request(
+    path: "/inspect",
+    target: "/inspect",
+    headers: {
+      "host": "app.example.test",
+      "x-forwarded-host": "evil.example",
+      "x-forwarded-proto": "https",
+      "x-forwarded-for": "192.0.2.7"
+    },
+    remote_endpoint: "203.0.113.8:4000"))
+  assert(direct.status == 200, "untrusted forwarded fields are ignored, not interpreted")
+  assert(direct.body_text == "http://app.example.test|203.0.113.8|false",
+    "direct provenance uses socket peer and validated Host")
+
+  trusted = app.call(ember.Request(
+    path: "/inspect",
+    target: "/inspect",
+    headers: {
+      "host": "internal.example",
+      "x-forwarded-host": "app.example.test",
+      "x-forwarded-proto": "https",
+      "x-forwarded-for": "192.0.2.7, 10.1.2.3"
+    },
+    remote_endpoint: "10.9.8.7:4000"))
+  assert(trusted.status == 200, "trusted proxy request is accepted")
+  assert(trusted.body_text == "https://app.example.test|192.0.2.7|true",
+    "trusted bounded chain drives effective request provenance")
+  assert(trusted.header("strict-transport-security") != null,
+    "HSTS is emitted only for validated HTTPS provenance")
+
+  too_many = app.call(ember.Request(
+    path: "/ok",
+    target: "/ok",
+    headers: {
+      "host": "internal.example",
+      "x-forwarded-for": "192.0.2.1, 10.1.1.1, 10.2.2.2"
+    },
+    remote_endpoint: "10.9.8.7:4000"))
+  untrusted_middle = app.call(ember.Request(
+    path: "/ok",
+    target: "/ok",
+    headers: {
+      "host": "internal.example",
+      "x-forwarded-for": "192.0.2.1, 172.16.0.1"
+    },
+    remote_endpoint: "10.9.8.7:4000"))
+  assert(too_many.status == 400, "forwarded hop bound is enforced")
+  assert(untrusted_middle.status == 400, "untrusted intermediate proxy is rejected")
+  assert(trusted.header("content-security-policy") != null, "safe browser headers are default")
+  true
+
+def request_id_checks():
+  app = ember.App(routes: routes, middleware: [RequestIdMiddleware()])
+  accepted = app.call(testing.get("/ok", headers: {"x-request-id": "stage-three-id"}))
+  replaced = app.call(testing.get("/ok", headers: {"x-request-id": "bad id"}))
+  assert(accepted.header("x-request-id") == "stage-three-id", "valid request id is accepted")
+  generated = replaced.header("x-request-id")
+  assert(generated != "bad id" and generated.length == 24, "invalid request id is securely replaced")
+  assert(generated.chars.all? |char|: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_".contains?(char),
+    "generated request id is header/log safe")
+  true
+
+def crypto_and_cookie_checks():
+  key = Hex.decode("808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9f")
+  nonce = Hex.decode("070000004041424344454647")
+  aad = Hex.decode("50515253c0c1c2c3c4c5c6c7")
+  plaintext = Bytes.new("Ladies and Gentlemen of the class of '99: If I could offer you only one tip for the future, sunscreen would be it.")
+  aead = Aead(key)
+  sealed = aead.seal_bytes(plaintext, aad: aad, nonce: nonce)
+  expected = ("d31a8d34648e60db7b86afbc53ef7ec2a4aded51296e08fea9e2b5a736ee62d6" +
+    "3dbea45e8ca9671282fafb69da92728b1a71de0a9e060b2905d6a5b67ecd3b36" +
+    "92ddbd7f2d778b8c9803aee328091b58fab324e4fad675945585808b4831d7bc" +
+    "3ff4def08e4b7a9de576d26586cec64b61161ae10b594f09e26a7e902ecbd0600691")
+  assert(sealed.slice(12).hex() == expected, "RFC 8439 ChaCha20-Poly1305 vector")
+  assert(aead.open_bytes(sealed, aad: aad).to_str() == plaintext.to_str(), "AEAD round trip")
+  tampered = sealed.to_str()
+  tampered = Bytes.new(tampered.slice(0...tampered.length - 1) + "x")
+  rejected_tag = false
+  try:
+    aead.open_bytes(tampered, aad: aad)
+  rescue SessionError:
+    rejected_tag = true
+  assert(rejected_tag, "AEAD rejects a modified authentication tag")
+
+  jar = CookieJar.parse("theme=dark; session=abc")
+  assert(jar.get("theme") == "dark" and jar.get("session") == "abc", "bounded cookie parsing")
+  duplicate = false
+  oversized = false
+  try:
+    CookieJar.parse("a=1; a=2")
+  rescue CookieError:
+    duplicate = true
+  try:
+    CookieJar.parse("a=12345", limits: CookieLimits(max_value_bytes: 4))
+  rescue CookieError:
+    oversized = true
+  assert(duplicate and oversized, "duplicate and oversized cookies are rejected")
+  cookie = SetCookie("__Host-session", "abc", secure: true, http_only: true, same_site: :strict)
+  cookie_text = cookie.header_value()
+  assert(cookie_text.contains?("Secure") and cookie_text.contains?("SameSite=Strict"),
+    "secure Set-Cookie serializer: " + cookie_text)
+  invalid_domain = false
+  try:
+    SetCookie("session", "abc", domain: "example.test; Secure")
+  rescue CookieError:
+    invalid_domain = true
+  assert(invalid_domain, "Set-Cookie rejects attribute injection through Domain")
+
+  secret = "0123456789abcdef0123456789abcdef"
+  signer = SignedCookieCodec(secret: secret)
+  signed = signer.encode("signed payload")
+  assert(signer.decode(signed).to_str() == "signed payload", "signed cookie round trip")
+  signed_bad = false
+  try:
+    signer.decode(signed + "x")
+  rescue CookieError:
+    signed_bad = true
+  assert(signed_bad, "signed cookie tampering is rejected")
+
+  sessions = SessionCodec(secret: secret, ttl: 60)
+  token = sessions.encode({"role": "admin"}, now: 1000)
+  data = sessions.decode(token, now: 1010)
+  assert(data["role"] == "admin", "encrypted authenticated session round trip")
+  expired = false
+  try:
+    sessions.decode(token, now: 1061)
+  rescue SessionError:
+    expired = true
+  assert(expired, "expired encrypted session is rejected")
+  true
+
+def cors_and_csrf_checks():
+  cors = CorsMiddleware(
+    origins: ["https://ui.example.test"],
+    methods: ["GET", "POST"],
+    headers: ["content-type", "x-csrf-token"],
+    credentials: true)
+  cors_app = ember.App(routes: routes, middleware: [cors])
+  preflight = cors_app.call(testing.options("/ok", headers: {
+    "origin": "https://ui.example.test",
+    "access-control-request-method": "POST",
+    "access-control-request-headers": "Content-Type, X-CSRF-Token"
+  }))
+  denied = cors_app.call(testing.options("/ok", headers: {
+    "origin": "https://evil.example",
+    "access-control-request-method": "POST"
+  }))
+  assert(preflight.status == 204, "allowed CORS preflight")
+  assert(preflight.header("access-control-allow-origin") == "https://ui.example.test",
+    "CORS echoes only an allowlisted origin")
+  assert(preflight.header("access-control-allow-credentials") == "true", "credentialed CORS is explicit")
+  assert(preflight.header("vary").downcase.contains?("origin"), "CORS response varies by Origin")
+  assert(denied.status == 403, "disallowed CORS preflight is rejected")
+
+  secret = "abcdef0123456789abcdef0123456789"
+  protection = CsrfProtection(secret)
+  direct_token = protection.token("session-one")
+  assert(protection.valid?(direct_token, "session-one"), "CSRF token is session-bound")
+  assert(not protection.valid?(direct_token, "session-two"), "CSRF token cannot cross sessions")
+
+  csrf_app = ember.App(routes: routes, middleware: [CsrfMiddleware(secret: secret)])
+  bootstrap = csrf_app.call(testing.get("/ok"))
+  set_cookie = bootstrap.headers.all("set-cookie")[0]
+  pair = set_cookie.split(";")[0]
+  token = pair.split("=")[1]
+  accepted = csrf_app.call(testing.post("/ok", headers: {
+    "origin": "http://localhost",
+    "cookie": pair,
+    "x-csrf-token": token,
+    "sec-fetch-site": "same-origin"
+  }))
+  missing = csrf_app.call(testing.post("/ok", headers: {"origin": "http://localhost"}))
+  cross_site = csrf_app.call(testing.post("/ok", headers: {
+    "origin": "http://localhost",
+    "cookie": pair,
+    "x-csrf-token": token,
+    "sec-fetch-site": "cross-site"
+  }))
+  assert(accepted.status == 200, "valid same-origin double-submit CSRF token")
+  assert(missing.status == 403 and cross_site.status == 403, "missing and cross-site CSRF requests are rejected")
+  true
+
+def multipart_request(body):
+  testing.post("/upload", headers: {
+    "content-type": "multipart/form-data; boundary=ember-boundary"
+  }, body: body)
+
+def multipart_checks():
+  body = ("--ember-boundary\r\n" +
+    "Content-Disposition: form-data; name=\"title\"\r\n\r\n" +
+    "hello\r\n--ember-boundary\r\n" +
+    "Content-Disposition: form-data; name=\"upload\"; filename=\"a.txt\"\r\n" +
+    "Content-Type: text/plain\r\n\r\n" +
+    "file-data\r\n--ember-boundary--\r\n")
+  form = multipart.parse(multipart_request(body))
+  assert(form.parts.count == 2, "multipart part count")
+  assert(form.first("title").text() == "hello", "multipart field parsing")
+  assert(form.first("upload").file?() and form.first("upload").filename == "a.txt",
+    "multipart file metadata")
+  assert(form.first("upload").bytes.to_str() == "file-data", "multipart file bytes")
+
+  too_large = false
+  too_many = false
+  traversal = false
+  try:
+    multipart.parse(multipart_request(body), limits: multipart.MultipartLimits(
+      max_total_bytes: 32,
+      max_field_bytes: 16,
+      max_file_bytes: 16))
+  rescue multipart.MultipartError:
+    too_large = true
+  two_fields = ("--ember-boundary\r\nContent-Disposition: form-data; name=\"a\"\r\n\r\n1" +
+    "\r\n--ember-boundary\r\nContent-Disposition: form-data; name=\"b\"\r\n\r\n2" +
+    "\r\n--ember-boundary--\r\n")
+  try:
+    multipart.parse(multipart_request(two_fields), limits: multipart.MultipartLimits(max_parts: 1))
+  rescue multipart.MultipartError:
+    too_many = true
+  bad_name = ("--ember-boundary\r\n" +
+    "Content-Disposition: form-data; name=\"f\"; filename=\"../secret\"\r\n\r\nx" +
+    "\r\n--ember-boundary--\r\n")
+  try:
+    multipart.parse(multipart_request(bad_name))
+  rescue multipart.MultipartError:
+    traversal = true
+  assert(too_large and too_many and traversal, "multipart aggregate, part-count, and filename limits")
+  true
+
+def html_checks():
+  label = "<&\""
+  safe_url = url("/items?a=1&b=2")
+  safe = html"""
+    <a title="#{label}" href="#{safe_url}">#{label}</a>
+    """
+  assert(safe.to_str.contains?("title=\"&lt;&amp;&quot;\""), "quoted attribute escaping")
+  assert(safe.to_str.contains?("href=\"/items?a=1&amp;b=2\""), "trusted URL wrapper and escaping")
+  assert(safe.to_str.contains?("&lt;&amp;&quot;</a>"), "text context escaping")
+
+  script = html"""
+    <script>#{trusted_script("window.ready = true;")}</script>
+    """
+  style = html"""
+    <div style="#{trusted_style("color: red")}">ok</div>
+    """
+  assert(script.to_str.contains?("window.ready = true;"), "explicit trusted script context")
+  assert(style.to_str.contains?("color: red"), "explicit trusted style attribute context")
+  unsafe_url = false
+  unsafe_srcset = false
+  unsafe_script = false
+  dangerous_url = "javascript:alert(1)"
+  dangerous_srcset = "https://safe.example/a.png, javascript:alert(1)"
+  try:
+    html"""
+      <a href="#{dangerous_url}">bad</a>
+      """
+  rescue ArgumentError:
+    unsafe_url = true
+  try:
+    url(dangerous_srcset)
+  rescue ArgumentError:
+    unsafe_srcset = true
+  try:
+    html"""
+      <script>#{"alert(1)"}</script>
+      """
+  rescue ArgumentError:
+    unsafe_script = true
+  assert(unsafe_url and unsafe_srcset and unsafe_script, "unsafe URL, srcset, and script interpolation require typed trust wrappers")
+  true
+
+def main():
+  security_policy_checks()
+  request_id_checks()
+  crypto_and_cookie_checks()
+  cors_and_csrf_checks()
+  multipart_checks()
+  html_checks()
+  true

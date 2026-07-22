@@ -37,8 +37,9 @@ are not public application APIs.
 `App` is public with:
 
 - `App(routes:, middleware: [], integrations: [], services: {},
-  head_fallback: true, automatic_options: true, expose_exceptions: false,
-  on_error: null)`;
+  security: null, head_fallback: true, automatic_options: true,
+  expose_exceptions: false, on_error: null)`; a null security value constructs
+  the default `SecurityPolicy`;
 - read-only `routes`;
 - `call(request)` as the primary deterministic test/adapter boundary;
 - `server(**options)` returning an unstarted `ServerHandle`;
@@ -76,19 +77,32 @@ operations are:
 
 - `method`, `target`, `path`, `raw_query`, `remote_endpoint`, and
   `local_endpoint`;
+- validated provenance `effective_scheme`, `effective_authority`, `client_ip`,
+  `trusted_proxy`, `origin()`, and `secure?()` after `App` authorization;
 - `header(name)`, `body_text()`, `body_bytes()`, and `body_stream`;
 - `path_param(name)`, `path_params()`, `query(name)`, `query_params()`, and
   `params()`;
 - routed request metadata `routes` and `selected_route`;
-- `service(name)` and `origin()`.
+- `service(name)`.
+
+Requests adapted from `net.http.ServerRequest` expose remote and local
+endpoints as canonical endpoint text. In-memory constructor values are retained
+as supplied and should be treated as diagnostic metadata, not authority.
 
 Request headers are exposed as the immutable `Headers` value described below.
 Applications may use `header(name)` for the first/selected value or
 `headers.all(name)` when repeated fields matter. Direct mutation is not public.
 
-`origin()` is also security-sensitive: its public meaning for 1.0 is the
-validated effective origin after host authorization and trusted-proxy
-processing. The preview's direct `Host` interpretation is not the 1.0 contract.
+`origin()` is security-sensitive and is the validated effective origin after
+host authorization and trusted-proxy processing. Applications must not derive
+origin or client identity from raw forwarding fields.
+
+`SecurityPolicy` is public with `allowed_hosts`, `trusted_proxy_cidrs`,
+`forwarded`, `forwarded_hops`, `security_headers`,
+`content_security_policy`, and `hsts` constructor keywords. Supported
+forwarding modes are `:none` and `:x_forwarded`. IPv4 CIDR and exact IPv6
+`/128` proxy entries are supported. Policy defaults and the production
+configuration contract are normative in [SECURITY.md](SECURITY.md).
 
 `RequestBodyStream` public operations are `framing`, `read_chunk(max_bytes:
 null)`, `each_chunk(max_bytes: null)`, `trailers()`, `closed?()`, and
@@ -134,11 +148,13 @@ Middleware is the callable protocol `(Request, next) -> response-like value`.
 middleware in declaration order.
 
 An integration supplied to `App(integrations:)` implements
-`around_controller(request, next)`. It may also implement the lifecycle hooks
-`start()`, `ready?()`, and `stop()` defined in
-[TRANSPORT.md](TRANSPORT.md). Controller wrapping applies only to controller
-targets. Bare handlers use route/application middleware for equivalent
-behavior.
+`around_controller(request, next)`. A controller wrapper that needs server
+lifecycle participation subclasses `Integration` and overrides `start()`,
+`ready?()`, or `stop()`; their defaults are safe no-ops as defined in
+[TRANSPORT.md](TRANSPORT.md). A duck-typed wrapper that does not subclass
+`Integration` participates only in controller dispatch. Controller wrapping
+applies only to controller targets. Bare handlers use route/application
+middleware for equivalent behavior.
 
 `Target` and its `function`/`controller` constructors are public for adapter and
 DSL authors. `Target#invoke` is the supported invocation boundary. The helper
@@ -184,16 +200,24 @@ classification are stable, but their exact message strings are not:
   `ServerLifecycleError`, `UnknownStatusError`, `UnknownServiceError`,
   `UnsafeRedirectError`;
 - `RequestParamsError`, `ParamsParseError`, `ParamsShapeError`,
-  `ParamsUnsupportedMediaTypeError`, and `ParamsBodyConsumedError`.
+  `ParamsUnsupportedMediaTypeError`, and `ParamsBodyConsumedError`;
+- `RequestSecurityError`, `InvalidAuthorityError`,
+  `UnauthorizedHostError`, and `InvalidForwardedRequestError`.
 
 ## Supporting modules
 
 ### `ember.html`
 
-Public API: `html"""..."""`, `escape`, `raw`, and `join`. The return value is
-`ember.Html`. `raw` is an explicit trust boundary. Context-specific escaping or
-rejection rules may become stricter before 1.0; accepting unsafe JavaScript,
-CSS, or URL interpolation is not a compatibility promise.
+Public API: `html"""..."""`, `escape`, `escape_text`, `escape_attribute`,
+`raw`, `join`, `url`, `trusted_script`, `trusted_style`, `HtmlUrl`,
+`TrustedScript`, and `TrustedStyle`. The macro return value is `ember.Html`.
+Text and ordinary quoted attributes are escaped automatically. URL, script,
+style, event-handler, and srcdoc contexts require the explicit wrappers
+documented in [SECURITY.md](SECURITY.md); comments, tag syntax, and unquoted
+attributes reject interpolation. `raw` and trusted wrappers are explicit trust
+boundaries, not sanitizers. Exported `_url_attribute`, `_script_body`,
+`_style_body`, `_script_attribute`, `_style_attribute`, and
+`_srcdoc_attribute` functions are macro plumbing and are not public APIs.
 
 ### `ember.middleware`
 
@@ -202,6 +226,31 @@ Public API: `before`, `request_id`, `access_log`, `RequestIdMiddleware`, and
 redaction, and sinks are compatible. Log formatting from the preview is not a
 stable wire/data format; the 1.0 structured event schema will be documented
 when introduced.
+
+`RequestIdMiddleware(accept_incoming: true, max_length: 128)` validates
+incoming values against the bounded ASCII identifier grammar in
+[SECURITY.md](SECURITY.md), otherwise replacing them with a secure random ID.
+
+### `ember.security`
+
+The public cookie API is `CookieLimits`, `CookieJar`, `SetCookie`,
+`CookieError`, `CookieJar.parse`, jar `get`/`include?`/`to_map`, and
+`SetCookie#header_value`. Public cryptographic envelopes are `Aead`,
+`SignedCookieCodec`, `SessionCodec`, and `SessionError`, with `seal`/`open`,
+`seal_bytes`/`open_bytes`, and codec `encode`/`decode` operations. Public
+browser middleware is `CorsMiddleware`, `CsrfProtection`, `CsrfMiddleware`,
+and `CsrfError`. Constructor bounds, key requirements, safe defaults, rotation,
+and application responsibilities are normative in [SECURITY.md](SECURITY.md).
+
+### `ember.multipart`
+
+Public API: `parse`, `MultipartLimits`, `MultipartPart`, `MultipartForm`, and
+`MultipartError`. Parts expose `name`, `filename`, `content_type`, `headers`,
+`bytes`, `file?`, and field-only `text`. Forms expose immutable `parts` and
+`first`, `all`, `fields`, and `files`. Parsing claims the body once and applies
+the aggregate, count, header, field, file, name, and filename bounds documented
+in [SECURITY.md](SECURITY.md). Storage and content validation are not part of
+this transport parser.
 
 ### `ember.testing`
 

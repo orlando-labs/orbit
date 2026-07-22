@@ -98,12 +98,16 @@ still apply its own earlier connection/rate limits.
 
 ## Integration lifecycle
 
-An integration may implement these optional hooks in addition to
-`around_controller(request, next)`:
+A lifecycle-aware integration subclasses `ember.Integration` in addition to
+implementing `around_controller(request, next)`. It may override:
 
 - `start()` — run before listener bind and readiness;
-- `ready?()` — participate in `ServerHandle#ready?` (absent means ready);
+- `ready?()` — participate in `ServerHandle#ready?`;
 - `stop()` — run once in reverse successful-start order after drain/cancel.
+
+The base implementations are safe no-ops (`ready?()` returns `true`). A
+duck-typed integration that implements only `around_controller` is not entered
+into the lifecycle list.
 
 If startup fails, already-started integrations are stopped in reverse order
 and the listener is not exposed. The ORM pool integration rejects a closed

@@ -94,7 +94,11 @@ def main():
     annotation_order.join(",") == "outer-before,inner-before,handler,inner-after,outer-after",
     "before middleware order")
 
-  missing = app.call(ember.Request(path: "/missing/deep/path", target: "/missing/deep/path", method: "POST"))
+  missing = app.call(ember.Request(
+    path: "/missing/deep/path",
+    target: "/missing/deep/path",
+    method: "POST",
+    headers: {"host": "localhost"}))
   assert(missing.status == 405, "method not allowed")
 
   streaming = ember.stream(

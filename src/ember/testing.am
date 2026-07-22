@@ -16,6 +16,8 @@ def request(
   if json != null and body != "":
     raise ArgumentError("testing.request accepts either body: or json:")
   request_headers = ember.Headers(headers)
+  unless request_headers.include?("host"):
+    request_headers = request_headers.set("host", "localhost")
   request_body = body
   if json != null:
     request_body = Json.generate(json)

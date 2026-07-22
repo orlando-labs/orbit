@@ -75,6 +75,27 @@ Framework defaults are safe for development, not a substitute for a reviewed
 production configuration. Configuration and its non-secret digest must be
 visible in startup telemetry. Secrets never appear in command output or logs.
 
+The concrete stage-3 configuration uses `ember.SecurityPolicy`:
+
+```amber
+security = ember.SecurityPolicy(
+  allowed_hosts: ["app.example.test"],
+  trusted_proxy_cidrs: ["10.20.0.0/16"],
+  forwarded: :x_forwarded,
+  forwarded_hops: 2,
+  hsts: true)
+
+app = ember.App(routes: routes, security: security)
+```
+
+The edge removes client-supplied `X-Forwarded-*` fields and writes one
+canonical set. Ember supports arbitrary IPv4 CIDR prefixes and exact IPv6
+`/128` entries. A configuration requiring a broader IPv6 proxy network must
+keep the edge hop on a private IPv4 address or wait for canonical IPv6 CIDR
+support; trust-all is not a fallback. See [SECURITY.md](SECURITY.md) for the
+cookie/session/CORS/CSRF, multipart, HTML, HSTS/CSP, and secret-rotation
+contract.
+
 ## Lifecycle contract
 
 Startup proceeds in this order:

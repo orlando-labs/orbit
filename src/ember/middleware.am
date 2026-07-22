@@ -9,14 +9,27 @@ def request_id(request, next):
   RequestIdMiddleware()(request, next)
 
 class RequestIdMiddleware:
+  def init(@accept_incoming: true, @max_length: 128):
+    unless Bool === @accept_incoming:
+      raise ArgumentError("request-id accept_incoming must be Bool")
+    unless Int === @max_length and @max_length >= 16 and @max_length <= 256:
+      raise ArgumentError("request-id max_length must be between 16 and 256")
+
   def call(request, next):
-    RequestIdContinuation(request, next).call
+    RequestIdContinuation(request, next, @accept_incoming, @max_length).call
 
 class RequestIdContinuation:
-  def init(@request, @next)
+  def init(@request, @next, @accept_incoming, @max_length)
+
+  def _valid?(value):
+    return false unless Str === value
+    return false if value.empty? or value.length > @max_length
+    allowed = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-"
+    value.chars.all? |char|: allowed.contains?(char)
 
   def call():
-    @request_id = @request.header("x-request-id") or Uuid.v4.to_str
+    supplied = @request.header("x-request-id")
+    @request_id = if @accept_incoming and _valid?(supplied) then supplied else SecureRandom.base64url(18)
     response = ember.normalize_response(@next(@request))
     ember.with_response_header(response, "x-request-id", @request_id)
 

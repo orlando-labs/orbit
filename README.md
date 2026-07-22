@@ -21,7 +21,12 @@ The current preview includes:
   extensions and trailers;
 - bounded HTTP/1.1 keep-alive, immediate overload rejection, and an explicit
   readiness/drain/deadline-shutdown server lifecycle;
-- inline escaped `html"""..."""` templates and ordinary typed Amber view
+- pre-routing Host authorization, explicit trusted-proxy CIDRs/hops, validated
+  request provenance, and safe browser response headers;
+- context-aware `html"""..."""` templates with typed URL/script/style trust
+  boundaries and compile-time rejection of ambiguous contexts;
+- bounded cookies, HMAC-signed values, encrypted authenticated sessions,
+  exact CORS, CSRF protection, and strict multipart parsing in optional source
   modules;
 - in-memory request builders and response assertions;
 - optional request-id/access-log middleware and the function-intrinsic
@@ -218,6 +223,56 @@ External `.amv` files are intentionally not advertised: they require the
 compiler-level source-format registry described by the design. Ember does not
 read templates from the filesystem during macro expansion.
 
+The macro tracks the output interpreter context. Text and ordinary quoted
+attributes escape automatically; URL attributes require `url(...)`, script or
+event-handler data requires `trusted_script(...)`, style data requires
+`trusted_style(...)`, and `srcdoc` requires explicit `raw(...)`. Interpolation
+inside comments, tag syntax, or unquoted attributes is a compile-time
+`EMBER_HTML_CONTEXT` error.
+
+```amber
+from ember.html import html, url
+
+def item_link(label, id):
+  destination = url("/items/" + id.to_str)
+  html"""
+    <a href="#{destination}">#{label}</a>
+    """
+```
+
+`raw` and the trusted wrappers are review boundaries, not sanitizers. See the
+[security baseline](docs/SECURITY.md) for the complete context contract.
+
+## Security baseline
+
+Every application has an `ember.SecurityPolicy`. Its development default
+accepts only localhost authorities, ignores forwarding headers, and adds CSP,
+nosniff, frame, referrer, permissions, and opener policies. Production must
+configure exact hosts and its trusted edge explicitly:
+
+```amber
+security = ember.SecurityPolicy(
+  allowed_hosts: ["app.example.test"],
+  trusted_proxy_cidrs: ["10.20.0.0/16"],
+  forwarded: :x_forwarded,
+  forwarded_hops: 2,
+  hsts: true)
+
+app = ember.App(routes: routes, security: security)
+```
+
+Host authorization happens before routing. Untrusted forwarding fields are
+ignored; trusted chains are bounded and validated before they drive
+`request.origin()`, `request.client_ip`, or secure-cookie/HSTS decisions.
+
+Import `ember.security` for `CookieJar`, `SetCookie`, `SignedCookieCodec`,
+`SessionCodec`, `CorsMiddleware`, and `CsrfMiddleware`. Import
+`ember.multipart` for the strict parser and `MultipartLimits`. These APIs do
+not turn authentication, authorization, upload content validation/storage,
+key management, or CORS policy into implicit framework behavior. The
+[threat model](docs/THREAT_MODEL.md), [ASVS map](docs/ASVS_5_MAPPING.md), and
+[review record](docs/SECURITY_REVIEW.md) define the exact responsibility split.
+
 ## ORM integration
 
 Models bind to one shareable pool during startup. Installing
@@ -245,6 +300,8 @@ Pool timeout, closed, and lease failures become a safe 503 response.
 Transactions remain explicit business boundaries through the ORM model/pool.
 The pool integration participates in server startup/readiness/shutdown, so a
 deadline cancellation unwinds request leases before the pool closes.
+Custom lifecycle-aware controller integrations subclass `ember.Integration`;
+its default `start`, `ready?`, and `stop` methods are safe no-ops.
 
 See `examples/sqlite_users.am` and `test/orm_selftest.am` for complete graphs.
 
@@ -297,6 +354,20 @@ and [edge deployment model](docs/DEPLOYMENT.md).
   --grant net.listen --grant net.connect
 ./out-stage2-native/ember.stage2_selftest
 
+# Stage 3 security baseline
+../amber-lang/build/amberc build test/stage3_selftest.build.yaml \
+  --target native --out-dir out-stage3-native \
+  --cache-dir cache-stage3-native --no-cache --grant random.secure
+./out-stage3-native/ember.stage3_selftest
+
+# These two builds must fail with EMBER_HTML_CONTEXT
+../amber-lang/build/amberc build test/stage3_html_unquoted_rejected.build.yaml \
+  --target bytecode --out-dir out-html-negative \
+  --cache-dir cache-html-negative --no-cache
+../amber-lang/build/amberc build test/stage3_html_comment_rejected.build.yaml \
+  --target bytecode --out-dir out-html-comment-negative \
+  --cache-dir cache-html-negative --no-cache
+
 # Source-only framework behavior
 ../amber-lang/build/amberc build test/core_selftest.build.yaml \
   --target native --out-dir out-native --cache-dir cache-native --no-cache
@@ -316,7 +387,7 @@ and [edge deployment model](docs/DEPLOYMENT.md).
 # Real loopback HTTP adapter
 ../amber-lang/build/amberc build test/http_selftest.build.yaml \
   --target native --out-dir out-http-native --cache-dir cache-http-native \
-  --grant net.listen --grant net.connect
+  --no-cache --grant net.listen --grant net.connect
 ./out-http-native/ember.http_selftest
 ```
 
@@ -328,7 +399,7 @@ define the [public API boundary](docs/PUBLIC_API.md),
 [edge deployment model](docs/DEPLOYMENT.md),
 [compatibility policy](docs/COMPATIBILITY.md), and measurable
 [production-readiness gates](docs/PRODUCTION_READINESS.md). Contract,
-correctness, and production-transport gates 0–2 are complete; security,
+correctness, production-transport, and security gates 0–3 are complete;
 observability/performance, release engineering, and RC validation remain.
 
 ## Current transport boundary
@@ -338,9 +409,11 @@ and pipelining, finite idle/request limits, hard connection capacity, and
 immediate `503` overload rejection. Buffered and chunked full-duplex bodies are
 supported, including `Expect: 100-continue`, chunk extensions, and trailers.
 The server handle implements stop-accepting, clean drain, deadline
-cancellation, and idempotent shutdown. Ember does not claim direct TLS,
-HTTP/2/3, WebSocket, multipart, sessions, cookies, CSRF, or production-ready
-proxy trust; those remain later or edge layers, not hidden behavior.
+cancellation, and idempotent shutdown. Ember now provides strict multipart,
+cookie/session, CSRF/CORS, Host, and proxy-trust primitives. It still does not
+claim direct TLS, HTTP/2/3, WebSocket, user authentication/authorization,
+uploaded-file storage/scanning, or complete application security; those remain
+explicit edge or application layers, not hidden behavior.
 
 Dynamic slugs and CMS paths remain database data behind static parameter or
 lowest-precedence wildcard routes. Normalization, history, tenant/locale

@@ -49,7 +49,7 @@ class CancelledController < ember.Controller:
     task.sleep(5000)
     render(text: "too late")
 
-class LifecycleIntegration:
+class LifecycleIntegration < ember.Integration:
   def init(@events)
 
   def ready?():
@@ -84,7 +84,7 @@ class FailedStartIntegration < LifecycleIntegration:
   def stop():
     null
 
-class LeaseIntegration:
+class LeaseIntegration < ember.Integration:
   attr active
   attr stops
 

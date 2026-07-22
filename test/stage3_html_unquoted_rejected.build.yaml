@@ -1,0 +1,16 @@
+schema: amber.build.v1
+name: ember.stage3_html_unquoted_rejected
+root: ember.stage3_html_unquoted_rejected
+
+profiles:
+  required: [core.v1, macro.v1]
+  optional: []
+  forbidden: []
+
+modules:
+  - name: ember
+    path: ../src/ember.am
+  - name: ember.html
+    path: ../src/ember/html.am
+  - name: ember.stage3_html_unquoted_rejected
+    path: stage3_html_unquoted_rejected.am

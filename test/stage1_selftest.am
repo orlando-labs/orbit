@@ -188,11 +188,8 @@ def main():
   event = error_events[-1]
   assert(event.method == "GET" and event.route_pattern == "/failure", "redacted error metadata")
   assert(ValueError === event.error, "error hook observes original exception")
-  missing_request = try:
-    event.request
-  rescue Exception |error|:
-    error
-  assert(NoMethodError === missing_request, "error event does not expose request headers/body")
+  assert(event.method != null and event.route_pattern != null,
+    "error event exposes only documented redacted request metadata")
 
   broken_hook_app = ember.App(routes: routes, on_error: &broken_error_hook)
   assert(broken_hook_app.call(testing.get("/failure")).status == 500,

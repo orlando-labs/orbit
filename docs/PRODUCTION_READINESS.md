@@ -75,23 +75,23 @@ Evidence: `test/stage2_selftest.am`, [TRANSPORT.md](TRANSPORT.md), and the
 `amber-lang` runtime suites `tests/vm_net_http_tests.cpp` (691 checks) and
 `tests/stdlib_task_tests.cpp`.
 
-## Gate 3: security baseline
+## Gate 3: security baseline — complete
 
-- [ ] Host authorization rejects missing/duplicate/invalid/unauthorized
+- [x] Host authorization rejects missing/duplicate/invalid/unauthorized
   authorities before routing.
-- [ ] Trusted-proxy policy is explicit, bounded by CIDR/hops, ignores untrusted
+- [x] Trusted-proxy policy is explicit, bounded by CIDR/hops, ignores untrusted
   forwarding fields, and drives effective origin/client address safely.
-- [ ] Request IDs are generated securely or accepted only after length/charset
+- [x] Request IDs are generated securely or accepted only after length/charset
   validation; control characters cannot enter headers or logs.
-- [ ] Security headers, explicit CORS, bounded cookies, signed/encrypted
+- [x] Security headers, explicit CORS, bounded cookies, signed/encrypted
   sessions, CSRF defenses, and multipart parsing with hard aggregate/part/file
   limits have safe defaults and negative tests.
-- [ ] HTML rendering is context-aware for supported contexts and rejects or
+- [x] HTML rendering is context-aware for supported contexts and rejects or
   requires explicit trusted wrappers for unsafe URL/JavaScript/CSS contexts.
-- [ ] A reviewed threat model covers request smuggling, proxy trust, injection,
+- [x] A reviewed threat model covers request smuggling, proxy trust, injection,
   XSS, CSRF, session/cookie theft, resource exhaustion, path confusion,
   deserialization, secrets, logs, and dependency/native boundaries.
-- [ ] The framework-relevant profile of
+- [x] The framework-relevant profile of
   [OWASP ASVS 5.0](https://owasp.org/www-project-application-security-verification-standard/)
   is mapped to controls/tests; release scanning and review have zero open
   critical/high findings.
@@ -99,6 +99,13 @@ Evidence: `test/stage2_selftest.am`, [TRANSPORT.md](TRANSPORT.md), and the
 Required evidence: versioned threat model and ASVS mapping, dependency/native
 scan, secret scan, security regression suite, and documented resolution or
 accepted lower-severity risk ownership.
+
+Evidence: `test/stage3_selftest.am`, the two expected-failure
+`test/stage3_html_*_rejected` fixtures, [SECURITY.md](SECURITY.md),
+[THREAT_MODEL.md](THREAT_MODEL.md), [ASVS_5_MAPPING.md](ASVS_5_MAPPING.md), and
+[SECURITY_REVIEW.md](SECURITY_REVIEW.md). The internal review records zero open
+critical/high findings and assigns every accepted lower-severity risk to a
+later release gate.
 
 ## Gate 4: observability and performance
 
