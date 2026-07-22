@@ -1,0 +1,8 @@
+{
+  "schema": "ember.benchmark.result.v1",
+  "suite": "orm",
+  "workloads": {
+    "orm_pool_exhaustion": {"iterations": 500, "p50_us": 21.209, "p95_us": 22.0, "p99_us": 34.0, "throughput_per_second": 30876.109610189116, "rejected": 500}
+  },
+  "resources": {"max_rss_mb": 29.234375, "cpu_utilization_percent": 100.0, "cpu_seconds": 0.03}
+}

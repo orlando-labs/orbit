@@ -1,0 +1,17 @@
+{
+  "schema": "ember.performance-budgets.v1",
+  "regression_threshold_percent": 10,
+  "workloads": {
+    "small_json": {"p50_us": 100000, "p95_us": 120000, "p99_us": 150000, "min_throughput_per_second": 10},
+    "buffered_html": {"p50_us": 100000, "p95_us": 120000, "p99_us": 150000, "min_throughput_per_second": 10},
+    "router_1k": {"p50_us": 1000000, "p95_us": 1500000, "p99_us": 2000000, "min_throughput_per_second": 1},
+    "router_4k": {"p50_us": 4000000, "p95_us": 6000000, "p99_us": 8000000, "min_throughput_per_second": 0.2},
+    "full_duplex_streaming": {"p50_us": 100000, "p95_us": 120000, "p99_us": 150000, "min_throughput_per_second": 10},
+    "keep_alive": {"p50_us": 120000, "p95_us": 150000, "p99_us": 200000, "min_throughput_per_second": 8},
+    "orm_pool_exhaustion": {"p50_us": 1000, "p95_us": 3000, "p99_us": 5000, "min_throughput_per_second": 500}
+  },
+  "resources": {
+    "max_rss_mb": 256,
+    "max_cpu_utilization_percent": 100
+  }
+}

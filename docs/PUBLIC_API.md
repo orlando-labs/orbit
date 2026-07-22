@@ -38,9 +38,9 @@ are not public application APIs.
 
 - `App(routes:, middleware: [], integrations: [], services: {},
   security: null, head_fallback: true, automatic_options: true,
-  expose_exceptions: false, on_error: null)`; a null security value constructs
-  the default `SecurityPolicy`;
-- read-only `routes`;
+  expose_exceptions: false, on_error: null, telemetry: null)`; a null security
+  value constructs the default `SecurityPolicy`;
+- read-only `routes` and `telemetry`;
 - `call(request)` as the primary deterministic test/adapter boundary;
 - `server(**options)` returning an unstarted `ServerHandle`;
 - asynchronous `start(max_requests: null, **options)`;
@@ -150,8 +150,8 @@ middleware in declaration order.
 An integration supplied to `App(integrations:)` implements
 `around_controller(request, next)`. A controller wrapper that needs server
 lifecycle participation subclasses `Integration` and overrides `start()`,
-`ready?()`, or `stop()`; their defaults are safe no-ops as defined in
-[TRANSPORT.md](TRANSPORT.md). A duck-typed wrapper that does not subclass
+`attach_server(server)`, `ready?()`, or `stop()`; their defaults are safe
+no-ops as defined in [TRANSPORT.md](TRANSPORT.md). A duck-typed wrapper that does not subclass
 `Integration` participates only in controller dispatch. Controller wrapping
 applies only to controller targets. Bare handlers use route/application
 middleware for equivalent behavior.
@@ -224,12 +224,28 @@ boundaries, not sanitizers. Exported `_url_attribute`, `_script_body`,
 Public API: `before`, `request_id`, `access_log`, `RequestIdMiddleware`, and
 `AccessLogMiddleware`. Constructor keyword additions for policy, validation,
 redaction, and sinks are compatible. Log formatting from the preview is not a
-stable wire/data format; the 1.0 structured event schema will be documented
-when introduced.
+stable wire/data format; the 1.0 structured event schema is normative in
+[OBSERVABILITY.md](OBSERVABILITY.md).
 
 `RequestIdMiddleware(accept_incoming: true, max_length: 128)` validates
 incoming values against the bounded ASCII identifier grammar in
 [SECURITY.md](SECURITY.md), otherwise replacing them with a secure random ID.
+
+### `ember.telemetry`
+
+Public event/sink API: `RedactionPolicy`, `JsonLogSink`, `MemorySink`,
+`AccessEvent`, and `ErrorLogEvent`. Public tracing API: `TraceContext`,
+`ServerSpan`, and `Tracer`. Public metrics/operations API: `MetricsRegistry`
+with `snapshot`, `response`, and `set_integration_pool`, and `HealthProbe` with
+`live?`, `ready?`, `liveness`, and `readiness`. `Telemetry` is the aggregate
+observer accepted by `App(telemetry:)`; its public read-only components are
+`sink`, `metrics`, `tracer`, and `health`.
+
+Event fields, redaction, finite cardinality, trace trust, OTel compatibility,
+and lifecycle semantics are normative in
+[OBSERVABILITY.md](OBSERVABILITY.md). `MemorySink` is for tests and bounded
+short-lived capture, not a production exporter. Event read-only attributes and
+`fields()` maps follow the stable schema in the observability contract.
 
 ### `ember.security`
 

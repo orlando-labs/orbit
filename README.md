@@ -31,6 +31,8 @@ The current preview includes:
 - in-memory request builders and response assertions;
 - optional request-id/access-log middleware and the function-intrinsic
   `before` annotation macro;
+- structured redacted access/error/lifecycle telemetry, bounded metrics,
+  trusted-edge W3C tracing, and lifecycle-aware health/readiness probes;
 - optional request-scoped `amber-orm` pool integration backed by
   `sqlite3-amber`.
 
@@ -301,7 +303,7 @@ Transactions remain explicit business boundaries through the ORM model/pool.
 The pool integration participates in server startup/readiness/shutdown, so a
 deadline cancellation unwinds request leases before the pool closes.
 Custom lifecycle-aware controller integrations subclass `ember.Integration`;
-its default `start`, `ready?`, and `stop` methods are safe no-ops.
+its default `start`, `attach_server`, `ready?`, and `stop` methods are safe no-ops.
 
 See `examples/sqlite_users.am` and `test/orm_selftest.am` for complete graphs.
 
@@ -360,6 +362,13 @@ and [edge deployment model](docs/DEPLOYMENT.md).
   --cache-dir cache-stage3-native --no-cache --grant random.secure
 ./out-stage3-native/ember.stage3_selftest
 
+# Stage 4 observability and lifecycle telemetry
+../amber-lang/build/amberc build test/stage4_selftest.build.yaml \
+  --target native --out-dir out-stage4-native \
+  --cache-dir cache-stage4-native --no-cache \
+  --grant random.secure --grant net.listen
+./out-stage4-native/ember.stage4_selftest
+
 # These two builds must fail with EMBER_HTML_CONTEXT
 ../amber-lang/build/amberc build test/stage3_html_unquoted_rejected.build.yaml \
   --target bytecode --out-dir out-html-negative \
@@ -399,8 +408,10 @@ define the [public API boundary](docs/PUBLIC_API.md),
 [edge deployment model](docs/DEPLOYMENT.md),
 [compatibility policy](docs/COMPATIBILITY.md), and measurable
 [production-readiness gates](docs/PRODUCTION_READINESS.md). Contract,
-correctness, production-transport, and security gates 0–3 are complete;
-observability/performance, release engineering, and RC validation remain.
+correctness, production-transport, security, and observability/performance
+gates 0–4 are complete; release engineering and RC validation remain. See the
+[observability contract](docs/OBSERVABILITY.md) and
+[performance contract](docs/PERFORMANCE.md).
 
 ## Current transport boundary
 

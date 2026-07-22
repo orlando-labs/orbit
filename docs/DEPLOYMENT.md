@@ -133,7 +133,8 @@ the documented non-zero exit status. `wait()` joins the accept task and returns
 final counters. See [TRANSPORT.md](TRANSPORT.md) for the exact API, defaults,
 keep-alive bounds, overload policy, and stats.
 
-Integration `start()` hooks run before listener bind, `ready?()` participates
+Integration `start()` hooks run before listener bind, `attach_server()` binds
+handle-aware telemetry after bind, `ready?()` participates
 in handle readiness, and `stop()` runs in reverse order after clean drain or
 forced cancellation. A startup error unwinds only integrations whose start
 hook completed. Request-task cancellation resumes the persistent handler VM so

@@ -14,8 +14,9 @@ modules:
     path: ../src/ember/html.am
   - name: ember.middleware
     path: ../src/ember/middleware.am
+  - name: ember.telemetry
+    path: ../src/ember/telemetry.am
   - name: ember.example.views.home
     path: views/home.am
   - name: ember.example.hello
     path: hello.am
-

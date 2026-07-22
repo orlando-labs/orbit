@@ -1,6 +1,7 @@
 package ember.middleware
 
 import ember
+import ember.telemetry
 
 export request_id, access_log, RequestIdMiddleware, AccessLogMiddleware
 export macro before
@@ -37,19 +38,27 @@ def access_log(request, next):
   AccessLogMiddleware()(request, next)
 
 class AccessLogMiddleware:
-  def init(@to: io.stderr)
+  def init(to: io.stderr, redaction: null):
+    sink = telemetry.JsonLogSink(to: to, redaction: redaction)
+    @telemetry = telemetry.Telemetry(sink: sink, tracer: false)
 
   def call(request, next):
-    AccessLogContinuation(request, next, @to).call
+    AccessLogContinuation(request, next, @telemetry).call
 
 class AccessLogContinuation:
-  def init(@request, @next, @to)
+  def init(@request, @next, @telemetry)
 
   def call():
-    response = ember.normalize_response(@next(@request))
-    @to.write_line("#{@request.method} #{@request.path} -> #{ember.response_status(response)}")
-    @to.flush
-    response
+    observation = @telemetry.start_request(@request)
+    @telemetry.authorized_request(observation, @request)
+    try:
+      response = ember.normalize_response(@next(@request))
+      route_pattern = ember.request_route_pattern(@request)
+      @telemetry.finish_response(observation, response, @request, route_pattern)
+    rescue Exception |error|:
+      route_pattern = ember.request_route_pattern(@request)
+      @telemetry.finish_exception(observation, error, @request, route_pattern)
+      raise error
 
 macro def before(middleware as Ast, declaration as Ast) -> Ast:
   unless declaration.kind == "AstDefStmt":

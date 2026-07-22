@@ -102,6 +102,7 @@ A lifecycle-aware integration subclasses `ember.Integration` in addition to
 implementing `around_controller(request, next)`. It may override:
 
 - `start()` — run before listener bind and readiness;
+- `attach_server(server)` — bind lifecycle telemetry after the native handle exists;
 - `ready?()` — participate in `ServerHandle#ready?`;
 - `stop()` — run once in reverse successful-start order after drain/cancel.
 

@@ -1,0 +1,15 @@
+{
+  "schema": "ember.performance-gate.v1",
+  "status": "pass",
+  "regression_threshold_percent": 10,
+  "checks": [
+    {"workload": "small_json", "status": "pass", "failures": []},
+    {"workload": "buffered_html", "status": "pass", "failures": []},
+    {"workload": "router_1k", "status": "pass", "failures": []},
+    {"workload": "router_4k", "status": "pass", "failures": []},
+    {"workload": "full_duplex_streaming", "status": "pass", "failures": []},
+    {"workload": "keep_alive", "status": "pass", "failures": []},
+    {"workload": "orm_pool_exhaustion", "status": "pass", "failures": []},
+    {"workload": "process_resources", "status": "pass", "failures": []}
+  ]
+}

@@ -64,14 +64,16 @@ Authentication (V6), authorization (V8), OAuth/OIDC and self-contained identity
 tokens (V9–V10), business-specific data protection (V14), and WebRTC (V17) are
 application/product concerns. Ember primitives neither satisfy nor waive them.
 Security architecture and secure coding (V15) are represented by the threat
-model and review, while production security logging requirements (V16) are a
-gate-4 structured telemetry deliverable. Release evidence must reassess those
-chapters for the actual application.
+model and review. Gate 4 supplies the framework-relevant V16 structured,
+redacted route-template telemetry contract and regression tests. Release
+evidence must still reassess those chapters for the actual application.
 
 ## Evidence index
 
 - `test/stage3_selftest.am`: positive and negative Host/proxy, request ID,
   RFC 8439, tamper/expiry, cookies, CORS, CSRF, multipart, and HTML cases.
+- `test/stage4_selftest.am` and `docs/OBSERVABILITY.md`: structured logging,
+  configured redaction, trusted trace context, bounded metrics, and probes.
 - `test/stage3_html_unquoted_rejected.*` and
   `test/stage3_html_comment_rejected.*`: expected macro-expansion failures.
 - `test/stage2_selftest.am` and Amber runtime native HTTP tests: framing,

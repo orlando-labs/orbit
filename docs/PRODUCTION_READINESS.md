@@ -109,25 +109,31 @@ later release gate.
 
 ## Gate 4: observability and performance
 
-- [ ] Structured access/error logs include request ID, method, route template
+- [x] Structured access/error logs include request ID, method, route template
   (not raw sensitive path), status, duration, bytes, and outcome; secrets and
   configured fields are redacted.
-- [ ] Metrics cover requests, in-flight work, duration, bytes, errors,
+- [x] Metrics cover requests, in-flight work, duration, bytes, errors,
   rejections, connection/stream state, shutdown drain, and integration pools
   without unbounded labels.
-- [ ] Tracing follows current OpenTelemetry HTTP semantic conventions and
+- [x] Tracing follows current OpenTelemetry HTTP semantic conventions and
   propagates only validated context across the trusted edge.
-- [ ] Liveness and readiness implement the lifecycle semantics in the
+- [x] Liveness and readiness implement the lifecycle semantics in the
   deployment contract.
-- [ ] Reproducible benchmarks cover small JSON, 1K/4K routes, buffered HTML,
+- [x] Reproducible benchmarks cover small JSON, 1K/4K routes, buffered HTML,
   full-duplex streaming, keep-alive, and ORM pool exhaustion on named hardware.
-- [ ] The release publishes p50/p95/p99 latency, throughput, memory, and CPU
+- [x] The release publishes p50/p95/p99 latency, throughput, memory, and CPU
   budgets plus an automated regression threshold. No required workload regresses
   by more than 10% from the approved baseline without an accepted performance
   report.
 
 Required evidence: machine-readable benchmark results, environment manifest,
 dashboards/telemetry schema tests, and regression-gate output.
+
+Evidence: `test/stage4_selftest.am`, [OBSERVABILITY.md](OBSERVABILITY.md),
+[PERFORMANCE.md](PERFORMANCE.md), `benchmark/environment.json`, the committed
+core/ORM result and baseline JSON documents, and the machine-readable output of
+`benchmark/performance_gate.py`. The gate uses a fixed 10% threshold and the
+initial named Apple M4 runner baseline.
 
 ## Gate 5: release engineering and developer experience
 

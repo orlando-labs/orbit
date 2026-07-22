@@ -74,8 +74,8 @@ supported production configuration.
 `accept_incoming` is true and the value is non-empty, within the configured
 16..256 byte bound, and consists solely of ASCII letters, digits, `.`, `_`, or
 `-`. Otherwise it generates a 144-bit secure random Base64URL identifier. Raw
-invalid values are never reflected. Stage 4 will replace the preview access-log
-text format with structured, redacted events.
+invalid values are never reflected. The stage-4 telemetry boundary emits only
+the structured, redacted schema in [OBSERVABILITY.md](OBSERVABILITY.md).
 
 ## Cookies and sessions
 

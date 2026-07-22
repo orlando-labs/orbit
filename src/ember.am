@@ -32,6 +32,7 @@ export ParamSchema, ParamField, ParamObject, ParamArray, ParamIssue
 export RequestParams, RequestParamSource
 export render, redirect, stream, normalize_response, status_code
 export request_method, request_path, request_id_context, response_status, with_response_header
+export request_route_pattern
 export EmberError, RouteError, InvalidRouteError, DuplicateRouteError
 export DuplicateRouteNameError, InvalidPathError, RouteParamError
 export RouteNotFoundError, UnknownRouteNameError, PathGenerationError
@@ -1528,6 +1529,11 @@ def request_id_context(request):
   sink = request.response_header_sink
   [sink[?"__ember_input_request_id"], sink, request]
 
+def request_route_pattern(request):
+  unless Request === request:
+    raise ArgumentError("request_route_pattern expects ember.Request")
+  request.response_header_sink[?"__ember_route_pattern"]
+
 class Target:
   attr kind
   attr owner
@@ -1568,6 +1574,9 @@ class Integration:
 
   def ready?():
     true
+
+  def attach_server(server):
+    self
 
   def stop():
     null
@@ -2120,6 +2129,62 @@ def _integration_ready?(integration):
     raise error if _propagated_error?(error)
     false
 
+def _telemetry_start(telemetry, request):
+  return null unless telemetry
+  try:
+    telemetry.start_request(request)
+  rescue Exception |error|:
+    raise error if _propagated_error?(error)
+    null
+
+def _telemetry_authorized(telemetry, token, request):
+  return null unless telemetry and token
+  try:
+    telemetry.authorized_request(token, request)
+  rescue Exception |error|:
+    raise error if _propagated_error?(error)
+    null
+
+def _telemetry_error(telemetry, token, error, request, route_pattern):
+  return null unless telemetry and token
+  try:
+    telemetry.record_error(token, error, request, route_pattern)
+  rescue Exception |telemetry_error|:
+    raise telemetry_error if _propagated_error?(telemetry_error)
+    null
+
+def _telemetry_exception(telemetry, token, error, request, route_pattern):
+  return null unless telemetry and token
+  try:
+    telemetry.finish_exception(token, error, request, route_pattern)
+  rescue Exception |telemetry_error|:
+    raise telemetry_error if _propagated_error?(telemetry_error)
+    null
+
+def _telemetry_response(telemetry, token, response, request, route_pattern):
+  return response unless telemetry and token
+  try:
+    telemetry.finish_response(token, response, request, route_pattern)
+  rescue Exception |error|:
+    raise error if _propagated_error?(error)
+    response
+
+def _telemetry_attach_server(telemetry, server):
+  return null unless telemetry
+  try:
+    telemetry.attach_server(server)
+  rescue Exception |error|:
+    raise error if _propagated_error?(error)
+    null
+
+def _telemetry_shutdown(telemetry, clean, duration_nanoseconds, stats):
+  return null unless telemetry
+  try:
+    telemetry.record_shutdown(clean, duration_nanoseconds, stats)
+  rescue Exception |error|:
+    raise error if _propagated_error?(error)
+    null
+
 class ServerHandle:
   attr app
 
@@ -2153,6 +2218,7 @@ class ServerHandle:
     @integrations_stopped = false
     @shutdown_timeout = shutdown_timeout
     @runner = null
+    @native = null
 
     try:
       @integrations.each |integration|:
@@ -2172,7 +2238,15 @@ class ServerHandle:
         idle_timeout: idle_timeout,
         max_requests_per_connection: max_requests_per_connection,
         overload: overload)
+      @started_integrations.each |integration|:
+        integration.attach_server(self) if Integration === integration
+      @app._attach_server(self)
     rescue Exception |error|:
+      if @native:
+        try:
+          @native.shutdown!(timeout: 0)
+        rescue Exception:
+          null
       _stop_integrations(raise_errors: false)
       raise error
 
@@ -2258,11 +2332,14 @@ class ServerHandle:
     unless (Int === selected_timeout or Float === selected_timeout) and selected_timeout >= 0:
       raise ArgumentError("shutdown timeout must be a finite non-negative number")
     result = true
+    shutdown_started_at = Time.monotonic
+    record_shutdown = false
     @shutdown_mutex.synchronize:
       if @shutdown_started:
         result = @shutdown_clean
       else:
         @shutdown_started = true
+        record_shutdown = true
         clean = false
         try:
           @ready.set(false)
@@ -2271,6 +2348,11 @@ class ServerHandle:
           result = clean
         ensure:
           _stop_integrations()
+    if record_shutdown:
+      @app._record_shutdown(
+        result,
+        (Time.monotonic - shutdown_started_at).total_nanoseconds,
+        stats())
     result
 
   def _stop_integrations(raise_errors: true):
@@ -2291,6 +2373,7 @@ class ServerHandle:
 
 class App:
   attr routes
+  attr telemetry
 
   def init(
     routes:,
@@ -2301,7 +2384,8 @@ class App:
     head_fallback: true,
     automatic_options: true,
     expose_exceptions: false,
-    on_error: null
+    on_error: null,
+    telemetry: null
   ):
     @routes = routes
     @middleware = _middleware_list(middleware).freeze
@@ -2314,6 +2398,7 @@ class App:
     @automatic_options = automatic_options
     @expose_exceptions = expose_exceptions
     @on_error = on_error
+    @telemetry = telemetry
     @dispatch_endpoint = DispatchEndpoint(
       @routes,
       @head_fallback,
@@ -2330,11 +2415,13 @@ class App:
   def _call_normalized(request as Request):
     observed_request = request
     effective_request = request
+    telemetry_token = _telemetry_start(@telemetry, observed_request)
     response = null
     finalized = false
     phase = "request authorization"
     try:
       effective_request = @security.authorize(request)
+      _telemetry_authorized(@telemetry, telemetry_token, effective_request)
       if effective_request.method == "QUERY" and not effective_request.header("content-type"):
         response = render(text: "QUERY request requires Content-Type", status: :bad_request)
       else:
@@ -2363,14 +2450,29 @@ class App:
     rescue RequestParamsError |error|:
       response = render(text: "bad request", status: :bad_request)
     rescue Exception |error|:
-      raise error if _propagated_error?(error)
       route_pattern = request.response_header_sink[?"__ember_route_pattern"]
+      if _propagated_error?(error):
+        _telemetry_exception(
+          @telemetry, telemetry_token, error, effective_request, route_pattern)
+        raise error
       _report_error(@on_error, error, observed_request, route_pattern)
+      _telemetry_error(
+        @telemetry, telemetry_token, error, effective_request, route_pattern)
       message = if @expose_exceptions then phase + ": " + error.message else "internal server error"
       response = render(text: message, status: :internal_server_error)
-    return response if finalized
-    protected = @security.protect_response(normalize_response(response), effective_request)
-    _apply_response_rules(protected, request.method)
+    final_response = response
+    unless finalized:
+      protected = @security.protect_response(normalize_response(response), effective_request)
+      final_response = _apply_response_rules(protected, request.method)
+    route_pattern = request.response_header_sink[?"__ember_route_pattern"]
+    _telemetry_response(
+      @telemetry, telemetry_token, final_response, effective_request, route_pattern)
+
+  def _attach_server(server):
+    _telemetry_attach_server(@telemetry, server)
+
+  def _record_shutdown(clean, duration_nanoseconds, stats):
+    _telemetry_shutdown(@telemetry, clean, duration_nanoseconds, stats)
 
   def server(
     host: "127.0.0.1",

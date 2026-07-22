@@ -59,13 +59,13 @@ following before closure:
   injection/ambiguity validation during review;
 - default CSP `base-uri` was tightened to `'none'`.
 
-## Accepted lower-severity findings
+## Lower-severity findings and resolutions
 
 | ID | Severity | Finding | Compensating control | Owner / deadline |
 |---|---|---|---|---|
 | S3-01 | Medium | The source ChaCha20-Poly1305 implementation is standards-vector tested but not independently validated | RFC 8439 vector, authenticated decrypt-before-use, fixed-size tag check, minimum 256-bit material, bounded tokens | Security/release owner; vetted runtime primitive or independent review before 1.0 RC |
 | S3-02 | Medium | Sibling source dependencies are not version-locked or attested | Core stage-3 graph is source-only; optional dependency paths inventoried; compatibility documented | Release engineering; gate 5 locked clean-room build and dependency/provenance scan |
-| S3-03 | Medium | Preview access log writes the raw path and lacks structured redaction | Error events are redacted; request IDs are safe; operators may omit preview access middleware | Observability owner; gate 4 structured route-template log schema |
+| S3-03 | Resolved | Preview access log wrote the raw path and lacked structured redaction | Stage 4 emits bounded JSON events with route templates, request-ID validation, omission of sensitive request material, and configured field redaction | Closed 2026-07-22 by `test/stage4_selftest.am` and `docs/OBSERVABILITY.md` |
 | S3-04 | Low | Trusted-proxy IPv6 networks accept exact `/128` entries only | Unsupported broader prefixes fail configuration; IPv4 CIDR is complete | Runtime/security; retain restriction or add canonical parser before broader IPv6 deployment |
 | S3-05 | Low | Multipart is bounded but buffered rather than streaming | Default parser and transport aggregate limits are both 1 MiB; strict part/file limits | Framework/application; require `max_body_bytes <= max_total_bytes`, reconsider with streaming parser work |
 
@@ -85,3 +85,7 @@ The reviewer updates this section only from a fresh, no-cache pass. On
 
 Any failure, newly discovered critical/high issue, or change to a security
 boundary reopens the review and roadmap gate 3.
+
+The stage-4 telemetry regression and schema review on 2026-07-22 closed S3-03;
+its native self-test returned `true` and its sensitive-value corpus was absent
+from serialized events.

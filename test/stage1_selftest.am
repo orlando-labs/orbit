@@ -131,7 +131,9 @@ def main():
   logged_stream = logging_app.call(testing.get("/streamed"))
   assert(ember.Response === logged_buffered, "access log preserves buffered response")
   assert(ember.StreamingResponse === logged_stream, "access log preserves streaming response")
-  assert(log.to_str.contains?("GET /streamed -> 200"), "streaming access log")
+  assert(log.to_str.contains?("\"event.kind\":\"access\""), "structured access log")
+  assert(log.to_str.contains?("\"http.route\":\"/buffered\""),
+    "access log uses route template")
 
   input = {"x-before": "yes"}
   request = ember.Request(

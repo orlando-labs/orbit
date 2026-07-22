@@ -1,4 +1,4 @@
-Вердикт: Ember уже выглядит как сильный framework preview, но пока не production-ready. Этапы 0–3 завершены: HTTP correctness, lifecycle, graceful shutdown, production transport и security baseline реализованы и покрыты conformance/regression-тестами. Оставшиеся главные точки роста — наблюдаемость/performance, release engineering и RC-валидация.
+Вердикт: Ember уже выглядит как сильный framework preview, но пока не production-ready. Этапы 0–4 завершены: HTTP correctness, lifecycle, graceful shutdown, production transport, security baseline и observability/performance реализованы и покрыты conformance/regression-тестами. Оставшиеся главные точки роста — release engineering и RC-валидация.
 
 ## Текущее состояние
 
@@ -18,7 +18,7 @@
 Основные оставшиеся блокеры:
 
 - нет CI, версий, тегов, LICENSE, CHANGELOG, SECURITY policy, package lock и воспроизводимого dependency resolution;
-- нет structured telemetry, метрик, tracing, performance budgets, fuzz/load/soak suite;
+- нет release CI и длительных fuzz/load/soak прогонов на RC-инфраструктуре;
 - TLS и HTTP/2/3 остаются ответственностью обязательного trusted edge.
 
 ## Рекомендуемая граница Ember 1.0
@@ -37,7 +37,7 @@ TLS и HTTP/2/3 можно оставить нижнему транспортн�
 | 1. Correctness и lifecycle, 2–3 недели — **выполнен 2026-07-21** | Исправить streaming middleware, cancellation propagation, immutable snapshots, multi-value headers; добавить error hook и configurable server limits/timeouts | Все invariants покрыты unit/property tests; shutdown и cancellation не превращаются в 500 |
 | 2. Production transport, 3–4 недели — **выполнен 2026-07-21** | Server handle, stop accepting, drain in-flight requests, shutdown deadline, keep-alive, overload policy, integration start/stop; корректные HEAD/204/304/1xx semantics | Graceful shutdown воспроизводим; нет потерянных ORM leases и зависших streams; HTTP conformance suite зелёный |
 | 3. Security baseline, 3–4 недели — **выполнен 2026-07-22** | Host authorization, explicit trusted-proxy/CIDR policy, secure request-id validation, security headers, CORS; cookies, signed/encrypted sessions, CSRF, multipart с жёсткими лимитами; context-aware HTML или запрет опасных контекстов | Threat model закрыт; выполнен framework-relevant профиль [OWASP ASVS 5.0](https://owasp.org/www-project-application-security-verification-standard/); нет critical/high findings |
-| 4. Observability и performance, 2–3 недели | Structured access/error logs, redaction, route template вместо raw path, duration/bytes/status; metrics, tracing, health/readiness; router и streaming benchmarks | Совместимость с [OpenTelemetry HTTP conventions](https://opentelemetry.io/docs/specs/semconv/http/http-spans/); определены p50/p95/p99 бюджеты и regression threshold |
+| 4. Observability и performance, 2–3 недели — **выполнен 2026-07-22** | Structured access/error logs, redaction, route template вместо raw path, duration/bytes/status; metrics, tracing, health/readiness; router и streaming benchmarks | Совместимость с [OpenTelemetry HTTP conventions](https://opentelemetry.io/docs/specs/semconv/http/http-spans/); определены p50/p95/p99 бюджеты и regression threshold |
 | 5. Release engineering и DX, 2–3 недели | CI matrix, versioned packages вместо sibling paths, SemVer, changelog, license, security policy, supported Amber versions; API reference, deployment/runbook и migration guide | Установка и сборка выполняются из чистого окружения одной документированной командой |
 | RC, 2 недели | Реальное приложение за reverse proxy, canary, нагрузка, disconnect/timeout/kill tests, rollback rehearsal | 72-часовой soak без утечек/неограниченного роста памяти; 24 часа fuzzing без crash; подтверждён rollback |
 
@@ -84,6 +84,16 @@ TLS и HTTP/2/3 можно оставить нижнему транспортн�
 - `test/stage3_selftest.am` проверяет positive/negative security corpus и официальный RFC 8439 vector; два compile-fail fixture закрепляют запрет неоднозначных HTML-контекстов.
 - Опубликованы [security contract](docs/SECURITY.md), versioned [threat model](docs/THREAT_MODEL.md), [OWASP ASVS 5.0.0 mapping](docs/ASVS_5_MAPPING.md) и [security review/scan record](docs/SECURITY_REVIEW.md). Открытых critical/high findings нет; lower-severity risks имеют владельца и release gate.
 
+### Результат этапа 4
+
+- `App(telemetry:)` наблюдает полный request lifecycle: buffered ответы завершаются после validation, streaming — после producer; sink failure не меняет response/cancellation semantics.
+- Новый `ember.telemetry` публикует JSON access/error/lifecycle events с request ID, route template, status, duration, bytes и outcome; raw path/query/body/cookie/auth/error message не входят в schema, дополнительные поля редактируются политикой.
+- `MetricsRegistry` считает requests, in-flight, OTel duration buckets, bytes, errors, bounded route series, stream/server/rejection/shutdown state и bounded integration-pool gauges.
+- W3C `traceparent` принимается только от validated trusted proxy; server spans используют актуальные OpenTelemetry HTTP names, low-cardinality span name и privacy-safe path default.
+- `HealthProbe` привязан к `ServerHandle`: readiness меняется на `503` до bind и при drain, liveness остаётся process-local.
+- `benchmark/` покрывает small JSON, buffered HTML, 1K/4096 routes, full-duplex streaming, keep-alive и ORM pool exhaustion; опубликованы named environment, machine-readable baseline/budgets и автоматический 10% regression gate.
+- Контракт и доказательства опубликованы в [OBSERVABILITY.md](docs/OBSERVABILITY.md), [PERFORMANCE.md](docs/PERFORMANCE.md) и `test/stage4_selftest.am`.
+
 Тестирование должно развиваться параллельно с этапами 1–5:
 
 - property tests для route matching и `path()` round-trip;
@@ -98,16 +108,15 @@ TLS и HTTP/2/3 можно оставить нижнему транспортн�
 P0 до первого production deployment:
 
 - CI, conformance и fuzz corpus;
-- structured logs и redaction;
+- production exporter/dashboard/alert configuration для опубликованной telemetry schema;
 - deployment-specific security configuration и application threat-model extension.
 
 P1 до Ember 1.0:
 
-- metrics/tracing и platform health/readiness endpoints;
-- benchmarks и regression gates;
+- RC load/soak evidence и проверка performance baseline на release runner;
 - package/release/compatibility contract;
 - полноценная operational документация.
 
 После 1.0 можно отложить WebSocket, HTTP/2/3 внутри процесса, direct TLS, hot reload, generators/resources, `.amv`, asset pipeline и динамически заменяемые route snapshots.
 
-Оставшаяся оценка для production-ready общего web-профиля: примерно 12–18 инженерных недель. Самый значимый риск расписания теперь сосредоточен в observability/performance, воспроизводимом release engineering и доказательствах RC, а не в базовом HTTP lifecycle или security primitives.
+Оставшаяся оценка для production-ready общего web-профиля: примерно 8–12 инженерных недель. Самый значимый риск расписания теперь сосредоточен в воспроизводимом release engineering и доказательствах RC, а не в HTTP lifecycle, security primitives или базовой observability.

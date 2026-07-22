@@ -16,6 +16,8 @@ modules:
     path: ../src/ember/html.am
   - name: ember.middleware
     path: ../src/ember/middleware.am
+  - name: ember.telemetry
+    path: ../src/ember/telemetry.am
   - name: ember.security
     path: ../src/ember/security.am
   - name: ember.multipart
