@@ -1,0 +1,12 @@
+schema: amber.build.v1
+name: ember.example.soak.client
+root: ember.example.soak.client
+
+profiles:
+  required: [core.v1]
+  optional: []
+  forbidden: []
+
+modules:
+  - name: ember.example.soak.client
+    path: client.am

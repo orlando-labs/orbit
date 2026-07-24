@@ -1,0 +1,697 @@
+#!/usr/bin/env python3
+"""Build and run the representative Ember CRUD soak system."""
+
+from __future__ import annotations
+
+import argparse
+import datetime as dt
+import hashlib
+import json
+import math
+import os
+import platform
+import re
+import secrets
+import shutil
+import subprocess
+import sys
+import time
+import urllib.error
+import urllib.request
+from pathlib import Path
+from typing import Any
+
+
+ROOT = Path(__file__).resolve().parents[1]
+BUILD = ROOT / ".build" / "soak"
+SERVICE_NAME = "ember.example.soak.service"
+CLIENT_NAME = "ember.example.soak.client"
+QUALIFYING_SECONDS = 72 * 60 * 60
+HTTP = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+
+
+def command(args: list[str], cwd: Path = ROOT) -> None:
+    print("+", " ".join(args), flush=True)
+    subprocess.run(args, cwd=cwd, check=True)
+
+
+def duration_seconds(value: str) -> float:
+    match = re.fullmatch(r"([0-9]+(?:\.[0-9]+)?)([smhd]?)", value.strip())
+    if not match:
+        raise argparse.ArgumentTypeError("duration must look like 30s, 10m, 2h, or 3d")
+    multiplier = {"": 1, "s": 1, "m": 60, "h": 3600, "d": 86400}[match.group(2)]
+    result = float(match.group(1)) * multiplier
+    if result <= 0:
+        raise argparse.ArgumentTypeError("duration must be positive")
+    return result
+
+
+def sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as source:
+        for chunk in iter(lambda: source.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def resolve_compiler(explicit: Path | None) -> Path:
+    if explicit:
+        compiler = explicit.resolve()
+        if not compiler.is_file():
+            raise RuntimeError(f"Amber compiler does not exist: {compiler}")
+        return compiler
+    sync = [sys.executable, str(ROOT / "script/dependencies.py"), "sync", "--scope", "all"]
+    local = os.environ.get("EMBER_LOCAL_SOURCE_ROOT")
+    if local:
+        sync += ["--local-source-root", local]
+    command(sync)
+    source = ROOT / ".build" / "dependencies" / "amber-lang"
+    jobs = str(max(1, min(4, os.cpu_count() or 1)))
+    command(["make", f"-j{jobs}", "build/amberc"], cwd=source)
+    return source / "build" / "amberc"
+
+
+def build(compiler: Path) -> tuple[Path, Path]:
+    outputs = []
+    for role, name, grants in (
+        ("service", SERVICE_NAME, ("net.listen", "random.secure")),
+        ("client", CLIENT_NAME, ("net.connect",)),
+    ):
+        output = BUILD / "build" / role
+        args = [
+            str(compiler), "build", f"examples/soak/{role}.build.yaml",
+            "--target", "native",
+            "--out-dir", str(output),
+            "--cache-dir", str(output / "cache"),
+            "--no-cache",
+        ]
+        for grant in grants:
+            args += ["--grant", grant]
+        command(args)
+        binary = output / name
+        if not binary.is_file():
+            raise RuntimeError(f"build did not produce {binary}")
+        outputs.append(binary)
+    return outputs[0], outputs[1]
+
+
+def built_binaries() -> tuple[Path, Path]:
+    service = BUILD / "build" / "service" / SERVICE_NAME
+    client = BUILD / "build" / "client" / CLIENT_NAME
+    if not service.is_file() or not client.is_file():
+        raise RuntimeError("soak binaries are missing; omit --skip-build or run `script/soak build`")
+    return service, client
+
+
+def runnable_copy(source: Path, target: Path) -> Path:
+    shutil.copy2(source, target)
+    target.chmod(0o755)
+    if platform.system() == "Darwin":
+        command(["codesign", "--force", "--sign", "-", str(target)])
+    return target
+
+
+def fetch_json(
+    url: str,
+    method: str = "GET",
+    headers: dict[str, str] | None = None,
+    timeout: float = 5.0,
+) -> tuple[int, Any]:
+    request = urllib.request.Request(
+        url,
+        data=b"" if method != "GET" else None,
+        headers=headers or {},
+        method=method,
+    )
+    try:
+        with HTTP.open(request, timeout=timeout) as response:
+            status = response.status
+            body = response.read()
+    except urllib.error.HTTPError as error:
+        status = error.code
+        body = error.read()
+    parsed: Any = body.decode("utf-8", errors="replace")
+    try:
+        parsed = json.loads(parsed)
+    except json.JSONDecodeError:
+        pass
+    return status, parsed
+
+
+def wait_ready(process: subprocess.Popen[Any], base_url: str, timeout: float) -> None:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if process.poll() is not None:
+            raise RuntimeError(f"service exited during startup with status {process.returncode}")
+        try:
+            status, body = fetch_json(base_url + "/health/ready", timeout=1.0)
+            if status == 200 and isinstance(body, dict) and body.get("status") == "ready":
+                return
+        except OSError:
+            pass
+        time.sleep(0.1)
+    raise RuntimeError("service did not become ready before the startup deadline")
+
+
+def process_rss(pid: int) -> int | None:
+    status = Path(f"/proc/{pid}/status")
+    if status.is_file():
+        match = re.search(r"^VmRSS:\s+(\d+)\s+kB$", status.read_text(), re.MULTILINE)
+        return int(match.group(1)) * 1024 if match else None
+    result = subprocess.run(
+        ["ps", "-o", "rss=", "-p", str(pid)],
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+    )
+    text = result.stdout.strip()
+    return int(text) * 1024 if result.returncode == 0 and text.isdigit() else None
+
+
+def process_fds(pid: int) -> int | None:
+    directory = Path(f"/proc/{pid}/fd")
+    if directory.is_dir():
+        try:
+            return sum(1 for _ in directory.iterdir())
+        except OSError:
+            return None
+    if shutil.which("lsof"):
+        result = subprocess.run(
+            ["lsof", "-a", "-p", str(pid), "-Fn"],
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+        )
+        if result.returncode == 0:
+            return sum(1 for line in result.stdout.splitlines() if line.startswith("f"))
+    return None
+
+
+def take_sample(process: subprocess.Popen[Any], base_url: str, started: float) -> dict[str, Any]:
+    sample: dict[str, Any] = {
+        "recorded_at": dt.datetime.now(dt.timezone.utc).isoformat(),
+        "elapsed_seconds": time.monotonic() - started,
+        "service_alive": process.poll() is None,
+        "rss_bytes": process_rss(process.pid) if process.poll() is None else None,
+        "fd_count": process_fds(process.pid) if process.poll() is None else None,
+    }
+    try:
+        health_status, health = fetch_json(base_url + "/health/ready")
+        metrics_status, metrics = fetch_json(base_url + "/metrics")
+        sample.update({
+            "health_status": health_status,
+            "health": health,
+            "metrics_status": metrics_status,
+            "metrics": metrics,
+        })
+    except OSError as error:
+        sample["sample_error"] = str(error)
+    return sample
+
+
+def slope_per_hour(samples: list[dict[str, Any]], field: str, warmup: float) -> float | None:
+    points = [
+        (float(sample["elapsed_seconds"]) / 3600.0, float(sample[field]))
+        for sample in samples
+        if sample["elapsed_seconds"] >= warmup and sample.get(field) is not None
+    ]
+    if len(points) < 3:
+        return None
+    x_mean = sum(point[0] for point in points) / len(points)
+    y_mean = sum(point[1] for point in points) / len(points)
+    denominator = sum((point[0] - x_mean) ** 2 for point in points)
+    if denominator == 0:
+        return None
+    return sum((x - x_mean) * (y - y_mean) for x, y in points) / denominator
+
+
+def metrics_are_idle(metrics: Any) -> tuple[bool, list[str]]:
+    errors: list[str] = []
+    if not isinstance(metrics, dict):
+        return False, ["final metrics response is not an object"]
+    if metrics.get("http.server.active_requests", 999) > 1:
+        errors.append("more than the metrics probe itself remains in flight")
+    if metrics.get("ember.streams.active", 999) != 0:
+        errors.append("a stream remains active")
+    series = metrics.get("ember.request.series", {})
+    if not isinstance(series, dict) or len(series) > 256:
+        errors.append("metric series exceeded its configured bound")
+    pools = metrics.get("ember.integration.pools", {})
+    if not isinstance(pools, dict):
+        errors.append("integration pool metrics are missing")
+    else:
+        for name, pool in pools.items():
+            if not isinstance(pool, dict):
+                errors.append(f"pool {name} metrics are not an object")
+                continue
+            if pool.get("active", 999) > 1:
+                errors.append(f"pool {name} retains leases beyond the metrics probe")
+            if pool.get("waiting", 999) != 0:
+                errors.append(f"pool {name} still has waiters")
+    server = metrics.get("ember.server") or {}
+    if server.get("active", 999) > 1:
+        errors.append("server retains connections beyond the metrics probe")
+    if server.get("active_requests", 999) > 1:
+        errors.append("server retains active requests beyond the metrics probe")
+    return not errors, errors
+
+
+def linear_check(
+    samples: list[dict[str, Any]],
+    field: str,
+    warmup: float,
+    maximum: float,
+    maximum_slope: float,
+) -> dict[str, Any]:
+    values = [sample[field] for sample in samples if sample.get(field) is not None]
+    slope = slope_per_hour(samples, field, warmup)
+    return {
+        "observed": bool(values),
+        "peak": max(values) if values else None,
+        "slope_per_hour": slope,
+        "maximum": maximum,
+        "maximum_slope_per_hour": maximum_slope,
+        "passed": bool(values)
+        and max(values) <= maximum
+        and (slope is None or slope <= maximum_slope),
+    }
+
+
+def git_metadata() -> dict[str, Any]:
+    revision = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True,
+        stdout=subprocess.PIPE, check=True,
+    ).stdout.strip()
+    dirty = bool(subprocess.run(
+        ["git", "status", "--porcelain"], cwd=ROOT, text=True,
+        stdout=subprocess.PIPE, check=True,
+    ).stdout)
+    lock = ROOT / "release" / "dependencies.lock.json"
+    return {
+        "ember_revision": revision,
+        "working_tree_dirty": dirty,
+        "dependencies_lock_sha256": sha256(lock),
+        "dependencies": json.loads(lock.read_text(encoding="utf-8")),
+    }
+
+
+def read_client_result(path: Path) -> dict[str, Any]:
+    lines = [line for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    if not lines:
+        raise RuntimeError(f"{path.name} contains no client result")
+    result = json.loads(lines[-1])
+    if result.get("schema") != "ember.soak-client.result.v1":
+        raise RuntimeError(f"{path.name} has an unexpected result schema")
+    for name in ("iterations", "requests", "valid_requests", "invalid_requests"):
+        if not isinstance(result.get(name), int) or result[name] < 0:
+            raise RuntimeError(f"{path.name} has invalid {name}")
+    if not isinstance(result.get("elapsed_seconds"), (int, float)):
+        raise RuntimeError(f"{path.name} has invalid elapsed_seconds")
+    for name in ("statuses", "valid_statuses", "invalid_statuses"):
+        values = result.get(name)
+        if not isinstance(values, dict) or any(
+            not re.fullmatch(r"[1-5][0-9][0-9]", status)
+            or not isinstance(count, int)
+            or count < 0
+            for status, count in values.items()
+        ):
+            raise RuntimeError(f"{path.name} has invalid {name}")
+    return result
+
+
+def stop_process(process: subprocess.Popen[Any], timeout: float = 5.0) -> None:
+    if process.poll() is not None:
+        return
+    process.terminate()
+    try:
+        process.wait(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        process.wait(timeout=timeout)
+
+
+def aggregate_clients(results: list[dict[str, Any]]) -> dict[str, Any]:
+    statuses: dict[str, int] = {}
+    valid_statuses: dict[str, int] = {}
+    invalid_statuses: dict[str, int] = {}
+    for result in results:
+        for status, count in result["statuses"].items():
+            statuses[status] = statuses.get(status, 0) + count
+        for status, count in result["valid_statuses"].items():
+            valid_statuses[status] = valid_statuses.get(status, 0) + count
+        for status, count in result["invalid_statuses"].items():
+            invalid_statuses[status] = invalid_statuses.get(status, 0) + count
+    elapsed = max((result["elapsed_seconds"] for result in results), default=0.0)
+    minimum_elapsed = min((result["elapsed_seconds"] for result in results), default=0.0)
+    requests = sum(result["requests"] for result in results)
+    return {
+        "workers": len(results),
+        "iterations": sum(result["iterations"] for result in results),
+        "requests": requests,
+        "valid_requests": sum(result["valid_requests"] for result in results),
+        "invalid_requests": sum(result["invalid_requests"] for result in results),
+        "statuses": statuses,
+        "valid_statuses": valid_statuses,
+        "invalid_statuses": invalid_statuses,
+        "elapsed_seconds": elapsed,
+        "minimum_worker_elapsed_seconds": minimum_elapsed,
+        "requests_per_second": requests / elapsed if elapsed > 0 else 0.0,
+    }
+
+
+def run_workload(args: argparse.Namespace, smoke: bool) -> int:
+    compiler = resolve_compiler(args.amberc)
+    binaries = built_binaries() if args.skip_build else build(compiler)
+    stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    artifacts = (args.artifacts or BUILD / "runs" / stamp).resolve()
+    if artifacts.exists():
+        raise RuntimeError(f"refusing to overwrite existing artifact directory: {artifacts}")
+    artifacts.mkdir(parents=True)
+    service_binary = runnable_copy(binaries[0], artifacts / "service")
+    client_binary = runnable_copy(binaries[1], artifacts / "client")
+    source_metadata = git_metadata()
+    base_url = f"http://127.0.0.1:{args.port}"
+    shutdown_token = secrets.token_urlsafe(24)
+    service_stdout = (artifacts / "service.stdout.log").open("w", encoding="utf-8")
+    service_stderr = (artifacts / "service.stderr.log").open("w", encoding="utf-8")
+    service = subprocess.Popen(
+        [
+            str(service_binary),
+            "--host", "127.0.0.1",
+            "--port", str(args.port),
+            "--database", str(artifacts / "catalog.sqlite3"),
+            "--workers", str(args.server_workers),
+            "--pool-size", str(args.pool_size),
+            "--shutdown-token", shutdown_token,
+        ],
+        cwd=ROOT,
+        stdout=service_stdout,
+        stderr=service_stderr,
+    )
+    client_processes: list[subprocess.Popen[Any]] = []
+    client_files: list[tuple[Any, Any, Path]] = []
+    samples: list[dict[str, Any]] = []
+    errors: list[str] = []
+    service_ready = False
+    service_exit: int | None = None
+    client_results: list[dict[str, Any]] = []
+    started = time.monotonic()
+    requested_duration = 0.0 if smoke else args.duration
+    configuration = {
+        "mode": "smoke" if smoke else "soak",
+        "requested_duration_seconds": requested_duration,
+        "clients": args.clients,
+        "server_workers": args.server_workers,
+        "pool_size": args.pool_size,
+        "negative_every": args.negative_every,
+        "sample_interval_seconds": args.sample_interval,
+        "startup_timeout_seconds": args.startup_timeout,
+        "shutdown_timeout_seconds": args.shutdown_timeout,
+        "client_grace_seconds": args.client_grace,
+        "quiesce_seconds": args.quiesce,
+        "warmup_seconds": args.warmup,
+        "max_rss_mib": args.max_rss_mib,
+        "max_rss_slope_mib_hour": args.max_rss_slope_mib_hour,
+        "max_fds": args.max_fds,
+        "max_fd_slope_hour": args.max_fd_slope_hour,
+        "port": args.port,
+    }
+    configuration_json = json.dumps(
+        configuration, sort_keys=True, separators=(",", ":")).encode()
+    metadata = {
+        "schema": "ember.soak-run.v1",
+        "started_at": dt.datetime.now(dt.timezone.utc).isoformat(),
+        "configuration": configuration,
+        "configuration_sha256": hashlib.sha256(configuration_json).hexdigest(),
+        "platform": {
+            "system": platform.system(),
+            "release": platform.release(),
+            "machine": platform.machine(),
+            "python": platform.python_version(),
+        },
+        "source": source_metadata,
+        "binaries": {
+            "service_sha256": sha256(service_binary),
+            "client_sha256": sha256(client_binary),
+        },
+    }
+    (artifacts / "run.json").write_text(
+        json.dumps(metadata, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    samples_file = (artifacts / "samples.jsonl").open("w", encoding="utf-8")
+    try:
+        wait_ready(service, base_url, args.startup_timeout)
+        service_ready = True
+        started = time.monotonic()
+        for worker in range(args.clients):
+            output_path = artifacts / f"client-{worker}.stdout.log"
+            output = output_path.open("w", encoding="utf-8")
+            error = (artifacts / f"client-{worker}.stderr.log").open("w", encoding="utf-8")
+            client_args = [
+                str(client_binary),
+                "--base-url", base_url,
+                "--worker", str(worker),
+                "--mode", "mixed",
+                "--negative-every", str(args.negative_every),
+            ]
+            if smoke:
+                client_args += ["--iterations", "1"]
+            else:
+                client_args += ["--duration-seconds", str(math.ceil(args.duration))]
+            client_processes.append(subprocess.Popen(
+                client_args, cwd=ROOT, stdout=output, stderr=error))
+            client_files.append((output, error, output_path))
+
+        deadline = started + (args.smoke_timeout if smoke else args.duration)
+        next_sample = started
+        while True:
+            now = time.monotonic()
+            if service.poll() is not None:
+                errors.append(f"service exited during workload with status {service.returncode}")
+                break
+            client_statuses = [process.poll() for process in client_processes]
+            if smoke:
+                if any(status not in (None, 0) for status in client_statuses):
+                    break
+                if all(status is not None for status in client_statuses):
+                    break
+            elif any(status is not None for status in client_statuses):
+                errors.append("an Amber client exited before the soak deadline")
+                break
+            if now >= deadline:
+                break
+            if now >= next_sample:
+                sample = take_sample(service, base_url, started)
+                samples.append(sample)
+                samples_file.write(json.dumps(sample, sort_keys=True) + "\n")
+                samples_file.flush()
+                if sample.get("health_status") != 200 or sample.get("metrics_status") != 200:
+                    errors.append("readiness or metrics probe failed during workload")
+                    break
+                next_sample = now + args.sample_interval
+            time.sleep(min(0.25, max(0.01, deadline - now)))
+
+        if errors:
+            for process in client_processes:
+                stop_process(process)
+        grace = args.client_grace if not smoke else max(1.0, deadline - time.monotonic())
+        grace_deadline = time.monotonic() + grace
+        for process in client_processes:
+            try:
+                process.wait(timeout=max(0.01, grace_deadline - time.monotonic()))
+            except subprocess.TimeoutExpired:
+                errors.append(f"client {process.pid} did not finish within its grace period")
+                stop_process(process)
+        for output, error, _ in client_files:
+            output.close()
+            error.close()
+        for process, (_, _, output_path) in zip(client_processes, client_files):
+            if process.returncode != 0:
+                errors.append(f"client {process.pid} exited with status {process.returncode}")
+                continue
+            try:
+                client_results.append(read_client_result(output_path))
+            except (OSError, ValueError, KeyError, json.JSONDecodeError) as error:
+                errors.append(str(error))
+
+        time.sleep(args.quiesce)
+        final_sample = take_sample(service, base_url, started)
+        samples.append(final_sample)
+        samples_file.write(json.dumps(final_sample, sort_keys=True) + "\n")
+        samples_file.flush()
+        try:
+            status, _ = fetch_json(
+                base_url + "/__control/shutdown",
+                method="POST",
+                headers={"x-soak-control": shutdown_token},
+            )
+            if status != 202:
+                errors.append(f"graceful shutdown endpoint returned {status}")
+        except OSError as error:
+            errors.append(f"graceful shutdown request failed: {error}")
+        try:
+            service_exit = service.wait(timeout=args.shutdown_timeout)
+        except subprocess.TimeoutExpired:
+            errors.append("service did not complete graceful shutdown")
+            stop_process(service)
+            service_exit = service.returncode
+        if service_exit != 0:
+            errors.append(f"service exited with status {service_exit}")
+    except (OSError, RuntimeError, subprocess.SubprocessError) as error:
+        errors.append(str(error))
+    finally:
+        for process in client_processes:
+            stop_process(process)
+        stop_process(service)
+        service_exit = service.returncode
+        for output, error, _ in client_files:
+            if not output.closed:
+                output.close()
+            if not error.closed:
+                error.close()
+        samples_file.close()
+        service_stdout.close()
+        service_stderr.close()
+
+    workload = aggregate_clients(client_results)
+    rss = linear_check(
+        samples, "rss_bytes", args.warmup,
+        args.max_rss_mib * 1024 * 1024,
+        args.max_rss_slope_mib_hour * 1024 * 1024,
+    )
+    fds = linear_check(
+        samples, "fd_count", args.warmup,
+        args.max_fds,
+        args.max_fd_slope_hour,
+    )
+    final_metrics = samples[-1].get("metrics") if samples else None
+    idle, idle_errors = metrics_are_idle(final_metrics)
+    health_ok = bool(samples) and all(
+        sample.get("health_status") == 200 and sample.get("metrics_status") == 200
+        for sample in samples
+    )
+    duration_ok = smoke or workload["minimum_worker_elapsed_seconds"] >= requested_duration
+    negative_ok = workload["invalid_requests"] > 0 and all(
+        400 <= int(status) < 500 for status in workload["invalid_statuses"])
+    valid_ok = workload["valid_requests"] > 0
+    source_ok = requested_duration < QUALIFYING_SECONDS or not source_metadata["working_tree_dirty"]
+    checks = {
+        "service_ready": service_ready,
+        "service_exit_zero": service_exit == 0,
+        "clients_exit_zero_and_parse": len(client_results) == args.clients,
+        "valid_crud_exercised": valid_ok,
+        "invalid_4xx_contract_exercised": negative_ok,
+        "health_and_metrics_continuous": health_ok,
+        "workload_duration_reached": duration_ok,
+        "rss_bounded": rss["passed"],
+        "descriptors_bounded": fds["passed"],
+        "requests_streams_and_pool_quiescent": idle,
+        "source_tree_clean_for_qualification": source_ok,
+    }
+    errors += idle_errors
+    if not rss["observed"]:
+        errors.append("RSS could not be observed on this platform")
+    if not fds["observed"]:
+        errors.append("file descriptors could not be observed on this platform")
+    passed = not errors and all(checks.values())
+    qualifies = (
+        passed
+        and requested_duration >= QUALIFYING_SECONDS
+        and workload["minimum_worker_elapsed_seconds"] >= QUALIFYING_SECONDS
+        and not source_metadata["working_tree_dirty"]
+    )
+    report = {
+        "schema": "ember.soak-report.v1",
+        "finished_at": dt.datetime.now(dt.timezone.utc).isoformat(),
+        "passed": passed,
+        "qualifies_as_72h_evidence": qualifies,
+        "requested_duration_seconds": requested_duration,
+        "workload": workload,
+        "resources": {"rss": rss, "file_descriptors": fds},
+        "checks": checks,
+        "errors": errors,
+        "artifacts": {
+            "run": "run.json",
+            "samples": "samples.jsonl",
+            "service_stdout": "service.stdout.log",
+            "service_stderr": "service.stderr.log",
+        },
+    }
+    (artifacts / "report.json").write_text(
+        json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    print(json.dumps({
+        "passed": passed,
+        "qualifies_as_72h_evidence": qualifies,
+        "requests": workload["requests"],
+        "invalid_requests": workload["invalid_requests"],
+        "artifacts": str(artifacts),
+    }, sort_keys=True))
+    return 0 if passed else 1
+
+
+def add_run_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--amberc", type=Path)
+    parser.add_argument("--skip-build", action="store_true")
+    parser.add_argument("--artifacts", type=Path)
+    parser.add_argument("--port", type=int, default=3300)
+    parser.add_argument("--clients", type=int, default=4)
+    parser.add_argument("--server-workers", type=int, default=4)
+    parser.add_argument("--pool-size", type=int, default=8)
+    parser.add_argument("--negative-every", type=int, default=25)
+    parser.add_argument("--sample-interval", type=float, default=30.0)
+    parser.add_argument("--startup-timeout", type=float, default=30.0)
+    parser.add_argument("--shutdown-timeout", type=float, default=45.0)
+    parser.add_argument("--client-grace", type=float, default=90.0)
+    parser.add_argument("--quiesce", type=float, default=1.0)
+    parser.add_argument("--warmup", type=duration_seconds, default=duration_seconds("10m"))
+    parser.add_argument("--max-rss-mib", type=float, default=1024.0)
+    parser.add_argument("--max-rss-slope-mib-hour", type=float, default=4.0)
+    parser.add_argument("--max-fds", type=int, default=512)
+    parser.add_argument("--max-fd-slope-hour", type=float, default=0.25)
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    subparsers = parser.add_subparsers(dest="command", required=True)
+    build_parser = subparsers.add_parser("build", help="build the Amber service and client")
+    build_parser.add_argument("--amberc", type=Path)
+    smoke_parser = subparsers.add_parser("smoke", help="run one complete CRUD/4xx cycle")
+    add_run_arguments(smoke_parser)
+    smoke_parser.add_argument("--smoke-timeout", type=float, default=180.0)
+    run_parser = subparsers.add_parser("run", help="run sustained mixed load (72h by default)")
+    add_run_arguments(run_parser)
+    run_parser.add_argument("--duration", type=duration_seconds, default=duration_seconds("72h"))
+    run_parser.set_defaults(smoke_timeout=0.0)
+    args = parser.parse_args()
+    if args.command == "build":
+        build(resolve_compiler(args.amberc))
+        return 0
+    for name in ("port", "clients", "server_workers", "pool_size", "negative_every"):
+        if getattr(args, name) <= 0:
+            parser.error(f"--{name.replace('_', '-')} must be positive")
+    if args.port > 65535:
+        parser.error("--port must be at most 65535")
+    if args.pool_size < 2:
+        parser.error("--pool-size must be at least 2")
+    for name in ("sample_interval", "startup_timeout", "shutdown_timeout", "client_grace"):
+        if getattr(args, name) <= 0:
+            parser.error(f"--{name.replace('_', '-')} must be positive")
+    if args.quiesce < 0 or args.warmup < 0:
+        parser.error("--quiesce and --warmup must not be negative")
+    if (
+        args.max_rss_mib <= 0
+        or args.max_rss_slope_mib_hour < 0
+        or args.max_fds <= 0
+        or args.max_fd_slope_hour < 0
+    ):
+        parser.error("resource maxima must be positive and slopes must not be negative")
+    if args.command == "smoke" and args.smoke_timeout <= 0:
+        parser.error("--smoke-timeout must be positive")
+    return run_workload(args, smoke=args.command == "smoke")
+
+
+if __name__ == "__main__":
+    try:
+        raise SystemExit(main())
+    except (OSError, RuntimeError, subprocess.CalledProcessError) as error:
+        print(f"soak failed: {error}", file=sys.stderr)
+        raise SystemExit(1)

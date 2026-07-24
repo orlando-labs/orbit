@@ -1,0 +1,46 @@
+schema: amber.build.v1
+name: ember.example.soak.service
+root: ember.example.soak.service
+
+profiles:
+  required: [core.v1, ffi.v1, macro.v1]
+  optional: []
+  forbidden: []
+
+modules:
+  - name: sqlite3
+    path: ../../.build/dependencies/sqlite3-amber/src/sqlite3.am
+  - name: orm
+    path: ../../.build/dependencies/amber-orm/src/orm.am
+  - name: orm.pool
+    path: ../../.build/dependencies/amber-orm/src/orm/pool.am
+  - name: orm.sqlite3.adapter
+    path: ../../.build/dependencies/amber-orm/src/orm/sqlite3/adapter.am
+  - name: orm.sqlite3.pool
+    path: ../../.build/dependencies/amber-orm/src/orm/sqlite3/pool.am
+  - name: orm.sqlite3
+    path: ../../.build/dependencies/amber-orm/src/orm/sqlite3.am
+  - name: ember
+    path: ../../src/ember.am
+  - name: ember.telemetry
+    path: ../../src/ember/telemetry.am
+  - name: ember.integrations.orm
+    path: ../../packages/ember-orm/src/ember/integrations/orm.am
+  - name: ember.example.soak.service
+    path: service.am
+
+native_extensions:
+  - name: sqlite3
+    language: c
+    sources:
+      - ../../.build/dependencies/sqlite3-amber/native/sqlite3_ext.c
+      - ../../.build/dependencies/sqlite3-amber/native/sqlite3.c
+    headers:
+      - ../../.build/dependencies/sqlite3-amber/native/sqlite3.h
+    defines:
+      - SQLITE_THREADSAFE=1
+      - SQLITE_ENABLE_COLUMN_METADATA=1
+      - SQLITE_ENABLE_FTS5=1
+      - SQLITE_ENABLE_JSON1=1
+      - SQLITE_DQS=0
+      - SQLITE_OMIT_LOAD_EXTENSION=1

@@ -107,7 +107,8 @@ def check_release_files(errors: list[str], amberc: Path | None) -> None:
     required = [
         "LICENSE", "SECURITY.md", "CHANGELOG.md", "docs/API_REFERENCE.md",
         "docs/CONFIGURATION.md", "docs/RUNBOOK.md", "docs/MIGRATION_1_0.md",
-        "docs/RELEASING.md", "deploy/nginx.conf", "deploy/systemd/ember.service",
+        "docs/RELEASING.md", "docs/SOAK_TEST.md",
+        "deploy/nginx.conf", "deploy/systemd/ember.service",
         "deploy/kubernetes/ember.yaml", ".github/workflows/ci.yml",
         ".github/workflows/release.yml",
     ]

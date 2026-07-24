@@ -116,6 +116,11 @@ def integration(amberc: Path) -> None:
         "--out-dir", str(out), "--cache-dir", str(out / "cache"), "--no-cache",
         "--grant", "net.listen", "--grant", "random.secure",
     )
+    run(
+        sys.executable, "script/soak", "smoke",
+        "--amberc", str(amberc), "--port", "3310", "--clients", "1",
+        "--sample-interval", "1",
+    )
 
 
 def main() -> int:

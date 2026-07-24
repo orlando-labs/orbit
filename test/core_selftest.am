@@ -39,6 +39,7 @@ class Posts < ember.Controller:
   def show(slug):
     status(:created)
     header("x-controller", "yes")
+    header("x-request-path", request.path)
     render(text: "post #{slug}")
 
 routes = ember.routes:
@@ -75,6 +76,7 @@ def main():
   controller = app.call(testing.get("/posts/amber"))
   assert(controller.status == 201, "controller status #{controller.status}: #{controller.body_text}")
   assert(controller.header("x-controller") == "yes", "controller headers: #{controller.headers.keys.join(",")}")
+  assert(controller.header("x-request-path") == "/posts/amber", "bare inherited request helper")
   assert(controller.body_text == "post amber", "controller body")
 
   literal = routes.match("/posts/new", method: "GET")

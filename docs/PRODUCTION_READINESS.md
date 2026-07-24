@@ -159,11 +159,13 @@ Evidence: `VERSION`, `amber.toml`, `amber.lock`, the separate
 `release/public-api.json`, `release/evidence/stage5-local.json`,
 `.github/workflows/ci.yml`,
 `.github/workflows/release.yml`, `script/clean-room-build`, `script/ci`,
-`script/stage5_checks.py`, `test/api_reference_selftest.am`,
+`script/stage5_checks.py`, `script/soak`, `examples/soak`,
+`test/api_reference_selftest.am`,
 `test/stage5_fuzz_smoke.am`, [API_REFERENCE.md](API_REFERENCE.md),
 [CONFIGURATION.md](CONFIGURATION.md), [RUNBOOK.md](RUNBOOK.md),
-[MIGRATION_1_0.md](MIGRATION_1_0.md), [RELEASING.md](RELEASING.md), and the
-tracked proxy/platform examples. The tag workflow attaches clean-room evidence,
+[MIGRATION_1_0.md](MIGRATION_1_0.md), [RELEASING.md](RELEASING.md),
+[SOAK_TEST.md](SOAK_TEST.md), and the tracked proxy/platform examples. The tag
+workflow attaches clean-room evidence,
 source/package SHA-256 files, signed package verification, and provenance to
 the immutable release; its protected environment supplies the independent
 publication review.
@@ -175,6 +177,9 @@ publication review.
 - [ ] A 72-hour constant/mixed-load soak has no leaked tasks/connections/ORM
   leases and no unbounded memory, queue, label-cardinality, or descriptor growth.
   The run records heap/RSS and resource slopes, not only start/end values.
+  The representative service, Amber CRUD/4xx client, sampler, thresholds, and
+  evidence schema are reproducible through [the soak test](SOAK_TEST.md); this
+  checkbox remains open until a real 72-hour report is reviewed.
 - [ ] At least 24 cumulative hours of coverage-guided fuzzing across percent
   decoding, query, JSON, multipart, and HTTP framing completes with no crash,
   hang, sanitizer finding, or unbounded allocation. Every prior crash remains a

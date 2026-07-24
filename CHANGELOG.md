@@ -6,7 +6,12 @@ All notable changes are recorded here. Ember follows
 
 ## [Unreleased]
 
-No changes yet.
+- Added a representative controller-based catalog REST service, an Amber
+  CRUD/strict-4xx client, and a reproducible 72-hour resource/metrics soak
+  runner.
+- Locked Amber to the lexical-first implicit-self bare-send implementation, so
+  controller methods can use inherited `params`, `request`, `render`, and
+  included nullary helpers without explicit `self`.
 
 ## [1.0.0-rc.1] - 2026-07-22
 

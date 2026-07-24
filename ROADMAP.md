@@ -120,6 +120,13 @@ TLS и HTTP/2/3 можно оставить нижнему транспортн�
 - `test/api_reference_selftest.am` компилирует документированные core examples,
   `test/stage5_fuzz_smoke.am` закрепляет bounded percent/query/JSON/multipart и
   raw HTTP framing corpus. Длительное coverage-guided fuzzing остаётся RC gate.
+- `examples/soak` содержит controller-based REST-сервис для модели с 22
+  сохраняемыми атрибутами и Amber-клиент полного CRUD/4xx-контракта;
+  `script/soak` воспроизводимо собирает их, выполняет CI smoke и готовит
+  временные ряды RSS/FD/application metrics и итоговый отчёт для настоящего
+  72-часового прогона. Формат и критерии описаны в
+  [SOAK_TEST.md](docs/SOAK_TEST.md); RC checkbox останется открытым до получения
+  и review фактического 72h evidence.
 
 Тестирование должно развиваться параллельно с этапами 1–5:
 

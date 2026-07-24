@@ -127,6 +127,12 @@ captures; request, services, named paths, render, and redirect are inherited
 helpers. Rendering twice or mutating status/headers after commit raises a
 framework error.
 
+Inside an object method, an unresolved bare identifier is a dynamic nullary
+send to that method's `self`, so inherited or included helpers such as
+`request`, `params`, and `render` remain concise. A lexical binding with the
+same name always wins. Outside an object method there is no implicit receiver,
+and an unresolved bare identifier is a compile-time error.
+
 Supported normalized return values are `ember.Response`, `ember.Html`, `Str`,
 `Bytes`, `ember.StreamingResponse`, and `null`. Other values must be passed
 explicitly to `render`, for example `ember.render(json: value)`.
@@ -347,6 +353,12 @@ and [edge deployment model](docs/DEPLOYMENT.md).
 # Static/docs/locks, all native self-tests and raw HTTP conformance,
 # parser/framing fuzz smoke, examples, ORM/SQLite integration, and clean-room
 ./script/ci full
+
+# Representative controller CRUD service + Amber client smoke
+./script/soak smoke
+
+# Constant/mixed-load run; 72h is the default and required evidence duration
+./script/soak run --duration 72h --artifacts /durable/ember-soak-evidence
 ```
 
 CI runs the core lane on Linux x86_64, Linux arm64, and macOS arm64 against the
@@ -355,7 +367,9 @@ annotated `v$VERSION` tag, rebuilds the signed package twice, compares bytes,
 and publishes checksums plus provenance. See the
 [release process](docs/RELEASING.md), [API reference](docs/API_REFERENCE.md),
 [configuration reference](docs/CONFIGURATION.md), and
-[operations runbook](docs/RUNBOOK.md).
+[operations runbook](docs/RUNBOOK.md). The controller-based catalog service,
+Amber CRUD/4xx client, resource thresholds, and evidence format are documented
+in the [72-hour soak test](docs/SOAK_TEST.md).
 
 ## Ember 1.0 contract
 

@@ -1,0 +1,109 @@
+# Representative CRUD and 72-hour soak test
+
+`examples/soak` is the release-candidate reference workload. It consists of a
+controller-based Ember service backed by the locked ORM/SQLite integration and
+an Amber `net.http` client. Python is used only to build processes, sample
+operating-system resources, and produce evidence; every application request is
+generated and checked by the Amber client.
+
+## Application contract
+
+`CatalogItem` has 22 persisted attributes: identity, SKU, descriptive,
+classification, price, inventory, physical, manufacturer, barcode, variant,
+rating, tags, metadata, optimistic-lock version, and timestamps. The service
+provides:
+
+- `GET /v1/items` and `POST /v1/items`;
+- `GET`, `PUT`, `PATCH`, and `DELETE /v1/items/:id`;
+- liveness, readiness, bounded metrics, and authenticated graceful shutdown;
+- strict JSON/query schemas, domain validation, body limits, Host
+  authorization, optimistic `If-Match`, unique SKU handling, and structured
+  4xx problems;
+- a bounded SQLite connection pool with WAL and production-shaped server
+  limits.
+
+The handlers are ordinary `ember.Controller` methods. Bare `params`, `request`,
+`render`, and `service` are lexical-first dynamic nullary sends to the
+controller receiver; the example intentionally exercises that Amber language
+contract instead of spelling Python-like `self.*` throughout.
+
+Each mixed client iteration performs create, show, filtered list, full replace,
+partial update, delete, and post-delete verification. At its configured
+interval it also executes the complete negative contract:
+
+- media type, malformed JSON, wrong root, missing required fields, wrong types,
+  and unknown top-level/nested fields;
+- every declared item-domain validation, including SKU, text bounds,
+  enumerations, numeric ranges, country/currency/barcode formats, tags, and
+  metadata;
+- request-size, unique-SKU, optimistic-lock, empty/unknown patch, typed path,
+  query allowlist, unsupported method, Host authorization, missing resources,
+  and delete precondition failures.
+
+The client asserts the exact expected status for every request and exits
+nonzero on the first mismatch. All deliberately invalid cases expect a 4xx
+status; unexpected 5xx responses therefore fail the run immediately.
+
+## Fast gate
+
+From a clean checkout:
+
+```sh
+./script/soak smoke
+```
+
+This resolves the exact revisions in `release/dependencies.lock.json`, builds
+both Amber programs without cache, starts the service, runs one full CRUD/4xx
+cycle, verifies idle metrics, and performs graceful shutdown. CI runs this gate
+on the ORM/SQLite integration row.
+
+For an already resolved local dependency tree:
+
+```sh
+EMBER_LOCAL_SOURCE_ROOT=/path/to/dependency-source ./script/soak smoke
+```
+
+## 72-hour qualification
+
+Run on a production-equivalent host with a persistent artifact directory:
+
+```sh
+./script/soak run \
+  --duration 72h \
+  --clients 4 \
+  --server-workers 4 \
+  --pool-size 8 \
+  --artifacts /var/lib/ember-evidence/soak-1.0.0-rc.1
+```
+
+The default duration is already `72h`. During the run the orchestrator records
+RSS, descriptor count, readiness, the full Ember metrics snapshot, source and
+dependency revisions, a canonical configuration digest, and binary digests.
+After traffic stops, it checks that connections, requests, streams, pool
+leases, and pool waiters quiesce, then uses the service's authenticated
+graceful-shutdown endpoint.
+
+The output directory contains:
+
+- `run.json`: immutable inputs and provenance;
+- `samples.jsonl`: timestamped resource and application metrics;
+- `report.json`: aggregate traffic, thresholds, slopes, checks, and verdict;
+- separate stdout/stderr logs for the service and every Amber client;
+- the exact service/client binaries and SQLite database used by the run.
+
+`report.json` sets `qualifies_as_72h_evidence` only when the run passed and the
+shortest-lived Amber worker itself reached at least 259,200 seconds. The source
+tree must also be clean; a dirty-tree run remains useful diagnostics but cannot
+qualify as release evidence. A shorter
+`--duration 10m` run is useful operational rehearsal but cannot be mistaken for
+release evidence.
+
+Default post-warmup limits are 1 GiB peak RSS, 4 MiB/hour RSS slope, 512 file
+descriptors, and 0.25 descriptors/hour slope. They are intentionally explicit
+CLI options rather than hidden heuristics. A release manager may tighten them
+for the named runner, but relaxing them requires a reviewed evidence note.
+
+This test supplies the application and reproducible 72-hour evidence format.
+It does not by itself close the separate reverse-proxy canary, 24-hour
+coverage-guided fuzzing, failure matrix, cryptographic review, or rollback
+rehearsal gates.

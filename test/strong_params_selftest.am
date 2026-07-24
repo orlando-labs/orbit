@@ -29,7 +29,7 @@ def create_user_schema():
 
 class Users < ember.Controller:
   def create():
-    attrs = params().json.expect(create_user_schema())
+    attrs = params.json.expect(create_user_schema())
     render(json: attrs, status: :created)
 
 routes = ember.routes:

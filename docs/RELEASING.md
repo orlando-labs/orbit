@@ -11,8 +11,9 @@ built from an annotated SemVer tag and never from an uncommitted worktree.
 - [ ] Dependency revisions and trees are immutable and available to the clean
       resolver; compiler, runtime, and stdlib come from one Amber revision.
 - [ ] Formatting/static, core, HTTP conformance, fuzz smoke, native,
-      integration, examples, documentation, clean-room, and every platform
-      matrix job are green at the tagged commit.
+      integration, representative CRUD/4xx soak smoke, examples,
+      documentation, clean-room, and every platform matrix job are green at
+      the tagged commit.
 - [ ] Package build is byte-identical across two clean builds. Package/source
       checksums and build provenance are attached to the release.
 - [ ] No unresolved critical/high security finding, conformance failure, or
@@ -42,6 +43,9 @@ Verify the release checksum/provenance, install from the published registry in
 an empty environment, compile the API example, and open the next `Unreleased`
 section. For an RC, start the canary/load/soak/fuzz/rollback campaign; do not
 change the production-ready claim until every RC gate has immutable evidence.
+Use `./script/soak run --duration 72h --artifacts <durable-path>` for the
+representative application run and attach its `run.json`, `samples.jsonl`,
+`report.json`, and logs to the RC evidence index.
 
 A failed or partially uploaded release is withdrawn, not overwritten. Package
 versions and tags are immutable; fixes use a new SemVer version.

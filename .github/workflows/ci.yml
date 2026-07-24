@@ -48,7 +48,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: orlando-labs/amber-lang
-          ref: 14b32257e0e7b3b10e4dff6bf97a1bd0c757380c
+          ref: a27e7a7423c31ff1206f961be534e6cc445b733b
           path: .dependency-source/amber-lang
           token: ${{ secrets.DEPENDENCY_READ_TOKEN || github.token }}
       - uses: actions/checkout@v4
@@ -63,7 +63,7 @@ jobs:
           ref: 8ffb543bf7678e3011dce8e8e58276b6d9725f88
           path: .dependency-source/sqlite3-amber
           token: ${{ secrets.DEPENDENCY_READ_TOKEN || github.token }}
-      - name: ORM, SQLite native extension, and integration example
+      - name: ORM, SQLite native extension, integration example, and CRUD soak smoke
         env:
           EMBER_LOCAL_SOURCE_ROOT: ${{ github.workspace }}/.dependency-source
         run: ./script/ci integration
