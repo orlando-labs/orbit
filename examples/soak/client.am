@@ -59,6 +59,14 @@ def json_headers(version: null):
 def json(response):
   Json.parse(response[:body])
 
+def expect_model_validation(response, field, label):
+  body = json(response)
+  details = body["error"]["details"]
+  valid = body["error"]["code"] == "validation_failed"
+  valid = valid and details.any? |detail|: detail["field"] == field
+  raise ArgumentError(label + ": model validation details are missing") unless valid
+  response
+
 def item_payload(token):
   {
     item: {
@@ -177,13 +185,16 @@ def expect_invalid_item(client, path, suffix, label, changes, status, stats):
   payload = item_payload(suffix + "-" + Time.now.unix_nanoseconds.to_str)
   changes.each |name, value|:
     payload[:item][name] = value
-  stats.expect(
+  response = stats.expect(
     request(client, :post, path,
       headers: json_headers(),
       body: Json.generate(payload)),
     status,
     label,
     invalid: true)
+  if status == 422:
+    expect_model_validation(response, changes.keys[0].to_str, label)
+  response
 
 def negative_suite(client, base_url, worker, iteration, stats):
   path = base_url + "/v1/items"
@@ -358,6 +369,14 @@ def negative_suite(client, base_url, worker, iteration, stats):
     409,
     "stale If-Match",
     invalid: true)
+  invalid_patch = stats.expect(
+    request(client, :patch, path + "/" + id.to_str,
+      headers: json_headers(version: version),
+      body: "{\"item\":{\"stock_count\":-1}}"),
+    422,
+    "invalid stock patch",
+    invalid: true)
+  expect_model_validation(invalid_patch, "stock_count", "invalid stock patch")
   stats.expect(
     request(client, :patch, path + "/" + id.to_str,
       headers: json_headers(version: version),

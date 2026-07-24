@@ -3,6 +3,7 @@ package ember.stage4_selftest
 import ember
 import ember.testing
 import ember.telemetry
+from net.http import Client
 
 export main
 
@@ -19,6 +20,9 @@ def streamed(request):
   ember.stream() |body|:
     body.write("abc")
     body.write("def")
+
+def metrics(request):
+  request.service(:telemetry).metrics.response(request)
 
 class NullStreamBody:
   attr bytes
@@ -57,6 +61,7 @@ routes = ember.routes:
   get "/users/:id", to: &user, params: {id: Str}
   get "/failure", to: &failure
   get "/stream", to: &streamed
+  get "/metrics", to: &metrics
 
 def event(events, kind, name):
   events.find |entry|:
@@ -194,11 +199,36 @@ def redaction_and_cardinality():
 def lifecycle_probes():
   sink = telemetry.MemorySink()
   observed = telemetry.Telemetry(sink: sink)
-  app = ember.App(routes: routes, telemetry: observed)
+  app = ember.App(
+    routes: routes,
+    services: {telemetry: observed},
+    telemetry: observed)
   assert(observed.health.liveness().status == 200, "liveness is process-local")
   assert(observed.health.readiness().status == 503, "unattached app is not ready")
   server = app.start(port: 0, idle_timeout: 0.1, shutdown_timeout: 1.0)
   assert(observed.health.readiness().status == 200, "accepting server is ready")
+  metrics_response = observed.metrics.response()
+  metrics_body = Json.parse(metrics_response.body_text)
+  assert(
+    metrics_response.status == 200 and
+    metrics_body["ember.server"]["active_requests"] == 0,
+    "attached server metrics produce a JSON response")
+  loopback_user = Client().get(
+    "http://127.0.0.1:#{server.port()}/users/42",
+    headers: {"connection": "close"})
+  assert(loopback_user.status == 200, "live request populates metrics series")
+  loopback_metrics = Client().get(
+    "http://127.0.0.1:#{server.port()}/metrics",
+    headers: {"connection": "close"})
+  loopback_metrics_body = loopback_metrics.body_text
+  loopback_metrics_json = Json.parse(loopback_metrics_body)
+  assert(
+    loopback_metrics.status == 200 and
+    loopback_metrics_json["ember.server"]["active_requests"] == 1 and
+    loopback_metrics_json["ember.request.series"][
+      "GET /users/:id 2xx success"] == 1,
+    "metrics preserve a series recorded by a different request VM: " +
+      loopback_metrics.status.to_str + ":" + loopback_metrics_body)
   server.stop_accepting()
   assert(observed.health.readiness().status == 503, "draining server is not ready")
   assert(server.shutdown(), "probe server drains")

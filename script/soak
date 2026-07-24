@@ -84,6 +84,7 @@ def build(compiler: Path) -> tuple[Path, Path]:
             "--out-dir", str(output),
             "--cache-dir", str(output / "cache"),
             "--no-cache",
+            "--require-full-native",
         ]
         for grant in grants:
             args += ["--grant", grant]

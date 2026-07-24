@@ -80,7 +80,10 @@ def core(amberc: Path) -> None:
         ("test/stage1_selftest.build.yaml", ("random.secure",)),
         ("test/stage2_selftest.build.yaml", ("net.listen", "net.connect")),
         ("test/stage3_selftest.build.yaml", ("random.secure",)),
-        ("test/stage4_selftest.build.yaml", ("random.secure", "net.listen")),
+        (
+            "test/stage4_selftest.build.yaml",
+            ("random.secure", "net.listen", "net.connect"),
+        ),
         ("test/core_selftest.build.yaml", ()),
         ("test/strong_params_selftest.build.yaml", ()),
         ("test/http_selftest.build.yaml", ("net.listen", "net.connect")),

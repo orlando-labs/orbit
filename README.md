@@ -350,8 +350,8 @@ and [edge deployment model](docs/DEPLOYMENT.md).
 # Package/install/API/server clean-room gate, without sibling checkouts
 ./script/clean-room-build
 
-# Static/docs/locks, all native self-tests and raw HTTP conformance,
-# parser/framing fuzz smoke, examples, ORM/SQLite integration, and clean-room
+# Static/docs/locks, native self-tests, raw HTTP conformance, parser/framing
+# fuzz smoke, examples, ORM/SQLite integration, and clean-room
 ./script/ci full
 
 # Representative controller CRUD service + Amber client smoke

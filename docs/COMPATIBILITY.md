@@ -84,7 +84,7 @@ security guarantee.
 | Component | Supported candidate row |
 |---|---|
 | Ember core package | `ember 1.0.0-rc.1` |
-| Amber compiler/runtime/stdlib | `amberc 0.1.0-dev`, revision `a27e7a7423c31ff1206f961be534e6cc445b733b`, tree `b8fd2af209b44f3c5541ca3aff9b64f280b8ad7a` |
+| Amber compiler/runtime/stdlib | `amberc 0.1.0-dev`, revision `8402f4f8102f71157ec736c24b2f0d250f26f18a`, tree `c6a06d241d0adafc0505e0f14f664a40b1235c98` |
 | Build profiles | required `core.v1`, `macro.v1`; no optional core profile |
 | Linux production targets | x86_64 and arm64, native target, required CI rows |
 | Development target | macOS arm64, native target, required CI row |

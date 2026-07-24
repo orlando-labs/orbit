@@ -9,8 +9,72 @@ from orm.sqlite3 import pool as sqlite_pool
 
 export main
 
+def bounded_text?(value, minimum, maximum):
+  Str === value and value.length >= minimum and value.length <= maximum
+
+def upper_ascii?(value):
+  return false unless Str === value
+  value.chars.all? |char|: "ABCDEFGHIJKLMNOPQRSTUVWXYZ".contains?(char)
+
+def valid_sku?(value):
+  return false unless bounded_text?(value, 3, 64)
+  value.chars.all? |char|:
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_".contains?(char)
+
+def catalog_category?(value):
+  Str === value and ["hardware", "software", "service", "accessory"].include?(value)
+
+def catalog_status?(value):
+  Str === value and ["draft", "active", "paused", "retired"].include?(value)
+
+def integer_between?(value, minimum, maximum):
+  Int === value and value >= minimum and value <= maximum
+
+def valid_barcode?(value):
+  return false unless bounded_text?(value, 8, 32)
+  value.chars.all? |char|: "0123456789".contains?(char)
+
+def valid_tags_json?(value):
+  return false unless Str === value
+  try:
+    tags = Json.parse(value)
+    Array === tags and tags.count <= 16
+      and tags.all? |tag|: bounded_text?(tag, 1, 32)
+  rescue Exception |error|:
+    false
+
+def valid_metadata_json?(value):
+  return false unless Str === value
+  try:
+    metadata = Json.parse(value)
+    Map === metadata and metadata.count == 3
+      and bounded_text?(metadata[:source], 1, 64)
+      and bounded_text?(metadata[:batch], 1, 64)
+      and Bool === metadata[:fragile]
+  rescue Exception |error|:
+    false
+
 class CatalogItem:
-  use orm.model(table: :catalog_items)
+  use orm.model(table: :catalog_items):
+    validate:
+      expect(:sku, valid_sku?(sku), code: :invalid_format)
+      expect(:name, bounded_text?(name, 1, 160), code: :invalid_length)
+      expect(:description, bounded_text?(description, 1, 2000), code: :invalid_length)
+      expect(:category, catalog_category?(category), code: :unsupported)
+      expect(:status, catalog_status?(status), code: :unsupported)
+      expect(:price_cents, integer_between?(price_cents, 0, 1000000000), code: :out_of_range)
+      expect(:currency, Str === currency and currency.length == 3 and upper_ascii?(currency), code: :invalid_format)
+      expect(:stock_count, integer_between?(stock_count, 0, 1000000), code: :out_of_range)
+      expect(:weight_grams, integer_between?(weight_grams, 1, 10000000), code: :out_of_range)
+      expect(:active, active == 0 or active == 1, code: :invalid)
+      expect(:manufacturer, bounded_text?(manufacturer, 1, 120), code: :invalid_length)
+      expect(:country_code, Str === country_code and country_code.length == 2 and upper_ascii?(country_code), code: :invalid_format)
+      expect(:barcode, valid_barcode?(barcode), code: :invalid_format)
+      expect(:color, bounded_text?(color, 1, 40), code: :invalid_length)
+      expect(:size, bounded_text?(size, 1, 40), code: :invalid_length)
+      expect(:rating_milli, integer_between?(rating_milli, 0, 5000), code: :out_of_range)
+      expect(:tags_json, valid_tags_json?(tags_json), code: :invalid)
+      expect(:metadata_json, valid_metadata_json?(metadata_json), code: :invalid)
 
 class Schemas:
   attr create_item
@@ -72,77 +136,6 @@ def problem(status, code, message, details: []):
     json: {error: {code: code, message: message, details: details}},
     status: status)
 
-def invalid(field, code):
-  {field: field, code: code}
-
-def bounded_text?(value, minimum, maximum):
-  value.length >= minimum and value.length <= maximum
-
-def upper_ascii?(value):
-  value.chars.all? |char|: "ABCDEFGHIJKLMNOPQRSTUVWXYZ".contains?(char)
-
-def validate_item(attrs, partial: false):
-  errors = []
-  errors.push!(invalid("item", "empty")) if partial and attrs.empty?
-
-  if attrs.has_key?(:sku):
-    sku = attrs[:sku]
-    valid = bounded_text?(sku, 3, 64)
-    valid = valid and sku.chars.all? |char|:
-      "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_".contains?(char)
-    errors.push!(invalid("sku", "invalid_format")) unless valid
-
-  if attrs.has_key?(:name):
-    errors.push!(invalid("name", "invalid_length")) unless bounded_text?(attrs[:name], 1, 160)
-  if attrs.has_key?(:description):
-    errors.push!(invalid("description", "invalid_length")) unless bounded_text?(attrs[:description], 1, 2000)
-  if attrs.has_key?(:category):
-    allowed = ["hardware", "software", "service", "accessory"]
-    errors.push!(invalid("category", "unsupported")) unless allowed.include?(attrs[:category])
-  if attrs.has_key?(:status):
-    allowed = ["draft", "active", "paused", "retired"]
-    errors.push!(invalid("status", "unsupported")) unless allowed.include?(attrs[:status])
-  if attrs.has_key?(:price_cents):
-    value = attrs[:price_cents]
-    errors.push!(invalid("price_cents", "out_of_range")) unless value >= 0 and value <= 1000000000
-  if attrs.has_key?(:currency):
-    value = attrs[:currency]
-    errors.push!(invalid("currency", "invalid_format")) unless value.length == 3 and upper_ascii?(value)
-  if attrs.has_key?(:stock_count):
-    value = attrs[:stock_count]
-    errors.push!(invalid("stock_count", "out_of_range")) unless value >= 0 and value <= 1000000
-  if attrs.has_key?(:weight_grams):
-    value = attrs[:weight_grams]
-    errors.push!(invalid("weight_grams", "out_of_range")) unless value >= 1 and value <= 10000000
-  if attrs.has_key?(:manufacturer):
-    errors.push!(invalid("manufacturer", "invalid_length")) unless bounded_text?(attrs[:manufacturer], 1, 120)
-  if attrs.has_key?(:country_code):
-    value = attrs[:country_code]
-    errors.push!(invalid("country_code", "invalid_format")) unless value.length == 2 and upper_ascii?(value)
-  if attrs.has_key?(:barcode):
-    value = attrs[:barcode]
-    valid = value.length >= 8 and value.length <= 32
-    valid = valid and value.chars.all? |char|: "0123456789".contains?(char)
-    errors.push!(invalid("barcode", "invalid_format")) unless valid
-  if attrs.has_key?(:color):
-    errors.push!(invalid("color", "invalid_length")) unless bounded_text?(attrs[:color], 1, 40)
-  if attrs.has_key?(:size):
-    errors.push!(invalid("size", "invalid_length")) unless bounded_text?(attrs[:size], 1, 40)
-  if attrs.has_key?(:rating_milli):
-    value = attrs[:rating_milli]
-    errors.push!(invalid("rating_milli", "out_of_range")) unless value >= 0 and value <= 5000
-  if attrs.has_key?(:tags):
-    tags = attrs[:tags]
-    valid = tags.count <= 16
-    valid = valid and tags.all? |tag|: bounded_text?(tag, 1, 32)
-    errors.push!(invalid("tags", "invalid")) unless valid
-  if attrs.has_key?(:metadata):
-    metadata = attrs[:metadata]
-    valid = bounded_text?(metadata[:source], 1, 64)
-    valid = valid and bounded_text?(metadata[:batch], 1, 64)
-    errors.push!(invalid("metadata", "invalid")) unless valid
-  errors.freeze
-
 def storage_attrs(attrs):
   result = {}
   [
@@ -200,25 +193,35 @@ def requested_version(request):
   return Err(problem(400, "invalid_precondition", "If-Match must be a positive integer")) unless version > 0
   Ok(version)
 
-def duplicate_sku?(sku, except_id: null):
-  result = CatalogItem.get(where: {sku: sku})
-  return false if result.err?
-  except_id == null or result.value[:id] != except_id
+def validation_details(error):
+  error.errors.issues.map |issue|:
+    field = issue.attribute.to_str
+    field = "tags" if issue.attribute == :tags_json
+    field = "metadata" if issue.attribute == :metadata_json
+    {field: field, code: issue.code.to_str}
 
 def persistence_problem(result):
+  if orm.ValidationError === result.error:
+    return problem(
+      422,
+      "validation_failed",
+      "catalog item is invalid",
+      details: validation_details(result.error))
   message = result.error.message.downcase
-  return problem(409, "conflict", "catalog item conflicts with existing data") if message.contains?("constraint") or message.contains?("unique")
+  if message.contains?("constraint") or message.contains?("unique"):
+    return problem(409, "sku_conflict", "catalog item SKU already exists")
   problem(503, "storage_unavailable", "catalog storage is unavailable")
 
 def update_item(item, attrs, request, partial: false):
   version = requested_version(request)
   return version.error if version.err?
   return problem(409, "version_conflict", "catalog item version is stale") unless version.value == item[:version]
-
-  errors = validate_item(attrs, partial: partial)
-  return problem(422, "validation_failed", "catalog item is invalid", details: errors) if errors.present?
-  if attrs.has_key?(:sku) and duplicate_sku?(attrs[:sku], except_id: item[:id]):
-    return problem(409, "sku_conflict", "catalog item SKU already exists")
+  if partial and attrs.empty?:
+    return problem(
+      422,
+      "validation_failed",
+      "catalog item is invalid",
+      details: [{field: "item", code: "empty"}])
 
   item.assign!(storage_attrs(attrs))
   item[:version] = item[:version] + 1
@@ -232,9 +235,12 @@ def update_item(item, attrs, request, partial: false):
 class Items < ember.Controller:
   def index():
     filters = params.query.expect(service(:schemas).list_item)
-    if filters.has_key?(:status):
-      errors = validate_item({status: filters[:status]})
-      return problem(422, "validation_failed", "catalog filter is invalid", details: errors) if errors.present?
+    if filters.has_key?(:status) and not catalog_status?(filters[:status]):
+      return problem(
+        422,
+        "validation_failed",
+        "catalog filter is invalid",
+        details: [{field: "status", code: "unsupported"}])
     relation = CatalogItem.where()
     relation = relation.where({status: filters[:status]}) if filters.has_key?(:status)
     result = relation.all
@@ -247,9 +253,6 @@ class Items < ember.Controller:
 
   def create():
     attrs = params.json.expect(service(:schemas).create_item)
-    errors = validate_item(attrs)
-    return problem(422, "validation_failed", "catalog item is invalid", details: errors) if errors.present?
-    return problem(409, "sku_conflict", "catalog item SKU already exists") if duplicate_sku?(attrs[:sku])
 
     now = Time.now.iso8601
     values = storage_attrs(attrs)

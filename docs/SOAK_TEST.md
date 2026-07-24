@@ -27,6 +27,10 @@ The handlers are ordinary `ember.Controller` methods. Bare `params`, `request`,
 controller receiver; the example intentionally exercises that Amber language
 contract instead of spelling Python-like `self.*` throughout.
 
+Strong-parameter schemas own transport shape and type checks. Catalog domain
+constraints are declared on the ORM model and flow through structured
+`orm.ValidationError` issues into the 422 response details.
+
 Each mixed client iteration performs create, show, filtered list, full replace,
 partial update, delete, and post-delete verification. At its configured
 interval it also executes the complete negative contract:
@@ -56,6 +60,11 @@ This resolves the exact revisions in `release/dependencies.lock.json`, builds
 both Amber programs without cache, starts the service, runs one full CRUD/4xx
 cycle, verifies idle metrics, and performs graceful shutdown. CI runs this gate
 on the ORM/SQLite integration row.
+
+Both programs are built with `--target native --require-full-native`. The gate
+fails unless `native_graph_full_coverage` is true and both VM-bridge and
+fallback code-object counts are zero for the complete service and client
+graphs.
 
 For an already resolved local dependency tree:
 
