@@ -358,7 +358,7 @@ def migrate(database):
   database.with_connection |connection|:
     connection.exec("""
       create table if not exists catalog_items(
-        id integer primary key,
+        id integer primary key autoincrement,
         sku text not null unique,
         name text not null,
         description text not null,
