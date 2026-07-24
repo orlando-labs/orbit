@@ -64,6 +64,7 @@ def expect_compile_failure(amberc: Path, manifest: str, diagnostic: str) -> None
 
 def static(amberc: Path) -> None:
     run("git", "diff", "--check", "HEAD")
+    run(sys.executable, "test/soak_provenance_test.py")
     run(sys.executable, "script/stage5_checks.py", "--amberc", str(amberc))
     run(
         sys.executable, "benchmark/performance_gate.py",

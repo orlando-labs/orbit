@@ -102,8 +102,10 @@ The output directory contains:
 
 `report.json` sets `qualifies_as_72h_evidence` only when the run passed and the
 shortest-lived Amber worker itself reached at least 259,200 seconds. The source
-tree must also be clean; a dirty-tree run remains useful diagnostics but cannot
-qualify as release evidence. A shorter
+tree must also have no tracked or staged changes. Untracked local files and soak
+artifacts are recorded in `run.json` but do not disqualify evidence because they
+cannot change the committed source revision. A dirty tracked-tree run remains
+useful diagnostics but cannot qualify as release evidence. A shorter
 `--duration 10m` run is useful operational rehearsal but cannot be mistaken for
 release evidence.
 

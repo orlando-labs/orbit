@@ -278,19 +278,29 @@ def linear_check(
     }
 
 
+def git_worktree_state(root: Path) -> tuple[bool, bool]:
+    tracked_changes = bool(subprocess.run(
+        ["git", "status", "--porcelain", "--untracked-files=no"],
+        cwd=root, text=True, stdout=subprocess.PIPE, check=True,
+    ).stdout)
+    untracked_files = bool(subprocess.run(
+        ["git", "ls-files", "--others", "--exclude-standard"],
+        cwd=root, text=True, stdout=subprocess.PIPE, check=True,
+    ).stdout)
+    return tracked_changes, untracked_files
+
+
 def git_metadata() -> dict[str, Any]:
     revision = subprocess.run(
         ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True,
         stdout=subprocess.PIPE, check=True,
     ).stdout.strip()
-    dirty = bool(subprocess.run(
-        ["git", "status", "--porcelain"], cwd=ROOT, text=True,
-        stdout=subprocess.PIPE, check=True,
-    ).stdout)
+    dirty, untracked = git_worktree_state(ROOT)
     lock = ROOT / "release" / "dependencies.lock.json"
     return {
         "ember_revision": revision,
         "working_tree_dirty": dirty,
+        "untracked_files_present": untracked,
         "dependencies_lock_sha256": sha256(lock),
         "dependencies": json.loads(lock.read_text(encoding="utf-8")),
     }

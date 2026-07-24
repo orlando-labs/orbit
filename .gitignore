@@ -6,3 +6,7 @@ cache-*/
 *.native.cpp
 .build/
 dist/
+
+# Local soak evidence and platform metadata.
+/runs/
+.DS_Store
