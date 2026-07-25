@@ -220,7 +220,57 @@ def process_fds(pid: int) -> int | None:
     return None
 
 
-def take_sample(process: subprocess.Popen[Any], base_url: str, started: float) -> dict[str, Any]:
+def process_threads(pid: int) -> int | None:
+    status = Path(f"/proc/{pid}/status")
+    if status.is_file():
+        match = re.search(r"^Threads:\s+(\d+)$", status.read_text(), re.MULTILINE)
+        return int(match.group(1)) if match else None
+    if platform.system() == "Darwin":
+        result = subprocess.run(
+            ["ps", "-M", "-p", str(pid)],
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+        )
+        lines = [line for line in result.stdout.splitlines() if line.strip()]
+        return len(lines) - 1 if result.returncode == 0 and len(lines) > 1 else None
+    return None
+
+
+def take_sample(
+    process: subprocess.Popen[Any],
+    clients: list[subprocess.Popen[Any]],
+    base_url: str,
+    started: float,
+) -> dict[str, Any]:
+    client_resources = []
+    for client in clients:
+        alive = client.poll() is None
+        client_resources.append({
+            "pid": client.pid,
+            "alive": alive,
+            "rss_bytes": process_rss(client.pid) if alive else None,
+            "physical_footprint_bytes": (
+                process_physical_footprint(client.pid) if alive else None
+            ),
+            "fd_count": process_fds(client.pid) if alive else None,
+            "thread_count": process_threads(client.pid) if alive else None,
+        })
+
+    def aggregate_client_field(field: str) -> int | None:
+        values = [
+            resource[field] for resource in client_resources
+            if resource.get(field) is not None
+        ]
+        return sum(values) if values and len(values) == len(clients) else None
+
+    def maximum_client_field(field: str) -> int | None:
+        values = [
+            resource[field] for resource in client_resources
+            if resource.get(field) is not None
+        ]
+        return max(values) if values else None
+
     sample: dict[str, Any] = {
         "recorded_at": dt.datetime.now(dt.timezone.utc).isoformat(),
         "elapsed_seconds": time.monotonic() - started,
@@ -232,6 +282,25 @@ def take_sample(process: subprocess.Popen[Any], base_url: str, started: float) -
             else None
         ),
         "fd_count": process_fds(process.pid) if process.poll() is None else None,
+        "thread_count": (
+            process_threads(process.pid) if process.poll() is None else None
+        ),
+        "clients": client_resources,
+        "clients_alive": sum(
+            1 for resource in client_resources if resource["alive"]
+        ),
+        "client_rss_bytes": aggregate_client_field("rss_bytes"),
+        "client_max_rss_bytes": maximum_client_field("rss_bytes"),
+        "client_physical_footprint_bytes": aggregate_client_field(
+            "physical_footprint_bytes"
+        ),
+        "client_max_physical_footprint_bytes": maximum_client_field(
+            "physical_footprint_bytes"
+        ),
+        "client_fd_count": aggregate_client_field("fd_count"),
+        "client_max_fd_count": maximum_client_field("fd_count"),
+        "client_thread_count": aggregate_client_field("thread_count"),
+        "client_max_thread_count": maximum_client_field("thread_count"),
     }
     try:
         health_status, health = fetch_json(base_url + "/health/ready")
@@ -313,6 +382,39 @@ def linear_check(
         and max(values) <= maximum
         and (slope is None or slope <= maximum_slope),
     }
+
+
+def client_linear_check(
+    samples: list[dict[str, Any]],
+    aggregate_field: str,
+    per_process_field: str,
+    warmup: float,
+    clients: int,
+    per_process_maximum: float,
+    per_process_maximum_slope: float,
+) -> dict[str, Any]:
+    result = linear_check(
+        samples,
+        aggregate_field,
+        warmup,
+        per_process_maximum * clients,
+        per_process_maximum_slope * clients,
+    )
+    result["per_process_peak"] = max(
+        (
+            sample[per_process_field]
+            for sample in samples
+            if sample.get(per_process_field) is not None
+        ),
+        default=None,
+    )
+    result["per_process_maximum"] = per_process_maximum
+    result["passed"] = (
+        result["passed"]
+        and result["per_process_peak"] is not None
+        and result["per_process_peak"] <= per_process_maximum
+    )
+    return result
 
 
 def git_worktree_state(root: Path) -> tuple[bool, bool]:
@@ -464,6 +566,8 @@ def run_workload(args: argparse.Namespace, smoke: bool) -> int:
         "max_footprint_slope_mib_hour": args.max_footprint_slope_mib_hour,
         "max_fds": args.max_fds,
         "max_fd_slope_hour": args.max_fd_slope_hour,
+        "max_threads": args.max_threads,
+        "max_thread_slope_hour": args.max_thread_slope_hour,
         "port": args.port,
     }
     configuration_json = json.dumps(
@@ -518,6 +622,17 @@ def run_workload(args: argparse.Namespace, smoke: bool) -> int:
             if service.poll() is not None:
                 errors.append(f"service exited during workload with status {service.returncode}")
                 break
+            if now >= next_sample:
+                sample = take_sample(
+                    service, client_processes, base_url, started
+                )
+                samples.append(sample)
+                samples_file.write(json.dumps(sample, sort_keys=True) + "\n")
+                samples_file.flush()
+                if sample.get("health_status") != 200 or sample.get("metrics_status") != 200:
+                    errors.append("readiness or metrics probe failed during workload")
+                    break
+                next_sample = now + args.sample_interval
             client_statuses = [process.poll() for process in client_processes]
             if smoke:
                 if any(status not in (None, 0) for status in client_statuses):
@@ -529,15 +644,6 @@ def run_workload(args: argparse.Namespace, smoke: bool) -> int:
                 break
             if now >= deadline:
                 break
-            if now >= next_sample:
-                sample = take_sample(service, base_url, started)
-                samples.append(sample)
-                samples_file.write(json.dumps(sample, sort_keys=True) + "\n")
-                samples_file.flush()
-                if sample.get("health_status") != 200 or sample.get("metrics_status") != 200:
-                    errors.append("readiness or metrics probe failed during workload")
-                    break
-                next_sample = now + args.sample_interval
             time.sleep(min(0.25, max(0.01, deadline - now)))
 
         if errors:
@@ -564,7 +670,9 @@ def run_workload(args: argparse.Namespace, smoke: bool) -> int:
                 errors.append(str(error))
 
         time.sleep(args.quiesce)
-        final_sample = take_sample(service, base_url, started)
+        final_sample = take_sample(
+            service, client_processes, base_url, started
+        )
         samples.append(final_sample)
         samples_file.write(json.dumps(final_sample, sort_keys=True) + "\n")
         samples_file.flush()
@@ -632,6 +740,52 @@ def run_workload(args: argparse.Namespace, smoke: bool) -> int:
         args.max_fds,
         args.max_fd_slope_hour,
     )
+    threads = linear_check(
+        samples, "thread_count", args.warmup,
+        args.max_threads,
+        args.max_thread_slope_hour,
+    )
+    client_rss = client_linear_check(
+        samples, "client_rss_bytes", "client_max_rss_bytes",
+        args.warmup, args.clients,
+        args.max_rss_mib * 1024 * 1024,
+        args.max_rss_slope_mib_hour * 1024 * 1024,
+    )
+    if platform.system() == "Darwin":
+        client_footprint = client_linear_check(
+            samples,
+            "client_physical_footprint_bytes",
+            "client_max_physical_footprint_bytes",
+            args.warmup,
+            args.clients,
+            args.max_footprint_mib * 1024 * 1024,
+            args.max_footprint_slope_mib_hour * 1024 * 1024,
+        )
+        client_footprint["applicable"] = True
+    else:
+        client_footprint = {
+            "applicable": False,
+            "observed": False,
+            "peak": None,
+            "per_process_peak": None,
+            "slope_per_hour": None,
+            "maximum": args.max_footprint_mib * args.clients * 1024 * 1024,
+            "per_process_maximum": args.max_footprint_mib * 1024 * 1024,
+            "maximum_slope_per_hour": (
+                args.max_footprint_slope_mib_hour
+                * args.clients * 1024 * 1024
+            ),
+            "passed": True,
+        }
+    client_fds = client_linear_check(
+        samples, "client_fd_count", "client_max_fd_count",
+        args.warmup, args.clients, args.max_fds, args.max_fd_slope_hour,
+    )
+    client_threads = client_linear_check(
+        samples, "client_thread_count", "client_max_thread_count",
+        args.warmup, args.clients,
+        args.max_threads, args.max_thread_slope_hour,
+    )
     final_metrics = samples[-1].get("metrics") if samples else None
     idle, idle_errors = metrics_are_idle(final_metrics)
     health_ok = bool(samples) and all(
@@ -654,6 +808,11 @@ def run_workload(args: argparse.Namespace, smoke: bool) -> int:
         "rss_bounded": rss["passed"],
         "physical_footprint_bounded": footprint["passed"],
         "descriptors_bounded": fds["passed"],
+        "threads_bounded": threads["passed"],
+        "client_rss_bounded": client_rss["passed"],
+        "client_physical_footprint_bounded": client_footprint["passed"],
+        "client_descriptors_bounded": client_fds["passed"],
+        "client_threads_bounded": client_threads["passed"],
         "requests_streams_and_pool_quiescent": idle,
         "source_tree_clean_for_qualification": source_ok,
     }
@@ -664,6 +823,16 @@ def run_workload(args: argparse.Namespace, smoke: bool) -> int:
         errors.append("physical footprint could not be observed on Darwin")
     if not fds["observed"]:
         errors.append("file descriptors could not be observed on this platform")
+    if not threads["observed"]:
+        errors.append("thread count could not be observed on this platform")
+    if not client_rss["observed"]:
+        errors.append("client RSS could not be observed on this platform")
+    if client_footprint["applicable"] and not client_footprint["observed"]:
+        errors.append("client physical footprint could not be observed on Darwin")
+    if not client_fds["observed"]:
+        errors.append("client file descriptors could not be observed on this platform")
+    if not client_threads["observed"]:
+        errors.append("client thread counts could not be observed on this platform")
     passed = not errors and all(checks.values())
     qualifies = (
         passed
@@ -682,6 +851,11 @@ def run_workload(args: argparse.Namespace, smoke: bool) -> int:
             "rss": rss,
             "physical_footprint": footprint,
             "file_descriptors": fds,
+            "threads": threads,
+            "client_rss": client_rss,
+            "client_physical_footprint": client_footprint,
+            "client_file_descriptors": client_fds,
+            "client_threads": client_threads,
         },
         "checks": checks,
         "errors": errors,
@@ -725,6 +899,8 @@ def add_run_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--max-footprint-slope-mib-hour", type=float, default=4.0)
     parser.add_argument("--max-fds", type=int, default=512)
     parser.add_argument("--max-fd-slope-hour", type=float, default=0.25)
+    parser.add_argument("--max-threads", type=int, default=512)
+    parser.add_argument("--max-thread-slope-hour", type=float, default=0.25)
 
 
 def main() -> int:
@@ -762,6 +938,8 @@ def main() -> int:
         or args.max_footprint_slope_mib_hour < 0
         or args.max_fds <= 0
         or args.max_fd_slope_hour < 0
+        or args.max_threads <= 0
+        or args.max_thread_slope_hour < 0
     ):
         parser.error("resource maxima must be positive and slopes must not be negative")
     if args.command == "smoke" and args.smoke_timeout <= 0:

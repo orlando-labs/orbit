@@ -86,10 +86,11 @@ Run on a production-equivalent host with a persistent artifact directory:
 ```
 
 The default duration is already `72h`. During the run the orchestrator records
-RSS, descriptor count, readiness, the full Ember metrics snapshot, source and
-dependency revisions, a canonical configuration digest, and binary digests.
-After traffic stops, it checks that connections, requests, streams, pool
-leases, and pool waiters quiesce, then uses the service's authenticated
+RSS, physical footprint on Darwin, descriptor and thread counts for both the
+service and every load client, readiness, the full Ember metrics snapshot,
+source and dependency revisions, a canonical configuration digest, and binary
+digests. After traffic stops, it checks that connections, requests, streams,
+pool leases, and pool waiters quiesce, then uses the service's authenticated
 graceful-shutdown endpoint.
 
 The output directory contains:
@@ -109,10 +110,13 @@ useful diagnostics but cannot qualify as release evidence. A shorter
 `--duration 10m` run is useful operational rehearsal but cannot be mistaken for
 release evidence.
 
-Default post-warmup limits are 1 GiB peak RSS, 4 MiB/hour RSS slope, 512 file
-descriptors, and 0.25 descriptors/hour slope. They are intentionally explicit
-CLI options rather than hidden heuristics. A release manager may tighten them
-for the named runner, but relaxing them requires a reviewed evidence note.
+Default post-warmup per-process limits are 1 GiB peak RSS and physical
+footprint, 4 MiB/hour memory slope, 512 file descriptors, 512 threads, and
+0.25/hour descriptor and thread slopes. Client aggregates scale the maxima by
+the configured client count while still enforcing each per-process maximum.
+They are intentionally explicit CLI options rather than hidden heuristics. A
+release manager may tighten them for the named runner, but relaxing them
+requires a reviewed evidence note.
 
 This test supplies the application and reproducible 72-hour evidence format.
 It does not by itself close the separate reverse-proxy canary, 24-hour
