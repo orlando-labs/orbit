@@ -169,6 +169,38 @@ def process_rss(pid: int) -> int | None:
     return int(text) * 1024 if result.returncode == 0 and text.isdigit() else None
 
 
+def parse_memory_size(value: str) -> int | None:
+    match = re.fullmatch(
+        r"([0-9]+(?:\.[0-9]+)?)([BKMGTP]?)(?:[+])?",
+        value.strip(),
+    )
+    if not match:
+        return None
+    powers = {"": 0, "B": 0, "K": 1, "M": 2, "G": 3, "T": 4, "P": 5}
+    power = powers[match.group(2)]
+    return int(float(match.group(1)) * (1024 ** power))
+
+
+def process_physical_footprint(pid: int) -> int | None:
+    if platform.system() != "Darwin" or not shutil.which("top"):
+        return None
+    # Darwin top's MEM column is the process physical footprint. This includes
+    # compressed/swapped anonymous memory that RSS alone can hide.
+    result = subprocess.run(
+        ["top", "-l", "1", "-n", "1", "-pid", str(pid), "-stats", "pid,mem"],
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+    )
+    if result.returncode != 0:
+        return None
+    for line in result.stdout.splitlines():
+        fields = line.split()
+        if len(fields) == 2 and fields[0] == str(pid):
+            return parse_memory_size(fields[1])
+    return None
+
+
 def process_fds(pid: int) -> int | None:
     directory = Path(f"/proc/{pid}/fd")
     if directory.is_dir():
@@ -194,6 +226,11 @@ def take_sample(process: subprocess.Popen[Any], base_url: str, started: float) -
         "elapsed_seconds": time.monotonic() - started,
         "service_alive": process.poll() is None,
         "rss_bytes": process_rss(process.pid) if process.poll() is None else None,
+        "physical_footprint_bytes": (
+            process_physical_footprint(process.pid)
+            if process.poll() is None
+            else None
+        ),
         "fd_count": process_fds(process.pid) if process.poll() is None else None,
     }
     try:
@@ -423,6 +460,8 @@ def run_workload(args: argparse.Namespace, smoke: bool) -> int:
         "warmup_seconds": args.warmup,
         "max_rss_mib": args.max_rss_mib,
         "max_rss_slope_mib_hour": args.max_rss_slope_mib_hour,
+        "max_footprint_mib": args.max_footprint_mib,
+        "max_footprint_slope_mib_hour": args.max_footprint_slope_mib_hour,
         "max_fds": args.max_fds,
         "max_fd_slope_hour": args.max_fd_slope_hour,
         "port": args.port,
@@ -569,6 +608,25 @@ def run_workload(args: argparse.Namespace, smoke: bool) -> int:
         args.max_rss_mib * 1024 * 1024,
         args.max_rss_slope_mib_hour * 1024 * 1024,
     )
+    if platform.system() == "Darwin":
+        footprint = linear_check(
+            samples, "physical_footprint_bytes", args.warmup,
+            args.max_footprint_mib * 1024 * 1024,
+            args.max_footprint_slope_mib_hour * 1024 * 1024,
+        )
+        footprint["applicable"] = True
+    else:
+        footprint = {
+            "applicable": False,
+            "observed": False,
+            "peak": None,
+            "slope_per_hour": None,
+            "maximum": args.max_footprint_mib * 1024 * 1024,
+            "maximum_slope_per_hour": (
+                args.max_footprint_slope_mib_hour * 1024 * 1024
+            ),
+            "passed": True,
+        }
     fds = linear_check(
         samples, "fd_count", args.warmup,
         args.max_fds,
@@ -594,6 +652,7 @@ def run_workload(args: argparse.Namespace, smoke: bool) -> int:
         "health_and_metrics_continuous": health_ok,
         "workload_duration_reached": duration_ok,
         "rss_bounded": rss["passed"],
+        "physical_footprint_bounded": footprint["passed"],
         "descriptors_bounded": fds["passed"],
         "requests_streams_and_pool_quiescent": idle,
         "source_tree_clean_for_qualification": source_ok,
@@ -601,6 +660,8 @@ def run_workload(args: argparse.Namespace, smoke: bool) -> int:
     errors += idle_errors
     if not rss["observed"]:
         errors.append("RSS could not be observed on this platform")
+    if footprint["applicable"] and not footprint["observed"]:
+        errors.append("physical footprint could not be observed on Darwin")
     if not fds["observed"]:
         errors.append("file descriptors could not be observed on this platform")
     passed = not errors and all(checks.values())
@@ -617,7 +678,11 @@ def run_workload(args: argparse.Namespace, smoke: bool) -> int:
         "qualifies_as_72h_evidence": qualifies,
         "requested_duration_seconds": requested_duration,
         "workload": workload,
-        "resources": {"rss": rss, "file_descriptors": fds},
+        "resources": {
+            "rss": rss,
+            "physical_footprint": footprint,
+            "file_descriptors": fds,
+        },
         "checks": checks,
         "errors": errors,
         "artifacts": {
@@ -656,6 +721,8 @@ def add_run_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--warmup", type=duration_seconds, default=duration_seconds("10m"))
     parser.add_argument("--max-rss-mib", type=float, default=1024.0)
     parser.add_argument("--max-rss-slope-mib-hour", type=float, default=4.0)
+    parser.add_argument("--max-footprint-mib", type=float, default=1024.0)
+    parser.add_argument("--max-footprint-slope-mib-hour", type=float, default=4.0)
     parser.add_argument("--max-fds", type=int, default=512)
     parser.add_argument("--max-fd-slope-hour", type=float, default=0.25)
 
@@ -691,6 +758,8 @@ def main() -> int:
     if (
         args.max_rss_mib <= 0
         or args.max_rss_slope_mib_hour < 0
+        or args.max_footprint_mib <= 0
+        or args.max_footprint_slope_mib_hour < 0
         or args.max_fds <= 0
         or args.max_fd_slope_hour < 0
     ):
