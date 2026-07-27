@@ -1,15 +1,15 @@
 {
   "schema": "ember.dependencies.v1",
   "ember_version": "1.0.0-rc.1",
-  "generated_at": "2026-07-25",
+  "generated_at": "2026-07-27",
   "dependencies": [
     {
       "name": "amber-lang",
       "package_version": "0.1.0-dev",
       "scope": "core",
       "source": "https://github.com/orlando-labs/amber-lang.git",
-      "revision": "9861d64c66faf6b1c4e95c22be5d6c96289e5c1a",
-      "tree": "2a5e713ab9b5c810cb3182e4b3cd7afdc0c0ca45"
+      "revision": "e5429f9ea8f247195811ac19c47e6d879e14d2d3",
+      "tree": "4ccaebbf2a5640fb1ee19212aa920675599352a6"
     },
     {
       "name": "amber-orm",

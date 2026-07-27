@@ -114,6 +114,10 @@ Default post-warmup per-process limits are 1 GiB peak RSS and physical
 footprint, 4 MiB/hour memory slope, 512 file descriptors, 512 threads, and
 0.25/hour descriptor and thread slopes. Client aggregates scale the maxima by
 the configured client count while still enforcing each per-process maximum.
+On Darwin, physical footprint is the memory qualification metric; `ps` RSS is
+retained as diagnostic evidence because it includes resident pages that
+libmalloc has already made reclaimable. On other platforms RSS is the memory
+qualification metric.
 They are intentionally explicit CLI options rather than hidden heuristics. A
 release manager may tighten them for the named runner, but relaxing them
 requires a reviewed evidence note.
