@@ -8,8 +8,8 @@
       "package_version": "0.1.0-dev",
       "scope": "core",
       "source": "https://github.com/orlando-labs/amber-lang.git",
-      "revision": "fdd4132f19bd06285888e71f6d8af6a41afd2c74",
-      "tree": "4ee031d1b07f176685c843994bf1c5e0cb480476"
+      "revision": "01e98d46ce841d836b8f8565108b746ed4b488d5",
+      "tree": "bc76097ee709b0be6ff8dade068ecd541df813c2"
     },
     {
       "name": "amber-orm",
