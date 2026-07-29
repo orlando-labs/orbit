@@ -278,7 +278,7 @@ class Headers:
     Headers(@pairs.reject |pair|: pair[0] == key)
 
   def merge(other):
-    replacement = Headers(other)
+    replacement = _headers(other)
     names = replacement.keys
     kept = @pairs.reject |pair|: names.include?(pair[0])
     Headers(kept + replacement.to_pairs)
@@ -368,6 +368,8 @@ class Response:
       payload = payload.to_str
     if payload == null:
       payload = ""
+    if Str === payload:
+      payload = payload.bytes
     ServerResponse(status: @status, headers: @headers.to_native, body: payload)
 
 class StreamBody:
@@ -1252,6 +1254,16 @@ class SecurityPolicy:
     @security_headers = security_headers
     @content_security_policy = content_security_policy
     @hsts = hsts
+    security_response_headers = {
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "DENY",
+      "referrer-policy": "strict-origin-when-cross-origin",
+      "permissions-policy": "geolocation=(), microphone=(), camera=()",
+      "cross-origin-opener-policy": "same-origin"
+    }
+    if @content_security_policy:
+      security_response_headers["content-security-policy"] = @content_security_policy
+    @security_response_headers = Headers(security_response_headers)
 
   def _host_allowed?(host):
     @allowed_hosts.any? |entry|:
@@ -1312,16 +1324,10 @@ class SecurityPolicy:
 
   def protect_response(response, request):
     return response unless @security_headers
-    result = with_response_header(response, "x-content-type-options", "nosniff")
-    result = with_response_header(result, "x-frame-options", "DENY")
-    result = with_response_header(result, "referrer-policy", "strict-origin-when-cross-origin")
-    result = with_response_header(result, "permissions-policy", "geolocation=(), microphone=(), camera=()")
-    result = with_response_header(result, "cross-origin-opener-policy", "same-origin")
-    if @content_security_policy:
-      result = with_response_header(result, "content-security-policy", @content_security_policy)
+    selected = @security_response_headers
     if @hsts and request.secure?():
-      result = with_response_header(result, "strict-transport-security", "max-age=31536000; includeSubDomains")
-    result
+      selected = selected.set("strict-transport-security", "max-age=31536000; includeSubDomains")
+    _merge_response_headers(selected, response)
 
 class Request:
   attr method
@@ -1421,7 +1427,9 @@ class Request:
 
   def body_text():
     if @body_text_cache == null:
-      @body_text_cache = @server_request.body_text
+      if @body_bytes_cache == null:
+        @body_bytes_cache = @server_request.body_bytes
+      @body_text_cache = @body_bytes_cache.to_str()
     @body_text_cache
 
   def body_bytes():
@@ -1550,10 +1558,10 @@ class Target:
     @kind == :controller
 
   def invoke(request, captures, integrations = []):
-    endpoint = TargetEndpoint(self, captures)
     if controller? and integrations.present?:
+      endpoint = TargetEndpoint(self, captures)
       return IntegrationNext(integrations, 0, endpoint)(request)
-    endpoint(request)
+    _invoke(request, captures)
 
   def _invoke(request, captures):
     if controller?:
@@ -2016,6 +2024,8 @@ class ApplicationEndpoint:
 
   def call(request):
     routed = request._routed(@routes, @match.route, @match.path_params, @services)
+    if @match.route.middleware.empty?:
+      return @match.route.target.invoke(routed, @match.captures, @integrations)
     endpoint = RouteEndpoint(@match, @integrations)
     MiddlewareNext(@match.route.middleware, 0, endpoint)(routed)
 
@@ -2036,7 +2046,11 @@ class DispatchEndpoint:
         headers: {"allow": lookup.allowed_methods.join(", ")}, body: "")
     match = lookup.match
     request.response_header_sink.store!("__ember_route_pattern", match.route.pattern)
-    ApplicationEndpoint(@routes, match, @services, @integrations)(request)
+    routed = request._routed(@routes, match.route, match.path_params, @services)
+    if match.route.middleware.empty?:
+      return match.route.target.invoke(routed, match.captures, @integrations)
+    endpoint = RouteEndpoint(match, @integrations)
+    MiddlewareNext(match.route.middleware, 0, endpoint)(routed)
 
 class ErrorEvent:
   attr error
@@ -2424,8 +2438,11 @@ class App:
         response = render(text: "QUERY request requires Content-Type", status: :bad_request)
       else:
         phase = "application dispatch"
-        chain = MiddlewareNext(@middleware, 0, @dispatch_endpoint)
-        response = normalize_response(chain(effective_request))
+        if @middleware.empty?:
+          response = normalize_response(@dispatch_endpoint.call(effective_request))
+        else:
+          chain = MiddlewareNext(@middleware, 0, @dispatch_endpoint)
+          response = normalize_response(chain(effective_request))
       phase = "security response headers"
       response = @security.protect_response(normalize_response(response), effective_request)
       phase = "response validation"
