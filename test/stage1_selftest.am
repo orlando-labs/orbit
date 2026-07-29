@@ -78,6 +78,8 @@ def main():
   assert(headers.first("SET-cookie") == "a=1", "case-insensitive first header")
   assert(headers.all("set-cookie") == ["a=1", "b=2"], "ordered repeated Set-Cookie")
   assert(headers.to_pairs[2][0] == "vary", "canonical header names")
+  token_header = ember.Headers({"X-!#$%&'*+.^_`|~": "value"})
+  assert(token_header.first("x-!#$%&'*+.^_`|~") == "value", "HTTP token header name")
 
   invalid_name = rejects():
     ember.Headers({"bad name": "value"})

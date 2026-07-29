@@ -177,12 +177,10 @@ def _validate_header_semantics!(headers):
 
 def _valid_header_name?(name):
   return false if name.empty?
-  allowed = "!#$%&'*+-.^_`|~"
+  allowed = "abcdefghijklmnopqrstuvwxyz0123456789!#$%&'*+-.^_`|~"
   valid = true
   name.chars.each |char|:
-    letter = char.downcase != char.upcase
-    digit = "0123456789".contains?(char)
-    valid = false unless letter or digit or allowed.contains?(char)
+    valid = false unless allowed.contains?(char)
   valid
 
 def _validated_header_pair(name, value):
