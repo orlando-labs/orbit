@@ -144,17 +144,21 @@ def _header_content_length!(headers):
   values = headers.all("content-length")
   return null if values.empty?
   canonical = null
-  values.each |raw|:
-    raw.split(",").each |piece|:
+  value_index = 0
+  while value_index < values.count:
+    pieces = values[value_index].split(",")
+    piece_index = 0
+    while piece_index < pieces.count:
+      piece = pieces[piece_index]
       token = piece.trim
-      invalid_digit = token.chars.any? |char|:
-        not "0123456789".contains?(char)
-      if token.empty? or invalid_digit:
+      if token.empty? or not token.contains_only?("0123456789"):
         raise InvalidHeaderError("Content-Length must contain decimal digits")
       if canonical == null:
         canonical = token
       elif canonical != token:
         raise InvalidHeaderError("conflicting Content-Length values")
+      piece_index += 1
+    value_index += 1
   canonical
 
 def _decimal_header_value(raw):
@@ -229,12 +233,22 @@ class Headers:
 
   def first(name):
     key = name.to_str.downcase
-    pair = @pairs.find |entry|: entry[0] == key
-    if pair then pair[1] else null
+    index = 0
+    while index < @pairs.count:
+      pair = @pairs[index]
+      return pair[1] if pair[0] == key
+      index += 1
+    null
 
   def all(name):
     key = name.to_str.downcase
-    @pairs.select |entry|: entry[0] == key .map: _1[1] .freeze
+    values = []
+    index = 0
+    while index < @pairs.count:
+      pair = @pairs[index]
+      values.push!(pair[1]) if pair[0] == key
+      index += 1
+    values.freeze
 
   def include?(name):
     first(name) != null
@@ -1032,15 +1046,14 @@ def _valid_hostname?(host):
   return false if host.empty? or host.length > 253
   labels = host.split(".")
   return false if labels.empty?
-  valid = true
-  labels.each |label|:
-    valid = false if label.empty? or label.length > 63
-    valid = false if label.starts_with?("-") or label.ends_with?("-")
-    label.chars.each |char|:
-      letter = "abcdefghijklmnopqrstuvwxyz".contains?(char)
-      digit = "0123456789".contains?(char)
-      valid = false unless letter or digit or char == "-"
-  valid
+  index = 0
+  while index < labels.count:
+    label = labels[index]
+    return false if label.empty? or label.length > 63
+    return false if label.starts_with?("-") or label.ends_with?("-")
+    return false unless label.contains_only?("abcdefghijklmnopqrstuvwxyz0123456789-")
+    index += 1
+  true
 
 def _ipv6_side_slots(raw):
   return 0 if raw.empty?()
@@ -1265,12 +1278,16 @@ class SecurityPolicy:
     @security_response_headers = Headers(security_response_headers)
 
   def _host_allowed?(host):
-    @allowed_hosts.any? |entry|:
+    index = 0
+    while index < @allowed_hosts.count:
+      entry = @allowed_hosts[index]
       if entry.starts_with?("*."):
         suffix = entry.slice(1...entry.length)
-        host.ends_with?(suffix) and host.length > suffix.length
+        return true if host.ends_with?(suffix) and host.length > suffix.length
       else:
-        host == entry
+        return true if host == entry
+      index += 1
+    false
 
   def _trusted?(address):
     return false unless address
