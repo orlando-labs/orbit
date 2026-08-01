@@ -760,28 +760,31 @@ class RequestParamSource:
     check(schema).or_raise
 
 class RequestParams:
-  def init(@request):
+  def init(@raw_query, @content_type, @body_stream, @body_text, @body_bytes, @server_request):
     @json = null
     @query = null
 
   def query():
     unless @query:
-      @query = RequestParamSource(@request.query_params(), :query)
+      parsed = if @raw_query then Url.parse_query(@raw_query) else {}
+      @query = RequestParamSource(_immutable_copy(parsed), :query)
     @query
 
   def json():
     return @json if @json
-    content_type = @request.header("content-type")
-    unless content_type:
+    unless @content_type:
       raise ParamsUnsupportedMediaTypeError("JSON parameters require Content-Type")
-    media_type = content_type.to_str.split(";")[0].trim().downcase
+    media_type = @content_type.to_str.split(";")[0].trim().downcase
     json_type = media_type == "application/json"
     json_type = true if media_type.starts_with?("application/") and media_type.ends_with?("+json")
     unless json_type:
       raise ParamsUnsupportedMediaTypeError("request Content-Type is not JSON")
-    @request.body_stream.claim_params!
+    @body_stream.claim_params!
+    if @body_text == null:
+      @body_bytes = @server_request.body_bytes if @body_bytes == null
+      @body_text = @body_bytes.to_str()
     value = try:
-      Json.parse(@request.body_text())
+      Json.parse(@body_text)
     rescue JsonParseError |error|:
       raise ParamsParseError("malformed JSON request body")
     @json = RequestParamSource(value, :json)
@@ -1457,7 +1460,13 @@ class Request:
 
   def params():
     unless @params:
-      @params = RequestParams(self)
+      @params = RequestParams(
+        @raw_query,
+        header("content-type"),
+        @body_stream,
+        @body_text_cache,
+        @body_bytes_cache,
+        @server_request)
     @params
 
   def service(name):
