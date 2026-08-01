@@ -177,11 +177,7 @@ def _validate_header_semantics!(headers):
 
 def _valid_header_name?(name):
   return false if name.empty?
-  allowed = "abcdefghijklmnopqrstuvwxyz0123456789!#$%&'*+-.^_`|~"
-  valid = true
-  name.chars.each |char|:
-    valid = false unless allowed.contains?(char)
-  valid
+  name.contains_only?("abcdefghijklmnopqrstuvwxyz0123456789!#$%&'*+-.^_`|~")
 
 def _validated_header_pair(name, value):
   unless Str === name or Symbol === name:
