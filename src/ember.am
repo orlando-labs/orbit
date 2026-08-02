@@ -1447,6 +1447,12 @@ class SecurityPolicy:
       selected = selected.set("strict-transport-security", "max-age=31536000; includeSubDomains")
     _merge_response_headers(selected, response)
 
+class RequestHeadersSnapshot:
+  attr headers
+  attr lookup
+
+  def init(@headers, @lookup)
+
 class Request:
   attr method
   attr target
@@ -1491,11 +1497,15 @@ class Request:
     @target = target
     @path = path
     @raw_query = raw_query
-    @headers = _headers(headers)
-    header_lookup = {}
-    @headers.each |name, value|:
-      header_lookup.store!(name, value) unless header_lookup[?name]
-    @header_lookup = header_lookup.freeze
+    if RequestHeadersSnapshot === headers:
+      @headers = headers.headers
+      @header_lookup = headers.lookup
+    else:
+      @headers = _headers(headers)
+      header_lookup = {}
+      @headers.each |name, value|:
+        header_lookup.store!(name, value) unless header_lookup[?name]
+      @header_lookup = header_lookup.freeze
     @body_text_cache = body_text
     @body_bytes_cache = body_bytes or (if body_text == null then null else body_text.bytes)
     @body_stream = body_stream or RequestBodyStream(bytes: @body_bytes_cache)
@@ -1603,7 +1613,7 @@ class Request:
       target: @target,
       path: @path,
       raw_query: @raw_query,
-      headers: @headers,
+      headers: RequestHeadersSnapshot(@headers, @header_lookup),
       body_text: @body_text_cache,
       body_bytes: @body_bytes_cache,
       body_stream: @body_stream,
@@ -1626,7 +1636,7 @@ class Request:
       target: @target,
       path: @path,
       raw_query: @raw_query,
-      headers: @headers,
+      headers: RequestHeadersSnapshot(@headers, @header_lookup),
       body_text: @body_text_cache,
       body_bytes: @body_bytes_cache,
       body_stream: @body_stream,
