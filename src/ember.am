@@ -1390,6 +1390,9 @@ class SecurityPolicy:
     @security_response_headers = Headers(security_response_headers)
     @security_response_header_names = @security_response_headers.keys
     @hsts_security_response_header_names = (@security_response_header_names + ["strict-transport-security"]).freeze
+    @cached_authority_input = null
+    @cached_authority = null
+    @cached_authority_host = null
 
   def _host_allowed?(host):
     index = 0
@@ -1411,11 +1414,20 @@ class SecurityPolicy:
     host_value = request.header("host")
     if host_value == null:
       raise InvalidAuthorityError("Host header is required")
-    parsed = _parse_authority(host_value)
-    authority = parsed[0]
-    host = parsed[1]
-    unless _host_allowed?(host):
-      raise UnauthorizedHostError("request Host is not authorized")
+    authority = null
+    host = null
+    if host_value == @cached_authority_input:
+      authority = @cached_authority
+      host = @cached_authority_host
+    else:
+      parsed = _parse_authority(host_value)
+      authority = parsed[0]
+      host = parsed[1]
+      unless _host_allowed?(host):
+        raise UnauthorizedHostError("request Host is not authorized")
+      @cached_authority_input = host_value
+      @cached_authority = authority
+      @cached_authority_host = host
 
     scheme = "http"
     client_ip = _endpoint_host(request.remote_endpoint)

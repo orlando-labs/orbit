@@ -64,6 +64,17 @@ def security_policy_checks():
   assert(direct.status == 200, "untrusted forwarded fields are ignored, not interpreted")
   assert(direct.body_text == "http://app.example.test|203.0.113.8|false",
     "direct provenance uses socket peer and validated Host")
+  cached_direct = app.call(ember.Request(
+    path: "/inspect",
+    target: "/inspect",
+    headers: {"host": "app.example.test"},
+    remote_endpoint: "203.0.113.8:4000"))
+  cached_then_unauthorized = app.call(ember.Request(
+    path: "/ok", target: "/ok", headers: {"host": "evil.example"}))
+  assert(cached_direct.body_text == "http://app.example.test|203.0.113.8|false",
+    "repeated authorized Host preserves provenance through the cache")
+  assert(cached_then_unauthorized.status == 403,
+    "Host cache does not authorize a different authority")
 
   trusted = app.call(ember.Request(
     path: "/inspect",
