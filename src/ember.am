@@ -690,6 +690,7 @@ class ParamField:
 class ParamObject:
   attr name
   attr fields
+  attr field_names
   attr required
   attr nullable
   attr unknown
@@ -700,11 +701,13 @@ class ParamObject:
     if @unknown != null:
       _validate_unknown_params!(@unknown)
     @fields = _validate_param_fields!(fields.copy).freeze
+    @field_names = _param_field_name_index(@fields)
 
 class ParamArray:
   attr name
   attr element_type
   attr fields
+  attr field_names
   attr required
   attr nullable
   attr unknown
@@ -729,10 +732,12 @@ class ParamArray:
       raise ArgumentError("unsupported strong parameter array element type: " + of.to_str)
     @element_type = of
     @fields = if fields.empty? then [].freeze else _validate_param_fields!(fields.copy).freeze
+    @field_names = _param_field_name_index(@fields)
 
 class ParamSchema:
   attr root
   attr fields
+  attr field_names
   attr unknown
 
   def init(fields, @root: null, @unknown: :drop):
@@ -740,6 +745,7 @@ class ParamSchema:
       _validate_param_name!(@root)
     _validate_unknown_params!(@unknown)
     @fields = _validate_param_fields!(fields.copy).freeze
+    @field_names = _param_field_name_index(@fields)
 
   def check(value):
     issues = []
@@ -769,7 +775,7 @@ class ParamSchema:
         expected: :object,
         actual: _param_actual_kind(source)))
       return Err(ParamsShapeError(issues.freeze))
-    values = _sanitize_param_object(source, @fields, path, @unknown, issues)
+    values = _sanitize_param_object(source, @fields, @field_names, path, @unknown, issues)
     if issues.present?:
       Err(ParamsShapeError(issues.freeze))
     else:
@@ -880,10 +886,12 @@ def _validate_param_fields!(fields):
     seen.store!(name, true)
   fields
 
-def _param_field_named?(fields, name):
-  fields.any? |field|: field.name.to_str == name.to_str
+def _param_field_name_index(fields):
+  names = {}
+  fields.each |field|: names.store!(field.name.to_str, true)
+  names.freeze
 
-def _sanitize_param_object(source, fields, path, unknown, issues):
+def _sanitize_param_object(source, fields, field_names, path, unknown, issues):
   result = {}
   fields.each |field|:
     name = field.name
@@ -927,7 +935,13 @@ def _sanitize_param_object(source, fields, path, unknown, issues):
       when ParamObject:
         if Map === value or StrictMap === value:
           nested_unknown = field.unknown or unknown
-          nested = _sanitize_param_object(value, field.fields, path + [name], nested_unknown, issues)
+          nested = _sanitize_param_object(
+            value,
+            field.fields,
+            field.field_names,
+            path + [name],
+            nested_unknown,
+            issues)
           result.store!(name, nested)
         else:
           issues.push!(ParamIssue(
@@ -946,7 +960,7 @@ def _sanitize_param_object(source, fields, path, unknown, issues):
             actual: _param_actual_kind(value)))
   if unknown == :reject:
     source.each |name, value|:
-      unless _param_field_named?(fields, name):
+      unless field_names.has_key?(name.to_str):
         issues.push!(ParamIssue(
           path: path + [name],
           code: :unpermitted,
@@ -969,7 +983,13 @@ def _sanitize_param_array(source, field, path, inherited_unknown, issues):
           actual: _param_actual_kind(value)))
     elif Map === value or StrictMap === value:
       nested_unknown = field.unknown or inherited_unknown
-      result.push!(_sanitize_param_object(value, field.fields, item_path, nested_unknown, issues))
+      result.push!(_sanitize_param_object(
+        value,
+        field.fields,
+        field.field_names,
+        item_path,
+        nested_unknown,
+        issues))
     else:
       issues.push!(ParamIssue(
         path: item_path,
