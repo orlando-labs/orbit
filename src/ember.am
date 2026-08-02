@@ -1453,6 +1453,14 @@ class RequestHeadersSnapshot:
 
   def init(@headers, @lookup)
 
+class DerivedRequestState:
+  attr headers
+  attr lookup
+  attr path_params
+  attr services
+
+  def init(@headers, @lookup, @path_params, @services)
+
 def _request_headers_from_server(source):
   pairs = source.to_pairs.freeze
   semantics = _header_semantics!(pairs)
@@ -1510,11 +1518,15 @@ class Request:
     client_ip: null,
     trusted_proxy: false
   ):
-    @method = method.to_str.upcase
+    derived = if DerivedRequestState === headers then headers else null
+    @method = if derived then method else method.to_str.upcase
     @target = target
     @path = path
     @raw_query = raw_query
-    if RequestHeadersSnapshot === headers:
+    if derived:
+      @headers = derived.headers
+      @header_lookup = derived.lookup
+    elif RequestHeadersSnapshot === headers:
       @headers = headers.headers
       @header_lookup = headers.lookup
     else:
@@ -1531,8 +1543,8 @@ class Request:
     @local_endpoint = local_endpoint
     @routes = routes
     @selected_route = selected_route
-    @path_params = _immutable_copy(path_params)
-    @services = services.copy.freeze
+    @path_params = if derived then derived.path_params else _immutable_copy(path_params)
+    @services = if derived then derived.services else services.copy.freeze
     @response_header_sink = response_header_sink or {}
     @effective_scheme = effective_scheme
     @effective_authority = effective_authority
@@ -1630,7 +1642,7 @@ class Request:
       target: @target,
       path: @path,
       raw_query: @raw_query,
-      headers: RequestHeadersSnapshot(@headers, @header_lookup),
+      headers: DerivedRequestState(@headers, @header_lookup, @path_params, @services),
       body_text: @body_text_cache,
       body_bytes: @body_bytes_cache,
       body_stream: @body_stream,
@@ -1653,7 +1665,7 @@ class Request:
       target: @target,
       path: @path,
       raw_query: @raw_query,
-      headers: RequestHeadersSnapshot(@headers, @header_lookup),
+      headers: DerivedRequestState(@headers, @header_lookup, path_params, services),
       body_text: @body_text_cache,
       body_bytes: @body_bytes_cache,
       body_stream: @body_stream,
