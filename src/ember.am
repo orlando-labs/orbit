@@ -140,13 +140,14 @@ def _immutable_copy(value):
     return value.map |child|: _immutable_copy(child) .freeze
   value
 
-def _validate_header_semantics!(headers):
+def _header_semantics!(pairs):
   canonical = null
   transfer_encoding = false
+  trailer = false
   host_count = 0
   pair_index = 0
-  while pair_index < headers.pairs.count:
-    pair = headers.pairs[pair_index]
+  while pair_index < pairs.count:
+    pair = pairs[pair_index]
     name = pair[0]
     if name == "content-length":
       pieces = pair[1].split(",")
@@ -162,6 +163,8 @@ def _validate_header_semantics!(headers):
         piece_index += 1
     elif name == "transfer-encoding":
       transfer_encoding = true
+    elif name == "trailer":
+      trailer = true
     elif name == "host":
       host_count += 1
     pair_index += 1
@@ -169,28 +172,10 @@ def _validate_header_semantics!(headers):
     raise InvalidHeaderError("Content-Length and Transfer-Encoding must not both be present")
   if host_count > 1:
     raise InvalidHeaderError("Host must not be repeated")
-  headers
+  [canonical, transfer_encoding, trailer, host_count].freeze
 
 def _header_content_length!(headers):
-  values = headers.all("content-length")
-  return null if values.empty?
-  canonical = null
-  value_index = 0
-  while value_index < values.count:
-    pieces = values[value_index].split(",")
-    piece_index = 0
-    while piece_index < pieces.count:
-      piece = pieces[piece_index]
-      token = piece.trim
-      if token.empty? or not token.contains_only?("0123456789"):
-        raise InvalidHeaderError("Content-Length must contain decimal digits")
-      if canonical == null:
-        canonical = token
-      elif canonical != token:
-        raise InvalidHeaderError("conflicting Content-Length values")
-      piece_index += 1
-    value_index += 1
-  canonical
+  headers._content_length()
 
 def _decimal_header_value(raw):
   digits = {
@@ -218,16 +203,50 @@ def _validated_header_pair(name, value):
     raise InvalidHeaderError("HTTP header value contains CR or LF")
   [normalized_name, value.trim].freeze
 
+def _header_metadata_name?(name):
+  name == "content-length" or name == "transfer-encoding"
+    or name == "trailer" or name == "host"
+
+class ValidatedHeaderPairs:
+  attr pairs
+  attr content_length
+  attr transfer_encoding
+  attr trailer
+  attr host_count
+
+  def init(pairs, @content_length, @transfer_encoding, @trailer, @host_count):
+    @pairs = pairs.freeze
+
+def _validated_headers(pairs):
+  semantics = _header_semantics!(pairs)
+  Headers(ValidatedHeaderPairs(
+    pairs,
+    semantics[0],
+    semantics[1],
+    semantics[2],
+    semantics[3]))
+
 class Headers:
   attr pairs
 
   def init(source = null):
+    if ValidatedHeaderPairs === source:
+      @pairs = source.pairs
+      @content_length = source.content_length
+      @transfer_encoding = source.transfer_encoding
+      @trailer = source.trailer
+      @host_count = source.host_count
+      return
+    if Headers === source:
+      @pairs = source.pairs
+      @content_length = source._content_length()
+      @transfer_encoding = source._transfer_encoding?()
+      @trailer = source._trailer?()
+      @host_count = source._host_count()
+      return
     normalized_pairs = []
     if source:
       case source:
-        when Headers:
-          source.each |name, value|:
-            normalized_pairs.push!(_validated_header_pair(name, value))
         when Map:
           source.each |name, value|:
             normalized_pairs.push!(_validated_header_pair(name, value))
@@ -252,7 +271,23 @@ class Headers:
             rescue NoMethodError:
               raise ArgumentError("headers must be ember.Headers, net.http.Headers, a Map, or ordered pairs")
     @pairs = normalized_pairs.freeze
-    _validate_header_semantics!(self)
+    semantics = _header_semantics!(@pairs)
+    @content_length = semantics[0]
+    @transfer_encoding = semantics[1]
+    @trailer = semantics[2]
+    @host_count = semantics[3]
+
+  def _content_length():
+    @content_length
+
+  def _transfer_encoding?():
+    @transfer_encoding
+
+  def _trailer?():
+    @trailer
+
+  def _host_count():
+    @host_count
 
   def first(name):
     key = name.to_str.downcase
@@ -299,22 +334,40 @@ class Headers:
     @pairs
 
   def add(name, value):
-    Headers(@pairs + [[name, value]])
+    pair = _validated_header_pair(name, value)
+    selected_pairs = @pairs + [pair]
+    if _header_metadata_name?(pair[0]):
+      return _validated_headers(selected_pairs)
+    Headers(ValidatedHeaderPairs(
+      selected_pairs, @content_length, @transfer_encoding, @trailer, @host_count))
 
   def set(name, value):
-    key = name.to_str.downcase
+    pair = _validated_header_pair(name, value)
+    key = pair[0]
     kept = @pairs.reject |pair|: pair[0] == key
-    Headers(kept + [[name, value]])
+    selected_pairs = kept + [pair]
+    if _header_metadata_name?(key):
+      return _validated_headers(selected_pairs)
+    Headers(ValidatedHeaderPairs(
+      selected_pairs, @content_length, @transfer_encoding, @trailer, @host_count))
 
   def delete(name):
     key = name.to_str.downcase
-    Headers(@pairs.reject |pair|: pair[0] == key)
+    selected_pairs = @pairs.reject |pair|: pair[0] == key
+    if _header_metadata_name?(key):
+      return _validated_headers(selected_pairs)
+    Headers(ValidatedHeaderPairs(
+      selected_pairs, @content_length, @transfer_encoding, @trailer, @host_count))
 
   def merge(other):
     replacement = _headers(other)
     names = replacement.keys
     kept = @pairs.reject |pair|: names.include?(pair[0])
-    Headers(kept + replacement.to_pairs)
+    selected_pairs = kept + replacement.to_pairs
+    if replacement._content_length() != null or replacement._transfer_encoding?() or replacement._trailer?() or replacement._host_count() > 0:
+      return _validated_headers(selected_pairs)
+    Headers(ValidatedHeaderPairs(
+      selected_pairs, @content_length, @transfer_encoding, @trailer, @host_count))
 
   def to_native():
     @pairs.copy
@@ -362,7 +415,7 @@ class Response:
   def init(status: 200, headers: {}, body: ""):
     @status = status_code(status)
     @headers = _headers(headers)
-    if @headers.include?("transfer-encoding") or @headers.include?("trailer"):
+    if @headers._transfer_encoding?() or @headers._trailer?():
       raise InvalidHeaderError("buffered response framing does not accept Transfer-Encoding or Trailer")
     @body = body
 
@@ -440,7 +493,7 @@ class StreamingResponse:
       raise ArgumentError("streaming response requires a producer block")
     @status = status_code(status)
     @headers = _headers(headers)
-    if @headers.include?("content-length") or @headers.include?("transfer-encoding") or @headers.include?("trailer"):
+    if @headers._content_length() != null or @headers._transfer_encoding?() or @headers._trailer?():
       raise InvalidHeaderError("streaming response owns Content-Length, Transfer-Encoding, and Trailer")
     @trailers = trailers.copy.freeze
     @producer = producer

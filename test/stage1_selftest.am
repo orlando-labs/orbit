@@ -95,8 +95,16 @@ def main():
       ["transfer-encoding", "chunked"]])
   duplicate_host = rejects():
     ember.Headers([["host", "a"], ["Host", "b"]])
+  transformed_ambiguous_framing = rejects():
+    ember.Headers({"content-length": "1"}).add("transfer-encoding", "chunked")
+  transformed_duplicate_host = rejects():
+    ember.Headers({"host": "a"}).add("Host", "b")
+  transformed_injected_value = rejects():
+    ember.Headers().add("x-test", "one\r\ntwo")
   buffered_framing = rejects():
     ember.Response(headers: {"transfer-encoding": "chunked"})
+  transformed_buffered_framing = rejects():
+    ember.Response(headers: ember.Headers().set("transfer-encoding", "chunked"))
   streaming_framing = rejects():
     ember.stream(headers: {"content-length": "1"}) |body|:
       null
@@ -105,7 +113,11 @@ def main():
   assert(conflicting_length, "conflicting Content-Length")
   assert(ambiguous_framing, "CL/TE ambiguity")
   assert(duplicate_host, "duplicate Host")
+  assert(transformed_ambiguous_framing, "transformed CL/TE ambiguity")
+  assert(transformed_duplicate_host, "transformed duplicate Host")
+  assert(transformed_injected_value, "transformed header injection")
   assert(buffered_framing, "buffered response owns framing")
+  assert(transformed_buffered_framing, "buffered response uses cached framing")
   assert(streaming_framing, "streaming response owns framing")
 
   log = io.Buffer.new()
