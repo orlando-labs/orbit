@@ -1477,14 +1477,6 @@ class RequestHeadersSnapshot:
 
   def init(@headers, @lookup)
 
-class DerivedRequestState:
-  attr headers
-  attr lookup
-  attr path_params
-  attr services
-
-  def init(@headers, @lookup, @path_params, @services)
-
 def _request_headers_from_server(source):
   pairs = source.to_pairs.freeze
   semantics = _header_semantics!(pairs)
@@ -1542,15 +1534,11 @@ class Request:
     client_ip: null,
     trusted_proxy: false
   ):
-    derived = if DerivedRequestState === headers then headers else null
-    @method = if derived then method else method.to_str.upcase
+    @method = method.to_str.upcase
     @target = target
     @path = path
     @raw_query = raw_query
-    if derived:
-      @headers = derived.headers
-      @header_lookup = derived.lookup
-    elif RequestHeadersSnapshot === headers:
+    if RequestHeadersSnapshot === headers:
       @headers = headers.headers
       @header_lookup = headers.lookup
     else:
@@ -1567,8 +1555,8 @@ class Request:
     @local_endpoint = local_endpoint
     @routes = routes
     @selected_route = selected_route
-    @path_params = if derived then derived.path_params else _immutable_copy(path_params)
-    @services = if derived then derived.services else services.copy.freeze
+    @path_params = _immutable_copy(path_params)
+    @services = services.copy.freeze
     @response_header_sink = response_header_sink or {}
     @effective_scheme = effective_scheme
     @effective_authority = effective_authority
@@ -1661,50 +1649,26 @@ class Request:
     @effective_scheme == "https"
 
   def _with_provenance(scheme, authority, client_ip, trusted_proxy):
-    Request(
-      method: @method,
-      target: @target,
-      path: @path,
-      raw_query: @raw_query,
-      headers: DerivedRequestState(@headers, @header_lookup, @path_params, @services),
-      body_text: @body_text_cache,
-      body_bytes: @body_bytes_cache,
-      body_stream: @body_stream,
-      server_request: @server_request,
-      remote_endpoint: @remote_endpoint,
-      local_endpoint: @local_endpoint,
-      routes: @routes,
-      selected_route: @selected_route,
-      path_params: @path_params,
-      services: @services,
-      response_header_sink: @response_header_sink,
-      effective_scheme: scheme,
-      effective_authority: authority,
-      client_ip: client_ip,
-      trusted_proxy: trusted_proxy)
+    derived = copy
+    derived._set_provenance!(scheme, authority, client_ip, trusted_proxy)
+
+  def _set_provenance!(scheme, authority, client_ip, trusted_proxy):
+    @effective_scheme = scheme
+    @effective_authority = authority
+    @client_ip = client_ip
+    @trusted_proxy = trusted_proxy
+    self
 
   def _routed(routes, selected_route, path_params, services):
-    Request(
-      method: @method,
-      target: @target,
-      path: @path,
-      raw_query: @raw_query,
-      headers: DerivedRequestState(@headers, @header_lookup, path_params, services),
-      body_text: @body_text_cache,
-      body_bytes: @body_bytes_cache,
-      body_stream: @body_stream,
-      server_request: @server_request,
-      remote_endpoint: @remote_endpoint,
-      local_endpoint: @local_endpoint,
-      routes: routes,
-      selected_route: selected_route,
-      path_params: path_params,
-      services: services,
-      response_header_sink: @response_header_sink,
-      effective_scheme: @effective_scheme,
-      effective_authority: @effective_authority,
-      client_ip: @client_ip,
-      trusted_proxy: @trusted_proxy)
+    derived = copy
+    derived._set_route!(routes, selected_route, path_params, services)
+
+  def _set_route!(routes, selected_route, path_params, services):
+    @routes = routes
+    @selected_route = selected_route
+    @path_params = path_params
+    @services = services
+    self
 
 def request_method(request):
   unless Request === request:

@@ -256,6 +256,19 @@ def telemetry_failure_is_safe():
   assert(response.status == 200, "telemetry sink failure cannot replace response")
   true
 
+def request_derivation_is_isolated():
+  request = testing.get("/users/42")
+  app = ember.App(routes: routes, services: {marker: "derived"})
+  response = app.call(request)
+  assert(response.status == 200, "derived request reaches route target")
+  assert(request.effective_scheme == null and request.effective_authority == null,
+    "authorization derivation does not mutate source provenance")
+  assert(request.routes == null and request.selected_route == null,
+    "routing derivation does not mutate source route state")
+  assert(request.path_params().empty? and request.services.empty?,
+    "routing derivation does not mutate source data")
+  true
+
 def attach_failure_unwinds():
   failed = false
   try:
@@ -274,5 +287,6 @@ def main():
   redaction_and_cardinality()
   lifecycle_probes()
   telemetry_failure_is_safe()
+  request_derivation_is_isolated()
   attach_failure_unwinds()
   true
