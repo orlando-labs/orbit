@@ -42,14 +42,6 @@ def _payload_bytes(data):
   return data.count if Bytes === data
   data.to_str.bytesize
 
-def _metric_series_hash(bytes):
-  hash = 0
-  index = 0
-  while index < bytes.count:
-    hash = (hash * 131 + bytes[index]) % 2147483647
-    index += 1
-  hash
-
 def _runtime_control_error?(error):
   return true if CancelledError === error or FlowCancelledError === error
   return true if IsolationError === error or LifetimeError === error
@@ -345,7 +337,7 @@ class MetricsRegistry:
     status_class = if status == null then "none" else (status // 100).to_str + "xx"
     key = method + " " + route + " " + status_class + " " + outcome
     encoded_key = Bytes.new(key)
-    key_hash = _metric_series_hash(encoded_key)
+    key_hash = encoded_key.stable_hash()
     @mutex.synchronize:
       @requests += 1
       @in_flight -= 1 if @in_flight > 0
