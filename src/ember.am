@@ -1701,6 +1701,7 @@ class Route:
   attr param_types
   attr segments
   attr shape
+  attr specificity
 
   def init(method, pattern as Str, target as Target, name: null, params: {}, before: []):
     @method = _method_name(method)
@@ -1711,6 +1712,7 @@ class Route:
     @param_types = params.copy.freeze
     @segments = _compile_pattern(pattern).freeze
     @shape = _shape(@segments)
+    @specificity = _route_specificity(@segments).freeze
     _validate_params!
 
   def _validate_params!():
@@ -1730,7 +1732,6 @@ class Route:
 
   def candidate(path_segments):
     raw_params = {}
-    specificity = []
     path_index = 0
     segment_index = 0
     while segment_index < @segments.count:
@@ -1741,7 +1742,6 @@ class Route:
           remaining.push!(path_segments[path_index])
           path_index += 1
         raw_params.store!(segment.value, remaining.join("/"))
-        specificity.push!(1)
         segment_index += 1
         break
       return null if path_index >= path_segments.count
@@ -1749,14 +1749,12 @@ class Route:
       if segment.segment_kind == :literal:
         if value != segment.value:
           return null
-        specificity.push!(3)
       else:
         raw_params.store!(segment.value, value)
-        specificity.push!(2)
       path_index += 1
       segment_index += 1
     return null unless path_index == path_segments.count
-    RouteCandidate(self, raw_params, specificity)
+    RouteCandidate(self, raw_params, @specificity)
 
   def materialize(candidate):
     converted = {}
@@ -1824,6 +1822,13 @@ class Routes:
       raise InvalidRouteError("route table exceeds maximum route count")
     _validate!
     @routes = @routes.copy.freeze
+    seen_patterns = {}
+    match_routes = []
+    @routes.each |route|:
+      unless seen_patterns[?route.pattern]:
+        seen_patterns.store!(route.pattern, true)
+        match_routes.push!(route)
+    @match_routes = match_routes.freeze
 
   def _append(entry, prefix, before):
     case entry:
@@ -1862,25 +1867,31 @@ class Routes:
   def lookup(path, method, head_fallback: false, automatic_options: true):
     segments = _request_segments(path)
     best = null
-    candidates = []
-    @routes.each |route|:
+    candidates = {}
+    @match_routes.each |route|:
       candidate = route.candidate(segments)
       if candidate:
         if best == null or _specificity_compare(candidate.specificity, best) > 0:
           best = candidate.specificity
-          candidates = [candidate]
+          candidates = {}
+          candidates.store!(route.pattern, candidate)
         elif _specificity_compare(candidate.specificity, best) == 0:
-          candidates.push!(candidate)
+          candidates.store!(route.pattern, candidate)
     return RouteLookup(:not_found) if candidates.empty?
 
     requested = method.to_str.upcase
-    selected = candidates.find |candidate|: candidate.route.method == requested
+    selected = @routes.find |route|:
+      candidates.has_key?(route.pattern) and route.method == requested
     if selected == null and requested == "HEAD" and head_fallback:
-      selected = candidates.find |candidate|: candidate.route.method == "GET"
+      selected = @routes.find |route|:
+        candidates.has_key?(route.pattern) and route.method == "GET"
     if selected:
-      return RouteLookup(:found, match: selected.route.materialize(selected))
+      return RouteLookup(:found, match: selected.materialize(candidates[selected.pattern]))
 
-    allowed = candidates.map: _1.route.method .sorted
+    allowed = @routes
+      .select |route|: candidates.has_key?(route.pattern)
+      .map: _1.method
+      .sorted
     if head_fallback and allowed.include?("GET") and not allowed.include?("HEAD"):
       allowed.push!("HEAD")
     if automatic_options and not allowed.include?("OPTIONS"):
@@ -1999,6 +2010,15 @@ def _shape(segments):
     else:
       "*"
   .join("/")
+
+def _route_specificity(segments):
+  segments.map |segment|:
+    if segment.segment_kind == :literal:
+      3
+    elif segment.segment_kind == :param:
+      2
+    else:
+      1
 
 def _specificity_compare(left, right):
   count = if left.count < right.count then left.count else right.count
