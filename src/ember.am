@@ -1836,7 +1836,8 @@ class Route:
     segment_index = 0
     while segment_index < @segments.count:
       segment = @segments[segment_index]
-      if segment.segment_kind == :wildcard:
+      segment_kind = segment.segment_kind
+      if segment_kind == :wildcard:
         remaining = []
         while path_index < path_segments.count:
           remaining.push!(path_segments[path_index])
@@ -1846,7 +1847,7 @@ class Route:
         break
       return null if path_index >= path_segments.count
       value = path_segments[path_index]
-      if segment.segment_kind == :literal:
+      if segment_kind == :literal:
         if value != segment.value:
           return null
       else:
