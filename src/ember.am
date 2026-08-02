@@ -369,6 +369,14 @@ class Headers:
     Headers(ValidatedHeaderPairs(
       selected_pairs, @content_length, @transfer_encoding, @trailer, @host_count))
 
+  def _merge_known(replacement, names):
+    kept = @pairs.reject |pair|: names.include?(pair[0])
+    selected_pairs = kept + replacement.to_pairs
+    if replacement._content_length() != null or replacement._transfer_encoding?() or replacement._trailer?() or replacement._host_count() > 0:
+      return _validated_headers(selected_pairs)
+    Headers(ValidatedHeaderPairs(
+      selected_pairs, @content_length, @transfer_encoding, @trailer, @host_count))
+
   def to_native():
     @pairs.copy
 
@@ -630,19 +638,19 @@ def _with_streaming_response_header(response as StreamingResponse, name, value, 
     trailers: response.trailers) |body|:
       producer(body)
 
-def _merge_response_headers(headers, response):
+def _merge_response_headers(headers, header_names, response):
   return response if headers.empty?
   if StreamingResponse === response:
     producer = response._producer_block()
     return StreamingResponse(
       status: response.status,
-      headers: response.headers.merge(headers),
+      headers: response.headers._merge_known(headers, header_names),
       trailers: response.trailers) |body|:
         producer(body)
   if Response === response:
     return Response(
       status: response.status,
-      headers: response.headers.merge(headers),
+      headers: response.headers._merge_known(headers, header_names),
       body: response.body)
   raise InvalidResponseError("response header merge expects an Ember response")
 
@@ -1380,6 +1388,8 @@ class SecurityPolicy:
     if @content_security_policy:
       security_response_headers["content-security-policy"] = @content_security_policy
     @security_response_headers = Headers(security_response_headers)
+    @security_response_header_names = @security_response_headers.keys
+    @hsts_security_response_header_names = (@security_response_header_names + ["strict-transport-security"]).freeze
 
   def _host_allowed?(host):
     index = 0
@@ -1443,9 +1453,11 @@ class SecurityPolicy:
   def protect_response(response, request):
     return response unless @security_headers
     selected = @security_response_headers
+    selected_names = @security_response_header_names
     if @hsts and request.secure?():
       selected = selected.set("strict-transport-security", "max-age=31536000; includeSubDomains")
-    _merge_response_headers(selected, response)
+      selected_names = @hsts_security_response_header_names
+    _merge_response_headers(selected, selected_names, response)
 
 class RequestHeadersSnapshot:
   attr headers
