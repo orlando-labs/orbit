@@ -946,7 +946,9 @@ def _param_field_name_index(fields):
 
 def _sanitize_param_object(source, fields, field_names, path, unknown, issues):
   result = {}
-  fields.each |field|:
+  field_index = 0
+  while field_index < fields.count:
+    field = fields[field_index]
     name = field.name
     unless source.has_key?(name):
       if field.required:
@@ -959,6 +961,7 @@ def _sanitize_param_object(source, fields, field_names, path, unknown, issues):
           code: :missing,
           expected: expected,
           actual: :absent))
+      field_index += 1
       next
     value = source[name]
     if value == null:
@@ -974,6 +977,7 @@ def _sanitize_param_object(source, fields, field_names, path, unknown, issues):
           code: :wrong_type,
           expected: expected,
           actual: :null_value))
+      field_index += 1
       next
     case field:
       when ParamField:
@@ -1011,6 +1015,7 @@ def _sanitize_param_object(source, fields, field_names, path, unknown, issues):
             code: :wrong_shape,
             expected: :array,
             actual: _param_actual_kind(value)))
+    field_index += 1
   if unknown == :reject:
     source.each |name, value|:
       unless field_names.has_key?(name.to_str):
@@ -1023,7 +1028,9 @@ def _sanitize_param_object(source, fields, field_names, path, unknown, issues):
 
 def _sanitize_param_array(source, field, path, inherited_unknown, issues):
   result = []
-  source.each_with_index |value, index|:
+  index = 0
+  while index < source.count:
+    value = source[index]
     item_path = path + [index]
     if field.element_type != null:
       if _param_matches_type?(value, field.element_type):
@@ -1049,6 +1056,7 @@ def _sanitize_param_array(source, field, path, inherited_unknown, issues):
         code: :wrong_shape,
         expected: :object,
         actual: _param_actual_kind(value)))
+    index += 1
   result.freeze
 
 class RequestChunk:
