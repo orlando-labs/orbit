@@ -927,13 +927,6 @@ def _param_actual_kind(value):
   return :object if Map === value or StrictMap === value
   :unknown
 
-def _param_matches_type?(value, type):
-  return Str === value if type == Str
-  return Int === value if type == Int
-  return Float === value if type == Float
-  return Bool === value if type == Bool
-  false
-
 def _validate_param_fields!(fields):
   unless Array === fields:
     raise ArgumentError("strong parameter fields must be an Array")
@@ -989,7 +982,7 @@ def _sanitize_param_object(source, fields, field_names, path, unknown, issues):
       next
     case field:
       when ParamField:
-        if _param_matches_type?(value, field.type):
+        if field.type === value:
           result.store!(name, value)
         else:
           issues.push!(ParamIssue(
@@ -1041,7 +1034,7 @@ def _sanitize_param_array(source, field, path, inherited_unknown, issues):
     value = source[index]
     item_path = path + [index]
     if field.element_type != null:
-      if _param_matches_type?(value, field.element_type):
+      if field.element_type === value:
         result.push!(value)
       else:
         issues.push!(ParamIssue(
