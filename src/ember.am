@@ -1453,6 +1453,23 @@ class RequestHeadersSnapshot:
 
   def init(@headers, @lookup)
 
+def _request_headers_from_server(source):
+  pairs = source.to_pairs.freeze
+  semantics = _header_semantics!(pairs)
+  headers = Headers(ValidatedHeaderPairs(
+    pairs,
+    semantics[0],
+    semantics[1],
+    semantics[2],
+    semantics[3]))
+  lookup = {}
+  index = 0
+  while index < pairs.count:
+    pair = pairs[index]
+    lookup.store!(pair[0], pair[1]) unless lookup[?pair[0]]
+    index += 1
+  RequestHeadersSnapshot(headers, lookup.freeze)
+
 class Request:
   attr method
   attr target
@@ -1532,7 +1549,7 @@ class Request:
       target: request.target,
       path: request.path,
       raw_query: request.query,
-      headers: request.headers,
+      headers: _request_headers_from_server(request.headers),
       body_text: null,
       body_bytes: null,
       body_stream: RequestBodyStream(request.body_stream),
