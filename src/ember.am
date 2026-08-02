@@ -438,10 +438,20 @@ class Response:
 
   def with_header(name, value, append: false):
     selected = if append then @headers.add(name, value) else @headers.set(name, value)
-    Response(status: @status, headers: selected, body: @body)
+    _with_headers(selected)
 
   def merge_headers(headers):
-    Response(status: @status, headers: @headers.merge(headers), body: @body)
+    _with_headers(@headers.merge(headers))
+
+  def _with_headers(headers):
+    derived = copy
+    derived._set_headers!(headers)
+
+  def _set_headers!(headers):
+    if headers._transfer_encoding?() or headers._trailer?():
+      raise InvalidHeaderError("buffered response framing does not accept Transfer-Encoding or Trailer")
+    @headers = headers
+    self
 
   def body_text():
     if @body == null:
@@ -569,7 +579,7 @@ def _validate_buffered_content_length!(response, expected):
   response
 
 def _response_with_headers(response, headers):
-  Response(status: response.status, headers: headers, body: response.body)
+  response._with_headers(headers)
 
 def _apply_response_rules(response, method):
   code = response.status
@@ -651,10 +661,8 @@ def _merge_response_headers(headers, header_names, response):
       trailers: response.trailers) |body|:
         producer(body)
   if Response === response:
-    return Response(
-      status: response.status,
-      headers: response.headers._merge_known(headers, header_names),
-      body: response.body)
+    return response._with_headers(
+      response.headers._merge_known(headers, header_names))
   raise InvalidResponseError("response header merge expects an Ember response")
 
 def _render_response(

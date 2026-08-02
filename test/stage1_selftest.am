@@ -97,6 +97,15 @@ def main():
     merged_headers.first("x-base") == "merged" and
     merged_headers.first("x-new") == "three",
     "header merge derives pairs")
+  base_response = ember.Response(headers: {"x-base": "one"}, body: "payload")
+  derived_response = base_response.with_header("x-added", "two")
+  assert(base_response.header("x-added") == null,
+    "response header derivation does not mutate source")
+  assert(
+    derived_response.header("x-added") == "two" and
+    derived_response.status == base_response.status and
+    derived_response.body == base_response.body,
+    "response header derivation preserves response state")
 
   invalid_name = rejects():
     ember.Headers({"bad name": "value"})
