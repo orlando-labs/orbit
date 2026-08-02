@@ -1483,19 +1483,45 @@ class RequestHeadersSnapshot:
 
 def _request_headers_from_server(source):
   pairs = source.to_pairs.freeze
-  semantics = _header_semantics!(pairs)
+  canonical = null
+  transfer_encoding = false
+  trailer = false
+  host_count = 0
+  lookup = {}
+  pair_index = 0
+  while pair_index < pairs.count:
+    pair = pairs[pair_index]
+    name = pair[0]
+    lookup.store!(name, pair[1]) unless lookup[?name]
+    if name == "content-length":
+      pieces = pair[1].split(",")
+      piece_index = 0
+      while piece_index < pieces.count:
+        token = pieces[piece_index].trim
+        if token.empty? or not token.contains_only?("0123456789"):
+          raise InvalidHeaderError("Content-Length must contain decimal digits")
+        if canonical == null:
+          canonical = token
+        elif canonical != token:
+          raise InvalidHeaderError("conflicting Content-Length values")
+        piece_index += 1
+    elif name == "transfer-encoding":
+      transfer_encoding = true
+    elif name == "trailer":
+      trailer = true
+    elif name == "host":
+      host_count += 1
+    pair_index += 1
+  if canonical != null and transfer_encoding:
+    raise InvalidHeaderError("Content-Length and Transfer-Encoding must not both be present")
+  if host_count > 1:
+    raise InvalidHeaderError("Host must not be repeated")
   headers = Headers(ValidatedHeaderPairs(
     pairs,
-    semantics[0],
-    semantics[1],
-    semantics[2],
-    semantics[3]))
-  lookup = {}
-  index = 0
-  while index < pairs.count:
-    pair = pairs[index]
-    lookup.store!(pair[0], pair[1]) unless lookup[?pair[0]]
-    index += 1
+    canonical,
+    transfer_encoding,
+    trailer,
+    host_count))
   RequestHeadersSnapshot(headers, lookup.freeze)
 
 class Request:
