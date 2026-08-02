@@ -353,9 +353,11 @@ class MetricsRegistry:
       @response_bytes += bytes
       @duration_nanoseconds += duration_nanoseconds
       @duration_count += 1
-      @duration_boundaries_ns.each_with_index |boundary, index|:
-        if duration_nanoseconds <= boundary:
-          @duration_bucket_counts[index] = @duration_bucket_counts[index] + 1
+      duration_bucket = 0
+      while duration_bucket < @duration_boundaries_ns.count and duration_nanoseconds > @duration_boundaries_ns[duration_bucket]:
+        duration_bucket += 1
+      if duration_bucket < @duration_bucket_counts.count:
+        @duration_bucket_counts[duration_bucket] = @duration_bucket_counts[duration_bucket] + 1
       bucket = if @series.has_key?(key_hash) then @series[key_hash] else null
       entry = if bucket:
         bucket.find |candidate|: candidate[0].to_str == key
@@ -408,6 +410,11 @@ class MetricsRegistry:
       @series.each |_key_hash, bucket|:
         bucket.each |entry|:
           series.store!(entry[0].to_str, entry[1])
+      cumulative_duration_buckets = []
+      cumulative_duration_count = 0
+      @duration_bucket_counts.each |count|:
+        cumulative_duration_count += count
+        cumulative_duration_buckets.push!(cumulative_duration_count)
       {
         "http.server.requests": @requests,
         "http.server.active_requests": @in_flight,
@@ -417,7 +424,7 @@ class MetricsRegistry:
           "sum": @duration_nanoseconds.to_float / 1000000000.0,
           "explicit_bucket_boundaries": @duration_boundaries_ns.map:
             _1.to_float / 1000000000.0,
-          "bucket_counts": @duration_bucket_counts.copy.freeze
+          "bucket_counts": cumulative_duration_buckets.freeze
         }.freeze,
         "http.server.response.body.size": {
           "unit": "By",

@@ -194,6 +194,13 @@ def redaction_and_cardinality():
   series = bounded.snapshot()["ember.request.series"]
   assert(series.count == 1 and series["__overflow__"] == 2,
     "metric labels overflow into one bounded series")
+
+  histogram = telemetry.MetricsRegistry()
+  histogram.request_started()
+  histogram.request_finished("GET", "/histogram", 200, 6000000, 1, "success")
+  bucket_counts = histogram.snapshot()["http.server.request.duration"]["bucket_counts"]
+  assert(bucket_counts[0] == 0 and bucket_counts[1] == 1 and bucket_counts[-1] == 1,
+    "duration histogram snapshot exposes cumulative buckets")
   true
 
 def lifecycle_probes():
