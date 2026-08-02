@@ -289,6 +289,14 @@ class Headers:
   def _host_count():
     @host_count
 
+  def _with_pairs(pairs):
+    derived = copy
+    derived._set_pairs!(pairs)
+
+  def _set_pairs!(pairs):
+    @pairs = pairs.freeze
+    self
+
   def first(name):
     key = name.to_str.downcase
     index = 0
@@ -338,8 +346,7 @@ class Headers:
     selected_pairs = @pairs + [pair]
     if _header_metadata_name?(pair[0]):
       return _validated_headers(selected_pairs)
-    Headers(ValidatedHeaderPairs(
-      selected_pairs, @content_length, @transfer_encoding, @trailer, @host_count))
+    _with_pairs(selected_pairs)
 
   def set(name, value):
     pair = _validated_header_pair(name, value)
@@ -348,16 +355,14 @@ class Headers:
     selected_pairs = kept + [pair]
     if _header_metadata_name?(key):
       return _validated_headers(selected_pairs)
-    Headers(ValidatedHeaderPairs(
-      selected_pairs, @content_length, @transfer_encoding, @trailer, @host_count))
+    _with_pairs(selected_pairs)
 
   def delete(name):
     key = name.to_str.downcase
     selected_pairs = @pairs.reject |pair|: pair[0] == key
     if _header_metadata_name?(key):
       return _validated_headers(selected_pairs)
-    Headers(ValidatedHeaderPairs(
-      selected_pairs, @content_length, @transfer_encoding, @trailer, @host_count))
+    _with_pairs(selected_pairs)
 
   def merge(other):
     replacement = _headers(other)
@@ -366,16 +371,14 @@ class Headers:
     selected_pairs = kept + replacement.to_pairs
     if replacement._content_length() != null or replacement._transfer_encoding?() or replacement._trailer?() or replacement._host_count() > 0:
       return _validated_headers(selected_pairs)
-    Headers(ValidatedHeaderPairs(
-      selected_pairs, @content_length, @transfer_encoding, @trailer, @host_count))
+    _with_pairs(selected_pairs)
 
   def _merge_known(replacement, names):
     kept = @pairs.reject |pair|: names.include?(pair[0])
     selected_pairs = kept + replacement.to_pairs
     if replacement._content_length() != null or replacement._transfer_encoding?() or replacement._trailer?() or replacement._host_count() > 0:
       return _validated_headers(selected_pairs)
-    Headers(ValidatedHeaderPairs(
-      selected_pairs, @content_length, @transfer_encoding, @trailer, @host_count))
+    _with_pairs(selected_pairs)
 
   def to_native():
     @pairs.copy

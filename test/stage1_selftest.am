@@ -80,6 +80,23 @@ def main():
   assert(headers.to_pairs[2][0] == "vary", "canonical header names")
   token_header = ember.Headers({"X-!#$%&'*+.^_`|~": "value"})
   assert(token_header.first("x-!#$%&'*+.^_`|~") == "value", "HTTP token header name")
+  base_headers = ember.Headers({"x-base": "one", "x-remove": "old"})
+  added_headers = base_headers.add("x-added", "two")
+  set_headers = base_headers.set("x-base", "updated")
+  deleted_headers = base_headers.delete("x-remove")
+  merged_headers = base_headers.merge({"x-base": "merged", "x-new": "three"})
+  assert(
+    base_headers.first("x-base") == "one" and
+    base_headers.first("x-added") == null and
+    base_headers.first("x-remove") == "old",
+    "header derivation does not mutate source")
+  assert(added_headers.first("x-added") == "two", "header add derives pairs")
+  assert(set_headers.first("x-base") == "updated", "header set derives pairs")
+  assert(deleted_headers.first("x-remove") == null, "header delete derives pairs")
+  assert(
+    merged_headers.first("x-base") == "merged" and
+    merged_headers.first("x-new") == "three",
+    "header merge derives pairs")
 
   invalid_name = rejects():
     ember.Headers({"bad name": "value"})
