@@ -140,6 +140,37 @@ def _immutable_copy(value):
     return value.map |child|: _immutable_copy(child) .freeze
   value
 
+def _validate_header_semantics!(headers):
+  canonical = null
+  transfer_encoding = false
+  host_count = 0
+  pair_index = 0
+  while pair_index < headers.pairs.count:
+    pair = headers.pairs[pair_index]
+    name = pair[0]
+    if name == "content-length":
+      pieces = pair[1].split(",")
+      piece_index = 0
+      while piece_index < pieces.count:
+        token = pieces[piece_index].trim
+        if token.empty? or not token.contains_only?("0123456789"):
+          raise InvalidHeaderError("Content-Length must contain decimal digits")
+        if canonical == null:
+          canonical = token
+        elif canonical != token:
+          raise InvalidHeaderError("conflicting Content-Length values")
+        piece_index += 1
+    elif name == "transfer-encoding":
+      transfer_encoding = true
+    elif name == "host":
+      host_count += 1
+    pair_index += 1
+  if canonical != null and transfer_encoding:
+    raise InvalidHeaderError("Content-Length and Transfer-Encoding must not both be present")
+  if host_count > 1:
+    raise InvalidHeaderError("Host must not be repeated")
+  headers
+
 def _header_content_length!(headers):
   values = headers.all("content-length")
   return null if values.empty?
@@ -170,14 +201,6 @@ def _decimal_header_value(raw):
   raw.chars.each |char|:
     value = value * 10 + digits[char]
   value
-
-def _validate_header_semantics!(headers):
-  content_length = _header_content_length!(headers)
-  if content_length != null and headers.include?("transfer-encoding"):
-    raise InvalidHeaderError("Content-Length and Transfer-Encoding must not both be present")
-  if headers.all("host").count > 1:
-    raise InvalidHeaderError("Host must not be repeated")
-  headers
 
 def _valid_header_name?(name):
   return false if name.empty?
@@ -1294,12 +1317,10 @@ class SecurityPolicy:
     @trusted_proxy_cidrs.any? |cidr|: cidr.include?(address)
 
   def authorize(request):
-    host_values = request.headers.all("host")
-    if host_values.empty?:
+    host_value = request.header("host")
+    if host_value == null:
       raise InvalidAuthorityError("Host header is required")
-    if host_values.count != 1:
-      raise InvalidAuthorityError("Host header must occur exactly once")
-    parsed = _parse_authority(host_values[0])
+    parsed = _parse_authority(host_value)
     authority = parsed[0]
     host = parsed[1]
     unless _host_allowed?(host):
