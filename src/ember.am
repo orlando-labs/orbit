@@ -1850,20 +1850,23 @@ class Route:
 
   def candidate(path_segments):
     raw_params = {}
+    compiled_segments = @segments
+    segment_count = compiled_segments.count
+    path_count = path_segments.count
     path_index = 0
     segment_index = 0
-    while segment_index < @segments.count:
-      segment = @segments[segment_index]
+    while segment_index < segment_count:
+      segment = compiled_segments[segment_index]
       segment_kind = segment.segment_kind
       if segment_kind == :wildcard:
         remaining = []
-        while path_index < path_segments.count:
+        while path_index < path_count:
           remaining.push!(path_segments[path_index])
           path_index += 1
         raw_params.store!(segment.value, remaining.join("/"))
         segment_index += 1
         break
-      return null if path_index >= path_segments.count
+      return null if path_index >= path_count
       value = path_segments[path_index]
       if segment_kind == :literal:
         if value != segment.value:
@@ -1872,7 +1875,7 @@ class Route:
         raw_params.store!(segment.value, value)
       path_index += 1
       segment_index += 1
-    return null unless path_index == path_segments.count
+    return null unless path_index == path_count
     RouteCandidate(self, raw_params, @specificity)
 
   def materialize(candidate):
