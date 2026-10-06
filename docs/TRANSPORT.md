@@ -15,7 +15,7 @@ order, and then binds the listener. It returns an unstarted `ServerHandle`.
 `App#start` performs those steps and starts the accept loop asynchronously.
 `App#run` is the blocking convenience API.
 
-```amber
+```sputnik
 server = app.start(
   host: "127.0.0.1",
   port: 3000,
@@ -74,7 +74,7 @@ handle lifecycle instead of a request counter.
 | `overload` | `:reject` | Hard-cap behavior; currently only immediate rejection is supported. |
 
 Timeouts accept non-negative `Float` seconds or `Int` milliseconds, following
-Amber `net.http` duration conventions. Production values must be finite and
+Sputnik `net.http` duration conventions. Production values must be finite and
 reviewed against edge timeouts. Configuration is rejected before listener bind
 when a value has the wrong type/range or an unsupported overload policy.
 
@@ -131,7 +131,7 @@ missing/duplicate HTTP/1.1 `Host`, ambiguous `Content-Length`/
 heads, and bounded-size violations before routing. Chunked full-duplex streams,
 trailers, and `Expect: 100-continue` retain their existing contract.
 
-Regression evidence lives in `test/stage2_selftest.am` and the Amber runtime
+Regression evidence lives in `test/stage2_selftest.s` and the Sputnik runtime
 suite `tests/vm_net_http_tests.cpp`. They cover clean and forced drain,
 cancel/unwind, integration ordering, no lost lease, keep-alive/pipelining,
 overload, malformed raw requests, and contentless/HEAD framing.

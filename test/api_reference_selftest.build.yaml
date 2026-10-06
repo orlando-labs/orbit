@@ -1,4 +1,4 @@
-schema: amber.build.v1
+schema: sputnik.build.v1
 name: ember.api_reference_selftest
 root: ember.api_reference_selftest
 
@@ -9,18 +9,18 @@ profiles:
 
 modules:
   - name: ember
-    path: ../src/ember.am
+    path: ../src/ember.s
   - name: ember.html
-    path: ../src/ember/html.am
+    path: ../src/ember/html.s
   - name: ember.middleware
-    path: ../src/ember/middleware.am
+    path: ../src/ember/middleware.s
   - name: ember.multipart
-    path: ../src/ember/multipart.am
+    path: ../src/ember/multipart.s
   - name: ember.security
-    path: ../src/ember/security.am
+    path: ../src/ember/security.s
   - name: ember.telemetry
-    path: ../src/ember/telemetry.am
+    path: ../src/ember/telemetry.s
   - name: ember.testing
-    path: ../src/ember/testing.am
+    path: ../src/ember/testing.s
   - name: ember.api_reference_selftest
-    path: api_reference_selftest.am
+    path: api_reference_selftest.s

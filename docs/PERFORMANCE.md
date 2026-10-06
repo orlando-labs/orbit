@@ -30,14 +30,15 @@ exception.
 ## Reproduction
 
 ```sh
-.build/dependencies/amber-lang/build/amberc build benchmark/core.build.yaml \
+mkdir -p benchmark/results
+.build/dependencies/sputnik-lang/build/sputnik build benchmark/core.build.yaml \
   --target native --out-dir out-bench-core --cache-dir cache-bench-core --no-cache \
   --grant net.listen --grant net.connect
-./out-bench-core/ember.benchmark.core
+./out-bench-core/ember.benchmark.core > benchmark/results/core.json
 
-.build/dependencies/amber-lang/build/amberc build benchmark/orm_pool.build.yaml \
+.build/dependencies/sputnik-lang/build/sputnik build benchmark/orm_pool.build.yaml \
   --target native --out-dir out-bench-orm --cache-dir cache-bench-orm --no-cache
-./out-bench-orm/ember.benchmark.orm_pool
+./out-bench-orm/ember.benchmark.orm_pool > benchmark/results/orm.json
 
 python3 benchmark/performance_gate.py \
   --current benchmark/results/core.json \
@@ -51,3 +52,7 @@ otherwise idle named host, performance mode enabled, with the same native
 compiler. Run at least three suites for a release and use the median result;
 retain every raw JSON result. The committed baseline records the initial
 stage-4 evidence and must only be updated through review.
+
+`benchmark/results/` contains generated local evidence and is ignored by Git.
+Static CI checks the approved baseline against the budgets; the performance gate
+above compares a fresh run with that baseline.

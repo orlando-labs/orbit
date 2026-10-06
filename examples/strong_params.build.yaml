@@ -1,4 +1,4 @@
-schema: amber.build.v1
+schema: sputnik.build.v1
 name: ember.example.strong_params
 root: ember.example.strong_params
 
@@ -9,6 +9,6 @@ profiles:
 
 modules:
   - name: ember
-    path: ../src/ember.am
+    path: ../src/ember.s
   - name: ember.example.strong_params
-    path: strong_params.am
+    path: strong_params.s

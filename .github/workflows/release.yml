@@ -32,20 +32,20 @@ jobs:
           test -n "${EMBER_PACKAGE_SIGNING_KEY}"
           test -n "${EMBER_PACKAGE_KEY_ID}"
           mkdir -p dist
-          AMBERC=.build/dependencies/amber-lang/build/amberc
+          SPUTNIK=.build/dependencies/sputnik-lang/build/sputnik
           VERSION_VALUE=$(tr -d '\n' < VERSION)
-          "${AMBERC}" package-build amber.toml "dist/ember-${VERSION_VALUE}.first.amberpkg" --sign-key "${EMBER_PACKAGE_SIGNING_KEY}" --key-id "${EMBER_PACKAGE_KEY_ID}" >/dev/null
-          "${AMBERC}" package-build amber.toml "dist/ember-${VERSION_VALUE}.second.amberpkg" --sign-key "${EMBER_PACKAGE_SIGNING_KEY}" --key-id "${EMBER_PACKAGE_KEY_ID}" >/dev/null
-          cmp "dist/ember-${VERSION_VALUE}.first.amberpkg" "dist/ember-${VERSION_VALUE}.second.amberpkg"
-          mv "dist/ember-${VERSION_VALUE}.first.amberpkg" "dist/ember-${VERSION_VALUE}.amberpkg"
-          rm "dist/ember-${VERSION_VALUE}.second.amberpkg"
-          "${AMBERC}" package-verify "dist/ember-${VERSION_VALUE}.amberpkg" --sign-key "${EMBER_PACKAGE_SIGNING_KEY}" >/dev/null
-          "${AMBERC}" package-build packages/ember-orm/amber.toml "dist/ember-orm-${VERSION_VALUE}.first.amberpkg" --sign-key "${EMBER_PACKAGE_SIGNING_KEY}" --key-id "${EMBER_PACKAGE_KEY_ID}" >/dev/null
-          "${AMBERC}" package-build packages/ember-orm/amber.toml "dist/ember-orm-${VERSION_VALUE}.second.amberpkg" --sign-key "${EMBER_PACKAGE_SIGNING_KEY}" --key-id "${EMBER_PACKAGE_KEY_ID}" >/dev/null
-          cmp "dist/ember-orm-${VERSION_VALUE}.first.amberpkg" "dist/ember-orm-${VERSION_VALUE}.second.amberpkg"
-          mv "dist/ember-orm-${VERSION_VALUE}.first.amberpkg" "dist/ember-orm-${VERSION_VALUE}.amberpkg"
-          rm "dist/ember-orm-${VERSION_VALUE}.second.amberpkg"
-          "${AMBERC}" package-verify "dist/ember-orm-${VERSION_VALUE}.amberpkg" --sign-key "${EMBER_PACKAGE_SIGNING_KEY}" >/dev/null
+          "${SPUTNIK}" package-build sputnik.toml "dist/ember-${VERSION_VALUE}.first.sputnikpkg" --sign-key "${EMBER_PACKAGE_SIGNING_KEY}" --key-id "${EMBER_PACKAGE_KEY_ID}" >/dev/null
+          "${SPUTNIK}" package-build sputnik.toml "dist/ember-${VERSION_VALUE}.second.sputnikpkg" --sign-key "${EMBER_PACKAGE_SIGNING_KEY}" --key-id "${EMBER_PACKAGE_KEY_ID}" >/dev/null
+          cmp "dist/ember-${VERSION_VALUE}.first.sputnikpkg" "dist/ember-${VERSION_VALUE}.second.sputnikpkg"
+          mv "dist/ember-${VERSION_VALUE}.first.sputnikpkg" "dist/ember-${VERSION_VALUE}.sputnikpkg"
+          rm "dist/ember-${VERSION_VALUE}.second.sputnikpkg"
+          "${SPUTNIK}" package-verify "dist/ember-${VERSION_VALUE}.sputnikpkg" --sign-key "${EMBER_PACKAGE_SIGNING_KEY}" >/dev/null
+          "${SPUTNIK}" package-build packages/ember-orm/sputnik.toml "dist/ember-orm-${VERSION_VALUE}.first.sputnikpkg" --sign-key "${EMBER_PACKAGE_SIGNING_KEY}" --key-id "${EMBER_PACKAGE_KEY_ID}" >/dev/null
+          "${SPUTNIK}" package-build packages/ember-orm/sputnik.toml "dist/ember-orm-${VERSION_VALUE}.second.sputnikpkg" --sign-key "${EMBER_PACKAGE_SIGNING_KEY}" --key-id "${EMBER_PACKAGE_KEY_ID}" >/dev/null
+          cmp "dist/ember-orm-${VERSION_VALUE}.first.sputnikpkg" "dist/ember-orm-${VERSION_VALUE}.second.sputnikpkg"
+          mv "dist/ember-orm-${VERSION_VALUE}.first.sputnikpkg" "dist/ember-orm-${VERSION_VALUE}.sputnikpkg"
+          rm "dist/ember-orm-${VERSION_VALUE}.second.sputnikpkg"
+          "${SPUTNIK}" package-verify "dist/ember-orm-${VERSION_VALUE}.sputnikpkg" --sign-key "${EMBER_PACKAGE_SIGNING_KEY}" >/dev/null
           git archive --format=tar --prefix="ember-${VERSION_VALUE}/" "${GITHUB_REF_NAME}" | gzip -n > "dist/ember-${VERSION_VALUE}.tar.gz"
       - name: Checksums and release evidence
         run: |

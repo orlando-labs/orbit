@@ -71,7 +71,7 @@ def item_payload(token):
   {
     item: {
       sku: "SOAK-" + token,
-      name: "Amber soak catalog item " + token,
+      name: "Sputnik soak catalog item " + token,
       description: "Representative durable catalog item used by the Ember RC soak client.",
       category: "hardware",
       status: "active",
@@ -86,9 +86,9 @@ def item_payload(token):
       color: "graphite",
       size: "standard",
       rating_milli: 4750,
-      tags: ["amber", "soak", "catalog"],
+      tags: ["sputnik", "soak", "catalog"],
       metadata: {
-        source: "amber-client",
+        source: "sputnik-client",
         batch: token,
         fragile: false
       }
@@ -148,7 +148,7 @@ def positive_cycle(client, base_url, worker, iteration, stats):
         item: {
           status: "paused",
           stock_count: 249,
-          tags: ["amber", "soak", "patched"]
+          tags: ["sputnik", "soak", "patched"]
         }
       })),
     200,

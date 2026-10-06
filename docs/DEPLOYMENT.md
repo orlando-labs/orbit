@@ -77,7 +77,7 @@ visible in startup telemetry. Secrets never appear in command output or logs.
 
 The concrete stage-3 configuration uses `ember.SecurityPolicy`:
 
-```amber
+```sputnik
 security = ember.SecurityPolicy(
   allowed_hosts: ["app.example.test"],
   trusted_proxy_cidrs: ["10.20.0.0/16"],

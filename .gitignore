@@ -2,7 +2,7 @@ out/
 out-*/
 cache/
 cache-*/
-*.amberbc
+*.sputnikbc
 *.native.cpp
 .build/
 dist/
@@ -10,3 +10,9 @@ dist/
 # Local soak evidence and platform metadata.
 /runs/
 .DS_Store
+
+# Generated benchmark/profiling evidence.
+/benchmark/results/
+*.profraw
+*.profdata
+*.dSYM/

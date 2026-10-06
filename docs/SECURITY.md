@@ -17,7 +17,7 @@ therefore contain exactly one valid `Host` header; `ember.testing` supplies
 
 Production must construct the policy explicitly:
 
-```amber
+```sputnik
 policy = ember.SecurityPolicy(
   allowed_hosts: ["app.example.test"],
   trusted_proxy_cidrs: ["10.20.0.0/16"],
@@ -42,7 +42,7 @@ every intermediate address must also be trusted. Ambiguity is rejected.
 
 Arbitrary IPv4 CIDR prefixes and exact IPv6 `/128` proxy entries are supported.
 Broader IPv6 proxy networks are intentionally rejected until a canonical IPv6
-CIDR parser is part of the supported Amber runtime. Deployments that require a
+CIDR parser is part of the supported Sputnik runtime. Deployments that require a
 broader IPv6 range must use an IPv4/private edge hop or enumerate exact IPv6
 addresses.
 

@@ -1,4 +1,4 @@
-schema: amber.build.v1
+schema: sputnik.build.v1
 name: ember.example.soak.client
 root: ember.example.soak.client
 
@@ -9,4 +9,4 @@ profiles:
 
 modules:
   - name: ember.example.soak.client
-    path: client.am
+    path: client.s

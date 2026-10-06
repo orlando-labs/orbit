@@ -7,7 +7,7 @@ from ember.middleware import request_id
 export main
 
 def home(request):
-  ember.redirect(to: request.routes.path(:hello, name: "Amber"))
+  ember.redirect(to: request.routes.path(:hello, name: "Sputnik"))
 
 def hello(request, name):
   ember.render(html: page(name))

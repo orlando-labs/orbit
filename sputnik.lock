@@ -1,5 +1,5 @@
-# amber.lock v1
-schema = "amber.lock.v1"
+# sputnik.lock v1
+schema = "sputnik.lock.v1"
 
 [package]
 name = "ember"

@@ -1,4 +1,4 @@
-schema: amber.build.v1
+schema: sputnik.build.v1
 name: ember.strong_params_selftest
 root: ember.strong_params_selftest
 
@@ -9,8 +9,8 @@ profiles:
 
 modules:
   - name: ember
-    path: ../src/ember.am
+    path: ../src/ember.s
   - name: ember.testing
-    path: ../src/ember/testing.am
+    path: ../src/ember/testing.s
   - name: ember.strong_params_selftest
-    path: strong_params_selftest.am
+    path: strong_params_selftest.s

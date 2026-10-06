@@ -1,4 +1,4 @@
-schema: amber.build.v1
+schema: sputnik.build.v1
 name: ember.contract_selftest
 root: ember.contract_selftest
 
@@ -9,8 +9,8 @@ profiles:
 
 modules:
   - name: ember
-    path: ../src/ember.am
+    path: ../src/ember.s
   - name: ember.testing
-    path: ../src/ember/testing.am
+    path: ../src/ember/testing.s
   - name: ember.contract_selftest
-    path: contract_selftest.am
+    path: contract_selftest.s

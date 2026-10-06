@@ -39,7 +39,7 @@ TLS и HTTP/2/3 можно оставить нижнему транспортн�
 | 2. Production transport, 3–4 недели — **выполнен 2026-07-21** | Server handle, stop accepting, drain in-flight requests, shutdown deadline, keep-alive, overload policy, integration start/stop; корректные HEAD/204/304/1xx semantics | Graceful shutdown воспроизводим; нет потерянных ORM leases и зависших streams; HTTP conformance suite зелёный |
 | 3. Security baseline, 3–4 недели — **выполнен 2026-07-22** | Host authorization, explicit trusted-proxy/CIDR policy, secure request-id validation, security headers, CORS; cookies, signed/encrypted sessions, CSRF, multipart с жёсткими лимитами; context-aware HTML или запрет опасных контекстов | Threat model закрыт; выполнен framework-relevant профиль [OWASP ASVS 5.0](https://owasp.org/www-project-application-security-verification-standard/); нет critical/high findings |
 | 4. Observability и performance, 2–3 недели — **выполнен 2026-07-22** | Structured access/error logs, redaction, route template вместо raw path, duration/bytes/status; metrics, tracing, health/readiness; router и streaming benchmarks | Совместимость с [OpenTelemetry HTTP conventions](https://opentelemetry.io/docs/specs/semconv/http/http-spans/); определены p50/p95/p99 бюджеты и regression threshold |
-| 5. Release engineering и DX, 2–3 недели — **выполнен 2026-07-22** | CI matrix, versioned packages вместо sibling paths, SemVer, changelog, license, security policy, supported Amber versions; API reference, deployment/runbook и migration guide | Установка и сборка выполняются из чистого окружения одной документированной командой |
+| 5. Release engineering и DX, 2–3 недели — **выполнен 2026-07-22** | CI matrix, versioned packages вместо sibling paths, SemVer, changelog, license, security policy, supported Sputnik versions; API reference, deployment/runbook и migration guide | Установка и сборка выполняются из чистого окружения одной документированной командой |
 | RC, 2 недели | Реальное приложение за reverse proxy, canary, нагрузка, disconnect/timeout/kill tests, rollback rehearsal | 72-часовой soak без утечек/неограниченного роста памяти; 24 часа fuzzing без crash; подтверждён rollback |
 
 ### Результат этапа 0
@@ -52,10 +52,10 @@ TLS и HTTP/2/3 можно оставить нижнему транспортн�
 - [Модель edge deployment](docs/DEPLOYMENT.md) задаёт поддерживаемый профиль за
   TLS reverse proxy, trust boundary и startup/shutdown lifecycle.
 - [Compatibility policy](docs/COMPATIBILITY.md) задаёт SemVer, deprecation,
-  матрицу Ember × Amber/runtime/platform и срок поддержки.
+  матрицу Ember × Sputnik/runtime/platform и срок поддержки.
 - [Definition of production-ready](docs/PRODUCTION_READINESS.md) превращает
   этапы 1–5 и RC в измеримые release gates с обязательными доказательствами.
-- `test/contract_selftest.am` проверяет уже реализованные решения этапа 0;
+- `test/contract_selftest.s` проверяет уже реализованные решения этапа 0;
   оставшиеся нормативные transport/status invariants явно назначены этапам 1–2.
 
 ### Результат этапа 1
@@ -64,7 +64,7 @@ TLS и HTTP/2/3 можно оставить нижнему транспортн�
 - Streaming-safe middleware сохраняет тип response и повторяемые заголовки; cancellation/runtime control flow не превращается в `500`.
 - Immutable snapshots усилены для routes, matches, request metadata и headers; `on_error` получает редактированный `ErrorEvent`.
 - Все server limits/timeouts доступны через `App`, валидируются до bind.
-- `test/stage1_selftest.am` покрывает invariants, отрицательные случаи и route/path round-trip property corpus.
+- `test/stage1_selftest.s` покрывает invariants, отрицательные случаи и route/path round-trip property corpus.
 
 ### Результат этапа 2
 
@@ -72,7 +72,7 @@ TLS и HTTP/2/3 можно оставить нижнему транспортн�
 - HTTP/1.1 transport поддерживает bounded keep-alive/pipelining, idle timeout, ограничение запросов на соединение и немедленный `503` при исчерпании hard capacity.
 - Lifecycle-aware integrations наследуют `ember.Integration`; их hooks запускаются до readiness и останавливаются после drain/cancellation в обратном порядке, а startup failure выполняет unwind уже запущенных hooks. ORM pool закрывается только после освобождения request lease.
 - Wire rules для `HEAD`, final `1xx`, `204`, `205`, `304`, `Content-Length`, `Transfer-Encoding`, trailers и malformed Host/CL-TE/obs-fold проверяются до/на границе transport.
-- `test/stage2_selftest.am` и `amber-lang/tests/vm_net_http_tests.cpp` воспроизводят keep-alive, raw-socket conformance, overload, clean/forced shutdown и cancel/unwind без потерянных leases или зависших задач.
+- `test/stage2_selftest.s` и `sputnik-lang/tests/vm_net_http_tests.cpp` воспроизводят keep-alive, raw-socket conformance, overload, clean/forced shutdown и cancel/unwind без потерянных leases или зависших задач.
 - Конкретный API и операционные ограничения опубликованы в [TRANSPORT.md](docs/TRANSPORT.md).
 
 ### Результат этапа 3
@@ -82,7 +82,7 @@ TLS и HTTP/2/3 можно оставить нижнему транспортн�
 - Новый `ember.security` реализует bounded Cookie/Set-Cookie, HMAC-signed values, RFC 8439 ChaCha20-Poly1305 encrypted sessions с expiry/key rotation, exact CORS и session-bound signed double-submit CSRF.
 - Новый `ember.multipart` строго разбирает `multipart/form-data` с aggregate/part/header/field/file/name limits и запретом path-like filenames; storage/content validation оставлены явной политикой приложения.
 - `ember.html` различает text, quoted attribute, URL, JavaScript, CSS, event, srcdoc и запрещённые контексты; URL/script/style требуют typed wrappers, comments/tag syntax/unquoted attributes завершают macro expansion ошибкой `EMBER_HTML_CONTEXT`.
-- `test/stage3_selftest.am` проверяет positive/negative security corpus и официальный RFC 8439 vector; два compile-fail fixture закрепляют запрет неоднозначных HTML-контекстов.
+- `test/stage3_selftest.s` проверяет positive/negative security corpus и официальный RFC 8439 vector; два compile-fail fixture закрепляют запрет неоднозначных HTML-контекстов.
 - Опубликованы [security contract](docs/SECURITY.md), versioned [threat model](docs/THREAT_MODEL.md), [OWASP ASVS 5.0.0 mapping](docs/ASVS_5_MAPPING.md) и [security review/scan record](docs/SECURITY_REVIEW.md). Открытых critical/high findings нет; lower-severity risks имеют владельца и release gate.
 
 ### Результат этапа 4
@@ -93,16 +93,16 @@ TLS и HTTP/2/3 можно оставить нижнему транспортн�
 - W3C `traceparent` принимается только от validated trusted proxy; server spans используют актуальные OpenTelemetry HTTP names, low-cardinality span name и privacy-safe path default.
 - `HealthProbe` привязан к `ServerHandle`: readiness меняется на `503` до bind и при drain, liveness остаётся process-local.
 - `benchmark/` покрывает small JSON, buffered HTML, 1K/4096 routes, full-duplex streaming, keep-alive и ORM pool exhaustion; опубликованы named environment, machine-readable baseline/budgets и автоматический 10% regression gate.
-- Контракт и доказательства опубликованы в [OBSERVABILITY.md](docs/OBSERVABILITY.md), [PERFORMANCE.md](docs/PERFORMANCE.md) и `test/stage4_selftest.am`.
+- Контракт и доказательства опубликованы в [OBSERVABILITY.md](docs/OBSERVABILITY.md), [PERFORMANCE.md](docs/PERFORMANCE.md) и `test/stage4_selftest.s`.
 
 ### Результат этапа 5
 
 - Зафиксирован SemVer `1.0.0-rc.1`; core и ORM integration разделены на
-  versioned `ember`/`ember-orm` packages с детерминированными `amber.lock`.
+  versioned `ember`/`ember-orm` packages с детерминированными `sputnik.lock`.
 - `release/dependencies.lock.json` фиксирует версии, commits и tree digests
-  Amber/ORM/SQLite; все tracked build manifests используют только внутренний
+  Sputnik/ORM/SQLite; все tracked build manifests используют только внутренний
   `.build/dependencies`, который clean-room resolver создаёт без sibling checkout.
-- `./script/clean-room-build` одной командой разрешает Amber, дважды собирает и
+- `./script/clean-room-build` одной командой разрешает Sputnik, дважды собирает и
   сравнивает package, проверяет/устанавливает его, компилирует и запускает API
   example и компилирует server example.
 - GitHub CI покрывает static/docs/locks, все self/property/security/telemetry
@@ -117,11 +117,11 @@ TLS и HTTP/2/3 можно оставить нижнему транспортн�
   [migration guide](docs/MIGRATION_1_0.md), [release checklist](docs/RELEASING.md),
   `LICENSE`, `CHANGELOG.md` и root `SECURITY.md`; API/export inventory и локальные
   links проверяются автоматически.
-- `test/api_reference_selftest.am` компилирует документированные core examples,
-  `test/stage5_fuzz_smoke.am` закрепляет bounded percent/query/JSON/multipart и
+- `test/api_reference_selftest.s` компилирует документированные core examples,
+  `test/stage5_fuzz_smoke.s` закрепляет bounded percent/query/JSON/multipart и
   raw HTTP framing corpus. Длительное coverage-guided fuzzing остаётся RC gate.
 - `examples/soak` содержит controller-based REST-сервис для модели с 22
-  сохраняемыми атрибутами и Amber-клиент полного CRUD/4xx-контракта;
+  сохраняемыми атрибутами и Sputnik-клиент полного CRUD/4xx-контракта;
   `script/soak` воспроизводимо собирает их, выполняет CI smoke и готовит
   временные ряды RSS/FD/application metrics и итоговый отчёт для настоящего
   72-часового прогона. Формат и критерии описаны в
@@ -135,7 +135,7 @@ TLS и HTTP/2/3 можно оставить нижнему транспортн�
 - fuzzing percent decoding, query/JSON/multipart и HTTP framing; для C++-части подходит continuous fuzzing наподобие [ClusterFuzzLite](https://github.com/google/clusterfuzzlite);
 - concurrency, cancellation, slowloris, slow reader/writer, client disconnect;
 - load/soak профили для small JSON, 1K/4K routes, streaming, ORM pool exhaustion;
-- compatibility matrix Ember × Amber compiler/runtime.
+- compatibility matrix Ember × Sputnik compiler/runtime.
 
 ## Приоритеты
 

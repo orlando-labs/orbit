@@ -24,7 +24,7 @@ jobs:
         run: ./script/ci static
 
   compatibility:
-    name: Amber 0.1.0-dev / ${{ matrix.platform }}
+    name: Sputnik 0.1.0-dev / ${{ matrix.platform }}
     strategy:
       fail-fast: false
       matrix:
@@ -48,20 +48,20 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: orlando-labs/amber-lang
-          ref: a27e7a7423c31ff1206f961be534e6cc445b733b
-          path: .dependency-source/amber-lang
+          ref: 3383a5eecb4466077dd7ba580698a22ae40dbd3d
+          path: .dependency-source/sputnik-lang
           token: ${{ secrets.DEPENDENCY_READ_TOKEN || github.token }}
       - uses: actions/checkout@v4
         with:
           repository: orlando-labs/amber-orm
-          ref: 1e64d37859f7e1b6f92ebcebb01df9c4f599ff86
-          path: .dependency-source/amber-orm
+          ref: 3575602c2f03a3337dec5685eafecbe9d918597f
+          path: .dependency-source/sputnik-orm
           token: ${{ secrets.DEPENDENCY_READ_TOKEN || github.token }}
       - uses: actions/checkout@v4
         with:
           repository: orlando-labs/sqlite3-amber
-          ref: 8ffb543bf7678e3011dce8e8e58276b6d9725f88
-          path: .dependency-source/sqlite3-amber
+          ref: 96f3a62a19f448fc231268fcac33fddf9958e83e
+          path: .dependency-source/sqlite3-sputnik
           token: ${{ secrets.DEPENDENCY_READ_TOKEN || github.token }}
       - name: ORM, SQLite native extension, integration example, and CRUD soak smoke
         env:

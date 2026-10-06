@@ -5,8 +5,8 @@ root = "ember.integrations.orm"
 
 [[modules]]
 name = "ember.integrations.orm"
-path = "src/ember/integrations/orm.am"
+path = "src/ember/integrations/orm.s"
 
 [dependencies]
-amber-orm = "0.1.0-dev"
+sputnik-orm = "0.1.0-dev"
 ember = "1.0.0-rc.1"

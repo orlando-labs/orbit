@@ -2,9 +2,9 @@
 
 `examples/soak` is the release-candidate reference workload. It consists of a
 controller-based Ember service backed by the locked ORM/SQLite integration and
-an Amber `net.http` client. Python is used only to build processes, sample
+an Sputnik `net.http` client. Python is used only to build processes, sample
 operating-system resources, and produce evidence; every application request is
-generated and checked by the Amber client.
+generated and checked by the Sputnik client.
 
 ## Application contract
 
@@ -24,7 +24,7 @@ provides:
 
 The handlers are ordinary `ember.Controller` methods. Bare `params`, `request`,
 `render`, and `service` are lexical-first dynamic nullary sends to the
-controller receiver; the example intentionally exercises that Amber language
+controller receiver; the example intentionally exercises that Sputnik language
 contract instead of spelling Python-like `self.*` throughout.
 
 Strong-parameter schemas own transport shape and type checks. Catalog domain
@@ -57,7 +57,7 @@ From a clean checkout:
 ```
 
 This resolves the exact revisions in `release/dependencies.lock.json`, builds
-both Amber programs without cache, starts the service, runs one full CRUD/4xx
+both Sputnik programs without cache, starts the service, runs one full CRUD/4xx
 cycle, verifies idle metrics, and performs graceful shutdown. CI runs this gate
 on the ORM/SQLite integration row.
 
@@ -98,11 +98,11 @@ The output directory contains:
 - `run.json`: immutable inputs and provenance;
 - `samples.jsonl`: timestamped resource and application metrics;
 - `report.json`: aggregate traffic, thresholds, slopes, checks, and verdict;
-- separate stdout/stderr logs for the service and every Amber client;
+- separate stdout/stderr logs for the service and every Sputnik client;
 - the exact service/client binaries and SQLite database used by the run.
 
 `report.json` sets `qualifies_as_72h_evidence` only when the run passed and the
-shortest-lived Amber worker itself reached at least 259,200 seconds. The source
+shortest-lived Sputnik worker itself reached at least 259,200 seconds. The source
 tree must also have no tracked or staged changes. Untracked local files and soak
 artifacts are recorded in `run.json` but do not disqualify evidence because they
 cannot change the committed source revision. A dirty tracked-tree run remains

@@ -5,11 +5,11 @@ built from an annotated SemVer tag and never from an uncommitted worktree.
 
 ## Candidate checklist
 
-- [ ] `VERSION`, both `amber.toml` files, lock files, public API manifest,
+- [ ] `VERSION`, both `sputnik.toml` files, lock files, public API manifest,
       changelog, migration notes, compatibility matrix, and evidence version
       agree.
 - [ ] Dependency revisions and trees are immutable and available to the clean
-      resolver; compiler, runtime, and stdlib come from one Amber revision.
+      resolver; compiler, runtime, and stdlib come from one Sputnik revision.
 - [ ] Formatting/static, core, HTTP conformance, fuzz smoke, native,
       integration, representative CRUD/4xx soak smoke, examples,
       documentation, clean-room, and every platform matrix job are green at

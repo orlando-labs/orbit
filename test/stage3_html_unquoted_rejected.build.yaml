@@ -1,4 +1,4 @@
-schema: amber.build.v1
+schema: sputnik.build.v1
 name: ember.stage3_html_unquoted_rejected
 root: ember.stage3_html_unquoted_rejected
 
@@ -9,8 +9,8 @@ profiles:
 
 modules:
   - name: ember
-    path: ../src/ember.am
+    path: ../src/ember.s
   - name: ember.html
-    path: ../src/ember/html.am
+    path: ../src/ember/html.s
   - name: ember.stage3_html_unquoted_rejected
-    path: stage3_html_unquoted_rejected.am
+    path: stage3_html_unquoted_rejected.s

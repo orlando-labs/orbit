@@ -5,7 +5,7 @@ Status: normative `1.0.0-rc.1` candidate, accepted 2026-07-19 by
 
 An Ember name is public only when it is listed here or in a versioned API
 reference shipped with a release. Export visibility alone is insufficient:
-Amber macros require a few implementation helpers to be exported. Undocumented
+Sputnik macros require a few implementation helpers to be exported. Undocumented
 attributes, concrete collection classes, generated code, exception message
 text, and names beginning with `__` or `_` are internal.
 
@@ -127,7 +127,7 @@ The following are public:
 values. Header reads through `header(name)` and values passed through
 constructors/helpers are stable.
 `to_server_response()` is a public adapter bridge for server integrations, but
-the concrete `net.http` value it returns follows the supported Amber version.
+the concrete `net.http` value it returns follows the supported Sputnik version.
 
 `Headers(source = null)` is a public immutable, case-insensitive, ordered
 multi-value collection. Supported reads are `first`, `all`, `include?`,
@@ -283,7 +283,7 @@ request-scoped lease behavior and safe `503` mapping for pool timeout/closed/
 lease failures are stable. `PoolIntegration` also implements the server
 lifecycle: it rejects an already-closed pool at startup, reports readiness,
 and closes the pool after drain/cancellation. ORM model/query APIs belong to
-`amber-orm`.
+`sputnik-orm`.
 
 ## Explicitly out of scope
 
@@ -291,4 +291,4 @@ No compatibility is promised for private methods, `__*` helpers, generated
 macro AST, header ordering where HTTP says order is insignificant, access-log
 text, default error body wording, compiler diagnostics other than documented
 diagnostic identifiers, build artifacts, cache layout, or direct imports of
-transitive Amber/ORM/SQLite implementation modules.
+transitive Sputnik/ORM/SQLite implementation modules.

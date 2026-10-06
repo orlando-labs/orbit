@@ -58,17 +58,17 @@ def resolve_compiler(explicit: Path | None) -> Path:
     if explicit:
         compiler = explicit.resolve()
         if not compiler.is_file():
-            raise RuntimeError(f"Amber compiler does not exist: {compiler}")
+            raise RuntimeError(f"Sputnik compiler does not exist: {compiler}")
         return compiler
     sync = [sys.executable, str(ROOT / "script/dependencies.py"), "sync", "--scope", "all"]
     local = os.environ.get("EMBER_LOCAL_SOURCE_ROOT")
     if local:
         sync += ["--local-source-root", local]
     command(sync)
-    source = ROOT / ".build" / "dependencies" / "amber-lang"
+    source = ROOT / ".build" / "dependencies" / "sputnik-lang"
     jobs = str(max(1, min(4, os.cpu_count() or 1)))
-    command(["make", f"-j{jobs}", "build/amberc"], cwd=source)
-    return source / "build" / "amberc"
+    command(["make", f"-j{jobs}", "build/sputnik"], cwd=source)
+    return source / "build" / "sputnik"
 
 
 def build(compiler: Path) -> tuple[Path, Path]:
@@ -510,7 +510,7 @@ def aggregate_clients(results: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def run_workload(args: argparse.Namespace, smoke: bool) -> int:
-    compiler = resolve_compiler(args.amberc)
+    compiler = resolve_compiler(args.sputnik)
     binaries = built_binaries() if args.skip_build else build(compiler)
     stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     artifacts = (args.artifacts or BUILD / "runs" / stamp).resolve()
@@ -644,7 +644,7 @@ def run_workload(args: argparse.Namespace, smoke: bool) -> int:
                 if all(status is not None for status in client_statuses):
                     break
             elif any(status is not None for status in client_statuses):
-                errors.append("an Amber client exited before the soak deadline")
+                errors.append("an Sputnik client exited before the soak deadline")
                 break
             if now >= deadline:
                 break
@@ -893,7 +893,7 @@ def run_workload(args: argparse.Namespace, smoke: bool) -> int:
 
 
 def add_run_arguments(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("--amberc", type=Path)
+    parser.add_argument("--sputnik", type=Path)
     parser.add_argument("--skip-build", action="store_true")
     parser.add_argument("--artifacts", type=Path)
     parser.add_argument("--port", type=int, default=3300)
@@ -920,8 +920,8 @@ def add_run_arguments(parser: argparse.ArgumentParser) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
-    build_parser = subparsers.add_parser("build", help="build the Amber service and client")
-    build_parser.add_argument("--amberc", type=Path)
+    build_parser = subparsers.add_parser("build", help="build the Sputnik service and client")
+    build_parser.add_argument("--sputnik", type=Path)
     smoke_parser = subparsers.add_parser("smoke", help="run one complete CRUD/4xx cycle")
     add_run_arguments(smoke_parser)
     smoke_parser.add_argument("--smoke-timeout", type=float, default=180.0)
@@ -931,7 +931,7 @@ def main() -> int:
     run_parser.set_defaults(smoke_timeout=0.0)
     args = parser.parse_args()
     if args.command == "build":
-        build(resolve_compiler(args.amberc))
+        build(resolve_compiler(args.sputnik))
         return 0
     for name in ("port", "clients", "server_workers", "pool_size", "negative_every"):
         if getattr(args, name) <= 0:

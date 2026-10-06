@@ -26,7 +26,7 @@ Status meanings:
 | v5.0.0-1.2.4 | A | ORM-neutral Ember does not construct SQL. Applications must use parameterized ORM/query APIs; strong parameters do not replace query parameterization. |
 | v5.0.0-1.3.1, 1.3.4, 1.3.5 | A | Ember does not claim to sanitize user HTML/SVG/Markdown/CSS. `raw` and trusted wrappers are explicit review points; applications select a maintained sanitizer. |
 | v5.0.0-1.3.7 | F/A | Templates are compiler source, never loaded from request data. Explicit raw/trusted values remain application responsibility. |
-| v5.0.0-1.4.1..1.4.3 | D/P | Ember is Amber source; the C++ compiler/runtime boundary is reviewed and exercised by native suites. Sanitizer/hardening CI and immutable runtime provenance are gate-5/RC evidence. |
+| v5.0.0-1.4.1..1.4.3 | D/P | Ember is Sputnik source; the C++ compiler/runtime boundary is reviewed and exercised by native suites. Sanitizer/hardening CI and immutable runtime provenance are gate-5/RC evidence. |
 | v5.0.0-1.5.2, 1.5.3 | F/A | No generic client-selected object deserializer exists. JSON and multipart produce bounded data values; application schemas remain required. |
 | v5.0.0-3.1.1 | D | Browser requirements, HTTPS behavior, HSTS/CSP defaults, and unsupported clients/configurations are documented in `SECURITY.md` and `DEPLOYMENT.md`. |
 | v5.0.0-3.2.1, 3.2.2 | F/A | Correct content types, `nosniff`, CSP, and escaped HTML/text renderers. Serving user uploads and active content remains application policy. |
@@ -70,13 +70,13 @@ evidence must still reassess those chapters for the actual application.
 
 ## Evidence index
 
-- `test/stage3_selftest.am`: positive and negative Host/proxy, request ID,
+- `test/stage3_selftest.s`: positive and negative Host/proxy, request ID,
   RFC 8439, tamper/expiry, cookies, CORS, CSRF, multipart, and HTML cases.
-- `test/stage4_selftest.am` and `docs/OBSERVABILITY.md`: structured logging,
+- `test/stage4_selftest.s` and `docs/OBSERVABILITY.md`: structured logging,
   configured redaction, trusted trace context, bounded metrics, and probes.
 - `test/stage3_html_unquoted_rejected.*` and
   `test/stage3_html_comment_rejected.*`: expected macro-expansion failures.
-- `test/stage2_selftest.am` and Amber runtime native HTTP tests: framing,
+- `test/stage2_selftest.s` and Sputnik runtime native HTTP tests: framing,
   connection, overload, disconnect, and lifecycle boundary.
 - [THREAT_MODEL.md](THREAT_MODEL.md), [SECURITY.md](SECURITY.md), and
   [SECURITY_REVIEW.md](SECURITY_REVIEW.md): design, operations, scans, findings,

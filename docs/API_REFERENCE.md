@@ -144,8 +144,8 @@ content-type, headers, bytes, text, and `file?`; forms expose `parts`, `first`,
 
 Install the separate `ember-orm` package to use `pool`, `connection`,
 `PoolIntegration`, and `ConnectionMiddleware`. It pins `ember` and
-`amber-orm`; applications that use the SQLite adapter additionally pin the
-tested `sqlite3-amber` row from [COMPATIBILITY.md](COMPATIBILITY.md). Core
+`sputnik-orm`; applications that use the SQLite adapter additionally pin the
+tested `sqlite3-sputnik` row from [COMPATIBILITY.md](COMPATIBILITY.md). Core
 Ember has no ORM, SQLite, or FFI dependency.
 
 ## Unsupported preview surface
@@ -154,4 +154,4 @@ The following are intentionally not part of this reference: direct public
 TLS, HTTP/2/3, WebSocket, hot reload, generators/resources, `.amv`, asset
 pipeline, dynamic route replacement, exported `__*` macro plumbing, exported
 single-underscore HTML macro helpers, log text formatting, generated code,
-cache paths, and concrete transitive Amber/ORM/SQLite implementation details.
+cache paths, and concrete transitive Sputnik/ORM/SQLite implementation details.

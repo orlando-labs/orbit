@@ -58,7 +58,7 @@ def main():
       app.call(request).to_server_response
 
   response = Client().get(
-    "http://127.0.0.1:#{port}/hello/Amber?source=loopback",
+    "http://127.0.0.1:#{port}/hello/Sputnik?source=loopback",
     headers: {"x-request-id": "http-selftest", "connection": "close"})
   body = response.body_text()
 
@@ -89,7 +89,7 @@ def main():
     "loopback status: " + response.status.to_str + ":" + body)
   assert(response.headers.first("content-type") == "application/json; charset=utf-8", "loopback type")
   assert(response.headers.first("x-ember") == "yes", "loopback response header")
-  assert(body.contains?("hello Amber"), "loopback route capture")
+  assert(body.contains?("hello Sputnik"), "loopback route capture")
   assert(body.contains?("loopback"), "loopback query parsing")
   assert(body.contains?("http-selftest"), "loopback request header")
   assert(events_response.headers.first("transfer-encoding") == "chunked", "stream chunked framing")

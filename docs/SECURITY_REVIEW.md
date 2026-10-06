@@ -2,7 +2,7 @@
 
 Review date: 2026-07-22  
 Ember base revision: `35f492bb0d2aec40a7849bb327929eb85061b582` plus the stage-3 working-tree change set  
-Compiler: locked `amberc 0.1.0-dev` revision `14b32257e0e7b3b10e4dff6bf97a1bd0c757380c`
+Compiler: locked `sputnik 0.1.0-dev` revision `14b32257e0e7b3b10e4dff6bf97a1bd0c757380c`
 Verdict: **zero open critical/high findings** in the reviewed stage-3 scope.
 
 This is an internal source/configuration review and regression record, not a
@@ -11,16 +11,16 @@ attestation. Those stronger artifacts remain release/RC gates.
 
 ## Reviewed scope
 
-- `src/ember.am`: HTTP values, Host authorization, proxy trust, provenance,
+- `src/ember.s`: HTTP values, Host authorization, proxy trust, provenance,
   security headers, application error boundary, and transport configuration;
-- `src/ember/html.am`: context tracking, escaping, typed trusted wrappers, and
+- `src/ember/html.s`: context tracking, escaping, typed trusted wrappers, and
   compile-time rejection;
-- `src/ember/security.am`: cookie parsing/serialization, HMAC, AEAD session
+- `src/ember/security.s`: cookie parsing/serialization, HMAC, AEAD session
   envelope, CORS, and CSRF;
-- `src/ember/multipart.am`: media type, framing, headers, limits, and filename
+- `src/ember/multipart.s`: media type, framing, headers, limits, and filename
   handling;
 - request-id middleware, testing helpers, manifests, stage-0..3 regression
-  tests, edge documentation, and relevant sibling Amber native HTTP/digest
+  tests, edge documentation, and relevant sibling Sputnik native HTTP/digest
   runtime code.
 
 ## Executed checks
@@ -31,16 +31,16 @@ attestation. Those stronger artifacts remain release/RC gates.
 | Production-source secret pattern scan | `rg` for password/secret/token/API/private-key assignments outside tests/docs | No candidates |
 | Dangerous source primitive scan | `rg` for eval/system/exec/popen/unsafe/raw in `src` | Only documented `Html.raw` trust-boundary calls |
 | Build dependency inventory | Package/source locks and manifest path inventory | Core has no package dependency; companion/integration inputs use exact revision/tree locks and internal clean-room paths |
-| Native boundary primitive scan | Targeted search for unsafe C string/process primitives in relevant Amber HTTP runtime paths | No candidate in the searched HTTP paths |
+| Native boundary primitive scan | Targeted search for unsafe C string/process primitives in relevant Sputnik HTTP runtime paths | No candidate in the searched HTTP paths |
 | Local documentation links | Resolve relative Markdown targets in README, roadmap, and `docs/` | All targets resolve |
 | Fresh stage-3 build | Native `--no-cache --grant random.secure` build and executable | Passed; executable returned `true` |
-| Security regression | `test/stage3_selftest.am` | Host/proxy/request-id/AEAD/cookies/session/CORS/CSRF/multipart/HTML pass |
+| Security regression | `test/stage3_selftest.s` | Host/proxy/request-id/AEAD/cookies/session/CORS/CSRF/multipart/HTML pass |
 | HTML compile-fail | Both `stage3_html_*_rejected.build.yaml` builds | Fail with expected `EMBER_HTML_CONTEXT` |
 | Prior conformance | Stage 0, 1, 2, core, strong-params, HTTP, and ORM self-tests | Passed; every executable returned `true` |
 
 These command results come from a fresh no-cache verification pass over this
 working tree. A release must replace local evidence with immutable CI artifacts
-and exact Ember/Amber/package provenance.
+and exact Ember/Sputnik/package provenance.
 
 ## Review findings
 
@@ -65,7 +65,7 @@ following before closure:
 |---|---|---|---|---|
 | S3-01 | Medium | The source ChaCha20-Poly1305 implementation is standards-vector tested but not independently validated | RFC 8439 vector, authenticated decrypt-before-use, fixed-size tag check, minimum 256-bit material, bounded tokens | Security/release owner; vetted runtime primitive or independent review before 1.0 RC |
 | S3-02 | Resolved | Sibling source dependencies were not version-locked or attested | Versioned core/companion packages, exact revision/tree lock, clean-room resolver, platform/integration CI, reproducible package comparison, release checksums and provenance | Closed by roadmap gate 5; every dependency change re-runs the full release gate |
-| S3-03 | Resolved | Preview access log wrote the raw path and lacked structured redaction | Stage 4 emits bounded JSON events with route templates, request-ID validation, omission of sensitive request material, and configured field redaction | Closed 2026-07-22 by `test/stage4_selftest.am` and `docs/OBSERVABILITY.md` |
+| S3-03 | Resolved | Preview access log wrote the raw path and lacked structured redaction | Stage 4 emits bounded JSON events with route templates, request-ID validation, omission of sensitive request material, and configured field redaction | Closed 2026-07-22 by `test/stage4_selftest.s` and `docs/OBSERVABILITY.md` |
 | S3-04 | Low | Trusted-proxy IPv6 networks accept exact `/128` entries only | Unsupported broader prefixes fail configuration; IPv4 CIDR is complete | Runtime/security; retain restriction or add canonical parser before broader IPv6 deployment |
 | S3-05 | Low | Multipart is bounded but buffered rather than streaming | Default parser and transport aggregate limits are both 1 MiB; strict part/file limits | Framework/application; require `max_body_bytes <= max_total_bytes`, reconsider with streaming parser work |
 
@@ -91,9 +91,9 @@ its native self-test returned `true` and its sensitive-value corpus was absent
 from serialized events.
 
 The stage-5 release-engineering review on 2026-07-22 closed S3-02. The core
-package and ORM companion have deterministic Amber locks; no tracked build
+package and ORM companion have deterministic Sputnik locks; no tracked build
 manifest reads a sibling checkout. `script/clean-room-build` resolves the exact
-Amber revision into `.build`, builds the package twice, compares bytes,
+Sputnik revision into `.build`, builds the package twice, compares bytes,
 verifies/installs it, and compiles/runs the API example. Hosted CI repeats the
 core/native/conformance/fuzz-smoke lane on Linux x86_64, Linux arm64, and macOS
 arm64 and the locked ORM/SQLite integration on Linux x86_64. Official tags add

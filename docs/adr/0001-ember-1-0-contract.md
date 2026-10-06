@@ -70,8 +70,8 @@ Direct public exposure, direct TLS, and HTTP/2/3 inside Ember are not part of th
 
 [The compatibility policy](../COMPATIBILITY.md) uses SemVer after 1.0, treats
 documented semantics and extension protocols as API, and requires a tested
-Ember/Amber/runtime/platform matrix. While Amber is pre-1.0, an Ember minor
-supports one explicit Amber minor line. Preview builds have no production
+Ember/Sputnik/runtime/platform matrix. While Sputnik is pre-1.0, an Ember minor
+supports one explicit Sputnik minor line. Preview builds have no production
 support promise.
 
 [The production-ready definition](../PRODUCTION_READINESS.md) is a mandatory
@@ -128,15 +128,15 @@ Rejected. Macro expansion requires exported plumbing, and implementation
 attributes expose representation choices. An explicit documented allowlist
 gives application authors a clear compatibility boundary.
 
-### Claim broad Amber version compatibility
+### Claim broad Sputnik version compatibility
 
-Rejected while Amber is `0.x`. Source-first framework behavior depends on the
+Rejected while Sputnik is `0.x`. Source-first framework behavior depends on the
 compiler, stdlib, runtime, and `net.http`; only tested matrix rows are supported.
 
 ## Implementation and verification
 
 Stage 0 immediately aligns the safe preview changes (HEAD default and numeric
-status range), adds `test/contract_selftest.am`, and publishes all normative
+status range), adds `test/contract_selftest.s`, and publishes all normative
 documents. Remaining implementation gaps are deliberately assigned to roadmap
 stages 1–5 and appear as unchecked production-readiness gates; they are decided
 behavior, not open semantic questions.

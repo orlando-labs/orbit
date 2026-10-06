@@ -14,7 +14,7 @@ Protected assets are request routing integrity, validated origin/client
 provenance, session confidentiality and integrity, CSRF tokens, application
 data carried in bodies and responses, uploaded bytes, secrets and keys,
 service/ORM resources, logs and error events, availability, and the integrity
-of the Amber compiler/runtime and native HTTP boundary.
+of the Sputnik compiler/runtime and native HTTP boundary.
 
 The baseline aims to prevent an untrusted peer from changing HTTP message
 boundaries, selecting an unauthorized host/origin, injecting active content or
@@ -33,7 +33,7 @@ trusted TLS edge / ingress
         |
         | private or authenticated HTTP/1.1 hop
         v
-Amber native HTTP parser ---> Ember SecurityPolicy ---> router/middleware/app
+Sputnik native HTTP parser ---> Ember SecurityPolicy ---> router/middleware/app
                                       |                         |
                                       | validated provenance    | explicit APIs
                                       v                         v
@@ -54,7 +54,7 @@ remain deployment/application boundaries.
 - The edge removes user-supplied forwarding fields and writes its own values.
 - Production disables exception exposure, keeps all documented limits finite,
   and supplies unpredictable secrets through a secret manager.
-- The supported Amber compiler/runtime revision and native build chain are
+- The supported Sputnik compiler/runtime revision and native build chain are
   reviewed release inputs. Versioned packages, exact revision/tree locks,
   clean-room resolution, reproducible package comparison, checksums, and
   release provenance enforce this assumption.

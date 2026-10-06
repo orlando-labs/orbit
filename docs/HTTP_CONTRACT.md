@@ -144,8 +144,8 @@ classification.
 
 The in-memory and socket adapters must agree on status, method selection,
 headers (apart from hop-by-hop framing), and visible body. Stage 0 routing is
-covered by `test/contract_selftest.am`; stage 1 application invariants by
-`test/stage1_selftest.am`; and stage 2 status/framing/lifecycle conformance by
-`test/stage2_selftest.am` plus the Amber runtime HTTP regression suite. These
+covered by `test/contract_selftest.s`; stage 1 application invariants by
+`test/stage1_selftest.s`; and stage 2 status/framing/lifecycle conformance by
+`test/stage2_selftest.s` plus the Sputnik runtime HTTP regression suite. These
 remain mandatory gates in
 [the production-readiness definition](PRODUCTION_READINESS.md).

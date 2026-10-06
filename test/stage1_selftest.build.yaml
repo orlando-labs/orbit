@@ -1,4 +1,4 @@
-schema: amber.build.v1
+schema: sputnik.build.v1
 name: ember.stage1_selftest
 root: ember.stage1_selftest
 
@@ -9,12 +9,12 @@ profiles:
 
 modules:
   - name: ember
-    path: ../src/ember.am
+    path: ../src/ember.s
   - name: ember.testing
-    path: ../src/ember/testing.am
+    path: ../src/ember/testing.s
   - name: ember.middleware
-    path: ../src/ember/middleware.am
+    path: ../src/ember/middleware.s
   - name: ember.telemetry
-    path: ../src/ember/telemetry.am
+    path: ../src/ember/telemetry.s
   - name: ember.stage1_selftest
-    path: stage1_selftest.am
+    path: stage1_selftest.s

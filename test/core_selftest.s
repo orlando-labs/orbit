@@ -56,7 +56,7 @@ def main():
   app = ember.App(routes: routes, expose_exceptions: true)
 
   assert(routes.routes[2].param_types.empty?, "controller route must not inherit typed params")
-  selected = routes.match("/posts/amber", method: "GET")
+  selected = routes.match("/posts/sputnik", method: "GET")
   assert(selected.kind == :found and selected.match.route.pattern == "/posts/:slug", "parameter route precedence")
 
   root = app.call(testing.get("/"))
@@ -73,11 +73,11 @@ def main():
   invalid_query = app.call(testing.query("/search", body: "SELECT 1"))
   assert(invalid_query.status == 400, "QUERY requires Content-Type")
 
-  controller = app.call(testing.get("/posts/amber"))
+  controller = app.call(testing.get("/posts/sputnik"))
   assert(controller.status == 201, "controller status #{controller.status}: #{controller.body_text}")
   assert(controller.header("x-controller") == "yes", "controller headers: #{controller.headers.keys.join(",")}")
-  assert(controller.header("x-request-path") == "/posts/amber", "bare inherited request helper")
-  assert(controller.body_text == "post amber", "controller body")
+  assert(controller.header("x-request-path") == "/posts/sputnik", "bare inherited request helper")
+  assert(controller.body_text == "post sputnik", "controller body")
 
   literal = routes.match("/posts/new", method: "GET")
   assert(literal.kind == :found and literal.match.route.pattern == "/posts/new", "literal precedence")

@@ -45,7 +45,7 @@ wire behavior.
 
 Production constructs `SecurityPolicy` explicitly:
 
-```amber
+```sputnik
 security = ember.SecurityPolicy(
   allowed_hosts: ["app.example.test"],
   trusted_proxy_cidrs: ["10.20.0.0/16"],

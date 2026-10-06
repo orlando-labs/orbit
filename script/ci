@@ -23,18 +23,18 @@ def sync(scope: str) -> Path:
     if local:
         command += ["--local-source-root", local]
     run(*command)
-    amber_source = ROOT / ".build/dependencies/amber-lang"
+    sputnik_source = ROOT / ".build/dependencies/sputnik-lang"
     jobs = str(max(1, min(4, os.cpu_count() or 1)))
-    run("make", f"-j{jobs}", "build/amberc", cwd=amber_source)
-    return amber_source / "build/amberc"
+    run("make", f"-j{jobs}", "build/sputnik", cwd=sputnik_source)
+    return sputnik_source / "build/sputnik"
 
 
-def build_and_run(amberc: Path, manifest: str, grants: tuple[str, ...] = ()) -> None:
+def build_and_run(sputnik: Path, manifest: str, grants: tuple[str, ...] = ()) -> None:
     slug = Path(manifest).stem.replace(".build", "").replace("_", "-")
     out = BUILD / slug / "out"
     cache = BUILD / slug / "cache"
     command = [
-        str(amberc), "build", manifest, "--target", "native",
+        str(sputnik), "build", manifest, "--target", "native",
         "--out-dir", str(out), "--cache-dir", str(cache), "--no-cache",
     ]
     for grant in grants:
@@ -50,10 +50,10 @@ def build_and_run(amberc: Path, manifest: str, grants: tuple[str, ...] = ()) -> 
     run(str(out / root_module))
 
 
-def expect_compile_failure(amberc: Path, manifest: str, diagnostic: str) -> None:
+def expect_compile_failure(sputnik: Path, manifest: str, diagnostic: str) -> None:
     out = BUILD / "negative"
     result = subprocess.run(
-        [str(amberc), "build", manifest, "--target", "bytecode",
+        [str(sputnik), "build", manifest, "--target", "bytecode",
          "--out-dir", str(out), "--cache-dir", str(out / "cache"), "--no-cache"],
         cwd=ROOT, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
     )
@@ -62,20 +62,21 @@ def expect_compile_failure(amberc: Path, manifest: str, diagnostic: str) -> None
         raise RuntimeError(f"{manifest} did not fail with {diagnostic}")
 
 
-def static(amberc: Path) -> None:
+def static(sputnik: Path) -> None:
     run("git", "diff", "--check", "HEAD")
     run(sys.executable, "test/soak_provenance_test.py")
-    run(sys.executable, "script/stage5_checks.py", "--amberc", str(amberc))
+    run(sys.executable, "script/stage5_checks.py", "--sputnik", str(sputnik))
+    # Static CI validates the approved baseline against its budgets.
+    # Fresh benchmark runs are local artifacts, checked separately.
     run(
         sys.executable, "benchmark/performance_gate.py",
-        "--current", "benchmark/results/core.json",
-        "--current", "benchmark/results/orm.json",
+        "--current", "benchmark/baseline.json",
         "--baseline", "benchmark/baseline.json",
         "--budgets", "benchmark/performance_budgets.json",
     )
 
 
-def core(amberc: Path) -> None:
+def core(sputnik: Path) -> None:
     suites = [
         ("test/contract_selftest.build.yaml", ()),
         ("test/stage1_selftest.build.yaml", ("random.secure",)),
@@ -92,37 +93,37 @@ def core(amberc: Path) -> None:
         ("test/stage5_fuzz_smoke.build.yaml", ("net.listen", "net.connect")),
     ]
     for manifest, grants in suites:
-        build_and_run(amberc, manifest, grants)
-    expect_compile_failure(amberc, "test/stage3_html_unquoted_rejected.build.yaml", "EMBER_HTML_CONTEXT")
-    expect_compile_failure(amberc, "test/stage3_html_comment_rejected.build.yaml", "EMBER_HTML_CONTEXT")
-    amber_source = ROOT / ".build/dependencies/amber-lang"
+        build_and_run(sputnik, manifest, grants)
+    expect_compile_failure(sputnik, "test/stage3_html_unquoted_rejected.build.yaml", "EMBER_HTML_CONTEXT")
+    expect_compile_failure(sputnik, "test/stage3_html_comment_rejected.build.yaml", "EMBER_HTML_CONTEXT")
+    sputnik_source = ROOT / ".build/dependencies/sputnik-lang"
     jobs = str(max(1, min(4, os.cpu_count() or 1)))
-    run("make", f"-j{jobs}", "build/vm_net_http_tests", cwd=amber_source)
-    run(str(amber_source / "build/vm_net_http_tests"))
+    run("make", f"-j{jobs}", "build/vm_net_http_tests", cwd=sputnik_source)
+    run(str(sputnik_source / "build/vm_net_http_tests"))
     for manifest, grants in (
         ("examples/hello.build.yaml", ("net.listen", "random.secure")),
         ("examples/strong_params.build.yaml", ("net.listen", "random.secure")),
     ):
         slug = Path(manifest).stem
         out = BUILD / "examples" / slug
-        command = [str(amberc), "build", manifest, "--target", "native",
+        command = [str(sputnik), "build", manifest, "--target", "native",
                    "--out-dir", str(out), "--cache-dir", str(out / "cache"), "--no-cache"]
         for grant in grants:
             command += ["--grant", grant]
         run(*command)
 
 
-def integration(amberc: Path) -> None:
-    build_and_run(amberc, "test/orm_selftest.build.yaml")
+def integration(sputnik: Path) -> None:
+    build_and_run(sputnik, "test/orm_selftest.build.yaml")
     out = BUILD / "examples" / "sqlite-users"
     run(
-        str(amberc), "build", "examples/sqlite_users.build.yaml", "--target", "native",
+        str(sputnik), "build", "examples/sqlite_users.build.yaml", "--target", "native",
         "--out-dir", str(out), "--cache-dir", str(out / "cache"), "--no-cache",
         "--grant", "net.listen", "--grant", "random.secure",
     )
     run(
         sys.executable, "script/soak", "smoke",
-        "--amberc", str(amberc), "--port", "3310", "--clients", "1",
+        "--sputnik", str(sputnik), "--port", "3310", "--clients", "1",
         "--sample-interval", "1",
     )
 
@@ -132,12 +133,12 @@ def main() -> int:
     parser.add_argument("lane", choices=("static", "core", "integration", "full"), nargs="?", default="full")
     args = parser.parse_args()
     scope = "all" if args.lane in ("integration", "full") else "core"
-    amberc = sync(scope)
-    static(amberc)
+    sputnik = sync(scope)
+    static(sputnik)
     if args.lane in ("core", "full"):
-        core(amberc)
+        core(sputnik)
     if args.lane in ("integration", "full"):
-        integration(amberc)
+        integration(sputnik)
     if args.lane == "full":
         run(sys.executable, "script/clean-room-build")
     print(f"CI lane {args.lane} passed")

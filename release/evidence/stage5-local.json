@@ -7,7 +7,7 @@
     "architecture": "arm64",
     "classification": "development matrix"
   },
-  "amber": {
+  "sputnik": {
     "version": "0.1.0-dev",
     "revision": "14b32257e0e7b3b10e4dff6bf97a1bd0c757380c",
     "tree": "1e5453d25f11699364fc67d43cc6da1b1007fb36"
@@ -18,8 +18,8 @@
     "ember_orm_sha256": "7627850b1f8952593e92c795d5425d2621b108f41bfbf9aeeb70f21baab21868"
   },
   "packages": {
-    "ember-1.0.0-rc.1.amberpkg": "27d2975bc4541802f5e985ff6767c192fe54f4d97874f95a14066d04b4c2b4ed",
-    "ember-orm-1.0.0-rc.1.amberpkg": "776d39e756b5b000473a2b0e5f1b667ef7f3282e61a07f0d249f880dd9165eeb"
+    "ember-1.0.0-rc.1.sputnikpkg": "27d2975bc4541802f5e985ff6767c192fe54f4d97874f95a14066d04b4c2b4ed",
+    "ember-orm-1.0.0-rc.1.sputnikpkg": "776d39e756b5b000473a2b0e5f1b667ef7f3282e61a07f0d249f880dd9165eeb"
   },
   "results": {
     "dependencies_verified_by_revision_and_tree": true,

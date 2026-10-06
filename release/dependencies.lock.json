@@ -1,31 +1,31 @@
 {
   "schema": "ember.dependencies.v1",
   "ember_version": "1.0.0-rc.1",
-  "generated_at": "2026-07-30",
+  "generated_at": "2026-10-06",
   "dependencies": [
     {
-      "name": "amber-lang",
+      "name": "sputnik-lang",
       "package_version": "0.1.0-dev",
       "scope": "core",
       "source": "https://github.com/orlando-labs/amber-lang.git",
-      "revision": "47a3a91eedeef6d4f96253ac868a263622f3631d",
-      "tree": "d5847ec6b58538b1d108eb46b40298edda3b4231"
+      "revision": "3383a5eecb4466077dd7ba580698a22ae40dbd3d",
+      "tree": "1db8817cc8d195f999605806975bb1572b198f07"
     },
     {
-      "name": "amber-orm",
+      "name": "sputnik-orm",
       "package_version": "0.1.0-dev",
       "scope": "orm-integration",
       "source": "https://github.com/orlando-labs/amber-orm.git",
-      "revision": "1e64d37859f7e1b6f92ebcebb01df9c4f599ff86",
-      "tree": "69fd72f6a0262d99b4ceeaa7734dcd24a44615df"
+      "revision": "3575602c2f03a3337dec5685eafecbe9d918597f",
+      "tree": "7e2e098a8547f79f2c82754d8be60f13ebce479a"
     },
     {
-      "name": "sqlite3-amber",
+      "name": "sqlite3-sputnik",
       "package_version": "0.1.0-dev",
       "scope": "orm-integration",
       "source": "https://github.com/orlando-labs/sqlite3-amber.git",
-      "revision": "8ffb543bf7678e3011dce8e8e58276b6d9725f88",
-      "tree": "ec8429f8dd09e729673ba6a972944de348ac71c7",
+      "revision": "96f3a62a19f448fc231268fcac33fddf9958e83e",
+      "tree": "d8bc6685ea7405c3a6aed9c70381a623326affef",
       "upstream_version": "3.51.0",
       "upstream_source_id": "fb2c931ae597f8d00a37574ff67aeed3eced4e5547f9120744ae4bfa8e74527b"
     }

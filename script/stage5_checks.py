@@ -33,8 +33,8 @@ def exported_names(path: Path) -> tuple[str, set[str]]:
 def check_public_api(errors: list[str]) -> None:
     manifest = json.loads((ROOT / "release/public-api.json").read_text(encoding="utf-8"))
     reference = (ROOT / "docs/API_REFERENCE.md").read_text(encoding="utf-8")
-    sources = list((ROOT / "src").rglob("*.am"))
-    sources += list((ROOT / "packages/ember-orm/src").rglob("*.am"))
+    sources = list((ROOT / "src").rglob("*.s"))
+    sources += list((ROOT / "packages/ember-orm/src").rglob("*.s"))
     actual: dict[str, set[str]] = {}
     for source in sources:
         package, names = exported_names(source)
@@ -68,19 +68,19 @@ def check_links(errors: list[str]) -> None:
                 fail(errors, f"{path.relative_to(ROOT)}: broken local link: {raw_target}")
 
 
-def package_lock(amberc: Path, manifest: Path) -> str:
+def package_lock(sputnik: Path, manifest: Path) -> str:
     result = subprocess.run(
-        [str(amberc), "package-lock", str(manifest)], cwd=ROOT,
+        [str(sputnik), "package-lock", str(manifest)], cwd=ROOT,
         check=True, text=True, stdout=subprocess.PIPE,
     )
     return result.stdout
 
 
-def check_release_files(errors: list[str], amberc: Path | None) -> None:
+def check_release_files(errors: list[str], sputnik: Path | None) -> None:
     version = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
     if not re.fullmatch(r"\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?", version):
         fail(errors, f"VERSION is not SemVer: {version}")
-    for path in (ROOT / "amber.toml", ROOT / "packages/ember-orm/amber.toml"):
+    for path in (ROOT / "sputnik.toml", ROOT / "packages/ember-orm/sputnik.toml"):
         source = path.read_text(encoding="utf-8")
         if f'version = "{version}"' not in source:
             fail(errors, f"{path.relative_to(ROOT)} does not match VERSION")
@@ -101,7 +101,7 @@ def check_release_files(errors: list[str], amberc: Path | None) -> None:
         if (path := ROOT / relative).is_file()
         and path != ROOT / "script/stage5_checks.py"
     )
-    for forbidden in ("../../amber-orm", "../../sqlite3-amber", "../amber-lang/build/amberc"):
+    for forbidden in ("../../sputnik-orm", "../../sqlite3-sputnik", "../sputnik-lang/build/sputnik"):
         if forbidden in tracked_text:
             fail(errors, f"tracked release path still contains sibling dependency: {forbidden}")
     required = [
@@ -115,24 +115,24 @@ def check_release_files(errors: list[str], amberc: Path | None) -> None:
     for relative in required:
         if not (ROOT / relative).is_file():
             fail(errors, f"missing stage-5 deliverable: {relative}")
-    if amberc:
+    if sputnik:
         pairs = [
-            (ROOT / "amber.toml", ROOT / "amber.lock"),
-            (ROOT / "packages/ember-orm/amber.toml", ROOT / "packages/ember-orm/amber.lock"),
+            (ROOT / "sputnik.toml", ROOT / "sputnik.lock"),
+            (ROOT / "packages/ember-orm/sputnik.toml", ROOT / "packages/ember-orm/sputnik.lock"),
         ]
         for manifest, lock in pairs:
-            generated = package_lock(amberc, manifest)
+            generated = package_lock(sputnik, manifest)
             if generated != lock.read_text(encoding="utf-8"):
                 fail(errors, f"stale generated lock: {lock.relative_to(ROOT)}")
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--amberc", type=Path)
+    parser.add_argument("--sputnik", type=Path)
     args = parser.parse_args()
     errors: list[str] = []
     try:
-        check_release_files(errors, args.amberc)
+        check_release_files(errors, args.sputnik)
         check_links(errors)
         check_public_api(errors)
     except (OSError, ValueError, KeyError, json.JSONDecodeError, subprocess.CalledProcessError) as error:

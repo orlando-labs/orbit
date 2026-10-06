@@ -6,10 +6,10 @@ All notable changes are recorded here. Ember follows
 
 ## [Unreleased]
 
-- Added a representative controller-based catalog REST service, an Amber
+- Added a representative controller-based catalog REST service, an Sputnik
   CRUD/strict-4xx client, and a reproducible 72-hour resource/metrics soak
   runner.
-- Locked Amber to the lexical-first implicit-self bare-send implementation, so
+- Locked Sputnik to the lexical-first implicit-self bare-send implementation, so
   controller methods can use inherited `params`, `request`, `render`, and
   included nullary helpers without explicit `self`.
 

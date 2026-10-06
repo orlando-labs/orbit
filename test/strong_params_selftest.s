@@ -48,7 +48,7 @@ def main():
       newsletter: false,
       nickname: null,
       admin: true,
-      tags: ["amber", "web"],
+      tags: ["sputnik", "web"],
       profile: {bio: "builder", private: "drop"},
       addresses: [{city: "Moscow", zip: "101000", secret: "drop"}]
     }
@@ -64,7 +64,7 @@ def main():
   assert(invalid_user.status == 400, "field defaults to Str")
   missing_user = app.call(testing.post("/users", json: {other: {name: "Ada"}}))
   assert(missing_user.status == 400, "strong params require root")
-  wrong_array = app.call(testing.post("/users", json: {user: {name: "Ada", tags: "amber"}}))
+  wrong_array = app.call(testing.post("/users", json: {user: {name: "Ada", tags: "sputnik"}}))
   assert(wrong_array.status == 400, "strong params enforce array shape")
   wrong_media = app.call(testing.post(
     "/users",
@@ -107,9 +107,9 @@ def main():
   assert(strict_result.error.issues[0].code == :unpermitted, "strict params structured issue")
 
   query_values = testing.get(
-    "/users?q=amber&tag[]=one&tag[]=two"
+    "/users?q=sputnik&tag[]=one&tag[]=two"
   ).params.query.expect(search_params)
-  assert(query_values[:q] == "amber", "query strong params scalar")
+  assert(query_values[:q] == "sputnik", "query strong params scalar")
   assert(query_values[:tag] == ["one", "two"], "query strong params array")
 
   consumed_request = testing.post("/users", json: {user: {name: "Ada"}})

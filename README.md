@@ -1,13 +1,13 @@
 # Ember
 
-Ember is a source-first web framework for Amber. It implements the contract in
-`amber-lang/DESIGN-web-framework-2026-07-13.md` over the existing
+Ember is a source-first web framework for Sputnik. It implements the contract in
+`sputnik-lang/DESIGN-web-framework-2026-07-13.md` over the existing
 `net.http.Server`; it does not add another scheduler or socket layer.
 
 The `1.0.0-rc.1` release candidate includes:
 
 - central, immutable route tables built by `ember.routes`;
-- function, class-side, and per-request controller targets through Amber
+- function, class-side, and per-request controller targets through Sputnik
   callable references;
 - literal, typed parameter, and terminal wildcard routes with deterministic
   precedence;
@@ -33,15 +33,15 @@ The `1.0.0-rc.1` release candidate includes:
   `before` annotation macro;
 - structured redacted access/error/lifecycle telemetry, bounded metrics,
   trusted-edge W3C tracing, and lifecycle-aware health/readiness probes;
-- optional request-scoped `amber-orm` pool integration backed by
-  `sqlite3-amber`.
+- optional request-scoped `sputnik-orm` pool integration backed by
+  `sqlite3-sputnik`.
 
 Core Ember is source-only and ORM-neutral. Importing `ember` does not pull in
 SQLite, FFI, sessions, or a filesystem template loader.
 
 ## Small application
 
-```amber
+```sputnik
 package hello
 
 import ember
@@ -58,7 +58,7 @@ def main():
   ember.App(routes: routes).run(port: 3000)
 ```
 
-Resolve the exact Amber revision, build and install the reproducible Ember
+Resolve the exact Sputnik revision, build and install the reproducible Ember
 package, compile the API example, and compile this server with one command:
 
 ```sh
@@ -73,17 +73,17 @@ ORM, SQLite, or FFI dependencies.
 
 `App#call` is the primary boundary. Most tests should avoid sockets:
 
-```amber
+```sputnik
 import ember.testing
 
-response = app.call(testing.get("/hello/Amber"))
+response = app.call(testing.get("/hello/Sputnik"))
 testing.assert_status(response, :ok)
 testing.assert_header(response, "content-type", "application/json; charset=utf-8")
 ```
 
 ## Routes
 
-```amber
+```sputnik
 routes = ember.routes:
   get "/posts/new", to: &new_post
   get "/posts/:id", to: &Posts#show,
@@ -114,7 +114,7 @@ Use `routes.path(:post, id: 42)`,
 
 Controllers are constructed once per request:
 
-```amber
+```sputnik
 class Posts < ember.Controller:
   def show(id as Int):
     status(:ok)
@@ -144,7 +144,7 @@ body and `request.params.query` for the parsed query string. A schema filters
 every undeclared key and checks the declared transport shape before returning
 a deeply immutable `Map`.
 
-```amber
+```sputnik
 create_user_params = ember.params(root: :user):
   field(:name, required: true)
   field(:age, type: Int)
@@ -171,7 +171,7 @@ or non-JSON content types return 415. Parsing a JSON body after manual
 `request.body_stream` consumption returns 400.
 
 Strong parameters do not normalize strings, sanitize HTML, coerce query
-values, or replace domain/ORM validation. See `examples/strong_params.am` for
+values, or replace domain/ORM validation. See `examples/strong_params.s` for
 a complete server.
 
 ## Streaming
@@ -182,7 +182,7 @@ one HTTP chunk and may carry an ordered list of extension pairs. Close the body
 before writing declared trailers, then finish the trailer section. Returning
 from the producer also closes and finishes an open stream safely.
 
-```amber
+```sputnik
 def echo(request):
   ember.stream(trailers: ["x-state"]) |response|:
     request.body_stream.each_chunk |chunk|:
@@ -204,7 +204,7 @@ without draining the request first.
 Middleware follows `(Request, Next) -> Response`. Application middleware wraps
 scope/mount middleware, which wraps route middleware and then the target.
 
-```amber
+```sputnik
 from ember.middleware import before
 
 before [&request_id, &authenticate]
@@ -218,11 +218,11 @@ list. Route-dependent policy belongs in the central route declaration.
 
 ## HTML and views
 
-Views are ordinary typed Amber modules. Interpolation in `html"""..."""` is
+Views are ordinary typed Sputnik modules. Interpolation in `html"""..."""` is
 escaped by default and returns `ember.Html`; trusted output requires explicit
 `raw(...)`.
 
-```amber
+```sputnik
 from ember.html import escape, html, join
 
 def page(title as Str):
@@ -242,7 +242,7 @@ event-handler data requires `trusted_script(...)`, style data requires
 inside comments, tag syntax, or unquoted attributes is a compile-time
 `EMBER_HTML_CONTEXT` error.
 
-```amber
+```sputnik
 from ember.html import html, url
 
 def item_link(label, id):
@@ -262,7 +262,7 @@ accepts only localhost authorities, ignores forwarding headers, and adds CSP,
 nosniff, frame, referrer, permissions, and opener policies. Production must
 configure exact hosts and its trusted edge explicitly:
 
-```amber
+```sputnik
 security = ember.SecurityPolicy(
   allowed_hosts: ["app.example.test"],
   trusted_proxy_cidrs: ["10.20.0.0/16"],
@@ -292,7 +292,7 @@ Models bind to one shareable pool during startup. Installing
 request-scoped lease; nested ORM calls reuse it and spawned child tasks acquire
 their own lease.
 
-```amber
+```sputnik
 import orm
 from ember.integrations.orm import pool as orm_pool
 
@@ -315,13 +315,13 @@ deadline cancellation unwinds request leases before the pool closes.
 Custom lifecycle-aware controller integrations subclass `ember.Integration`;
 its default `start`, `attach_server`, `ready?`, and `stop` methods are safe no-ops.
 
-See `examples/sqlite_users.am` and `test/orm_selftest.am` for complete graphs.
+See `examples/sqlite_users.s` and `test/orm_selftest.s` for complete graphs.
 
 ## Production transport lifecycle
 
 Use `App#start` when the process adapter needs readiness and graceful shutdown:
 
-```amber
+```sputnik
 server = app.start(
   port: 3000,
   workers: 2,
@@ -354,7 +354,7 @@ and [edge deployment model](docs/DEPLOYMENT.md).
 # fuzz smoke, examples, ORM/SQLite integration, and clean-room
 ./script/ci full
 
-# Representative controller CRUD service + Amber client smoke
+# Representative controller CRUD service + Sputnik client smoke
 ./script/soak smoke
 
 # Constant/mixed-load run; 72h is the default and required evidence duration
@@ -362,13 +362,13 @@ and [edge deployment model](docs/DEPLOYMENT.md).
 ```
 
 CI runs the core lane on Linux x86_64, Linux arm64, and macOS arm64 against the
-exact Amber compiler/runtime revision. The release workflow accepts only an
+exact Sputnik compiler/runtime revision. The release workflow accepts only an
 annotated `v$VERSION` tag, rebuilds the signed package twice, compares bytes,
 and publishes checksums plus provenance. See the
 [release process](docs/RELEASING.md), [API reference](docs/API_REFERENCE.md),
 [configuration reference](docs/CONFIGURATION.md), and
 [operations runbook](docs/RUNBOOK.md). The controller-based catalog service,
-Amber CRUD/4xx client, resource thresholds, and evidence format are documented
+Sputnik CRUD/4xx client, resource thresholds, and evidence format are documented
 in the [72-hour soak test](docs/SOAK_TEST.md).
 
 ## Ember 1.0 contract

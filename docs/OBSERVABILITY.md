@@ -9,7 +9,7 @@ a transport cancellation.
 
 ## Configuration
 
-```amber
+```sputnik
 import ember
 import ember.telemetry
 

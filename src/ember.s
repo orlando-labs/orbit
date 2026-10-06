@@ -195,7 +195,7 @@ def _validated_header_pair(name, value):
   unless Str === name or Symbol === name:
     raise TypeError("header name must be a Str or Symbol")
   unless Str === value:
-    raise TypeError("header value must be a Str, got " + Amber.stringify(value, mode: :inspect))
+    raise TypeError("header value must be a Str, got " + Sputnik.stringify(value, mode: :inspect))
   normalized_name = name.to_str.downcase
   unless _valid_header_name?(normalized_name):
     raise InvalidHeaderError("invalid HTTP header name: " + name.to_str)
@@ -3012,7 +3012,7 @@ macro def _route_macro(method, pattern as Ast, target as Ast, **opts) -> Ast:
   unless pattern.kind == "AstStringLiteral" and not pattern.interpolation:
     raise ArgumentError("EMBER_ROUTE_PATTERN: route pattern must be a static string literal")
   unless target.kind == "AstCallableRef":
-    raise ArgumentError("EMBER_ROUTE_TARGET: to: must be an Amber callable reference")
+    raise ArgumentError("EMBER_ROUTE_TARGET: to: must be an Sputnik callable reference")
   allowed = ["as", "params", "before"]
   opts.keys.each |name|:
     unless allowed.include?(name.to_str):

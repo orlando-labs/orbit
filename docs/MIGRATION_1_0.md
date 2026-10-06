@@ -1,7 +1,7 @@
 # Migrating from the Ember preview to 1.0 RC
 
 This guide covers intentional contract changes between the unversioned preview
-and `1.0.0-rc.1`. Upgrade the compiler/runtime and Ember together; mixed Amber
+and `1.0.0-rc.1`. Upgrade the compiler/runtime and Ember together; mixed Sputnik
 artifacts are unsupported.
 
 ## 1. Install the locked packages
@@ -9,10 +9,10 @@ artifacts are unsupported.
 Replace source paths outside the application checkout with exact package
 versions. Core applications depend only on `ember = 1.0.0-rc.1`. ORM
 applications additionally use `ember-orm = 1.0.0-rc.1`, the tested
-`amber-orm = 0.1.0-dev` revision, and a tested adapter such as
-`sqlite3-amber = 0.1.0-dev`. Commit the generated `amber.lock`.
+`sputnik-orm = 0.1.0-dev` revision, and a tested adapter such as
+`sqlite3-sputnik = 0.1.0-dev`. Commit the generated `sputnik.lock`.
 
-Use the exact Amber compiler/runtime row in
+Use the exact Sputnik compiler/runtime row in
 [COMPATIBILITY.md](COMPATIBILITY.md); rebuild every native/bytecode artifact.
 
 ## 2. Adopt HTTP response rules
@@ -58,7 +58,7 @@ now fail compilation.
 
 Change the dependency graph, not the import:
 
-```amber
+```sputnik
 from ember.integrations.orm import pool as orm_pool
 ```
 

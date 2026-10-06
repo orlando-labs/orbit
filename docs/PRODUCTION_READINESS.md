@@ -19,7 +19,7 @@ cannot turn a failed mandatory gate green.
   status/content semantics are normative and testable.
 - [x] The public API boundary and private/exported distinction are documented.
 - [x] Edge deployment and trust boundaries are explicit.
-- [x] Version, deprecation, Amber/runtime, platform, and support policies are
+- [x] Version, deprecation, Sputnik/runtime, platform, and support policies are
   explicit.
 - [x] This production-ready definition has objective release evidence.
 
@@ -46,7 +46,7 @@ Evidence: [ADR-0001](adr/0001-ember-1-0-contract.md),
 Required evidence: unit and property tests for every invariant, including both
 buffered and streaming middleware paths and negative validation cases.
 
-Evidence: `test/stage1_selftest.am`, the core/strong-params/HTTP/ORM self-tests,
+Evidence: `test/stage1_selftest.s`, the core/strong-params/HTTP/ORM self-tests,
 [PUBLIC_API.md](PUBLIC_API.md), and the server configuration reference in
 [TRANSPORT.md](TRANSPORT.md).
 
@@ -71,8 +71,8 @@ Required evidence: deterministic lifecycle tests, raw-socket HTTP conformance
 corpus, and loopback integration tests for buffered, streaming, slow, malformed,
 and cancelled requests.
 
-Evidence: `test/stage2_selftest.am`, [TRANSPORT.md](TRANSPORT.md), and the
-`amber-lang` runtime suites `tests/vm_net_http_tests.cpp` (691 checks) and
+Evidence: `test/stage2_selftest.s`, [TRANSPORT.md](TRANSPORT.md), and the
+`sputnik-lang` runtime suites `tests/vm_net_http_tests.cpp` (691 checks) and
 `tests/stdlib_task_tests.cpp`.
 
 ## Gate 3: security baseline — complete
@@ -100,7 +100,7 @@ Required evidence: versioned threat model and ASVS mapping, dependency/native
 scan, secret scan, security regression suite, and documented resolution or
 accepted lower-severity risk ownership.
 
-Evidence: `test/stage3_selftest.am`, the two expected-failure
+Evidence: `test/stage3_selftest.s`, the two expected-failure
 `test/stage3_html_*_rejected` fixtures, [SECURITY.md](SECURITY.md),
 [THREAT_MODEL.md](THREAT_MODEL.md), [ASVS_5_MAPPING.md](ASVS_5_MAPPING.md), and
 [SECURITY_REVIEW.md](SECURITY_REVIEW.md). The internal review records zero open
@@ -129,7 +129,7 @@ later release gate.
 Required evidence: machine-readable benchmark results, environment manifest,
 dashboards/telemetry schema tests, and regression-gate output.
 
-Evidence: `test/stage4_selftest.am`, [OBSERVABILITY.md](OBSERVABILITY.md),
+Evidence: `test/stage4_selftest.s`, [OBSERVABILITY.md](OBSERVABILITY.md),
 [PERFORMANCE.md](PERFORMANCE.md), `benchmark/environment.json`, the committed
 core/ORM result and baseline JSON documents, and the machine-readable output of
 `benchmark/performance_gate.py`. The gate uses a fixed 10% threshold and the
@@ -154,14 +154,14 @@ initial named Apple M4 runner baseline.
 Required evidence: clean-room build log, release checklist, artifact/source
 checksums, documentation link checker/example compilation, and compatibility CI.
 
-Evidence: `VERSION`, `amber.toml`, `amber.lock`, the separate
+Evidence: `VERSION`, `sputnik.toml`, `sputnik.lock`, the separate
 `packages/ember-orm` package, `release/dependencies.lock.json`,
 `release/public-api.json`, `release/evidence/stage5-local.json`,
 `.github/workflows/ci.yml`,
 `.github/workflows/release.yml`, `script/clean-room-build`, `script/ci`,
 `script/stage5_checks.py`, `script/soak`, `examples/soak`,
-`test/api_reference_selftest.am`,
-`test/stage5_fuzz_smoke.am`, [API_REFERENCE.md](API_REFERENCE.md),
+`test/api_reference_selftest.s`,
+`test/stage5_fuzz_smoke.s`, [API_REFERENCE.md](API_REFERENCE.md),
 [CONFIGURATION.md](CONFIGURATION.md), [RUNBOOK.md](RUNBOOK.md),
 [MIGRATION_1_0.md](MIGRATION_1_0.md), [RELEASING.md](RELEASING.md),
 [SOAK_TEST.md](SOAK_TEST.md), and the tracked proxy/platform examples. The tag
@@ -177,7 +177,7 @@ publication review.
 - [ ] A 72-hour constant/mixed-load soak has no leaked tasks/connections/ORM
   leases and no unbounded memory, queue, label-cardinality, or descriptor growth.
   The run records heap/RSS and resource slopes, not only start/end values.
-  The representative service, Amber CRUD/4xx client, sampler, thresholds, and
+  The representative service, Sputnik CRUD/4xx client, sampler, thresholds, and
   evidence schema are reproducible through [the soak test](SOAK_TEST.md); this
   checkbox remains open until a real 72-hour report is reviewed.
 - [ ] At least 24 cumulative hours of coverage-guided fuzzing across percent
@@ -197,7 +197,7 @@ publication review.
 
 Before RC, the release manager creates a versioned evidence index linking each
 checkbox to an immutable CI run, report, test, benchmark, or runbook exercise.
-Evidence must state the Ember/Amber revisions, dependency lock, target triple,
+Evidence must state the Ember/Sputnik revisions, dependency lock, target triple,
 and configuration digest.
 
 The 1.0 release is production-ready only when every checkbox is green and the
