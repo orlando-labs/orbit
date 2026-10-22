@@ -9,17 +9,17 @@ profiles:
 
 modules:
   - name: sqlite3
-    path: ../../.build/dependencies/sqlite3-sputnik/src/sqlite3.s
+    path: ../../.build/dependencies/sqlite3/src/sqlite3.s
   - name: orm
-    path: ../../.build/dependencies/sputnik-orm/src/orm.s
+    path: ../../.build/dependencies/orm/src/orm.s
   - name: orm.pool
-    path: ../../.build/dependencies/sputnik-orm/src/orm/pool.s
+    path: ../../.build/dependencies/orm/src/orm/pool.s
   - name: orm.sqlite3.adapter
-    path: ../../.build/dependencies/sputnik-orm/src/orm/sqlite3/adapter.s
+    path: ../../.build/dependencies/orm/src/orm/sqlite3/adapter.s
   - name: orm.sqlite3.pool
-    path: ../../.build/dependencies/sputnik-orm/src/orm/sqlite3/pool.s
+    path: ../../.build/dependencies/orm/src/orm/sqlite3/pool.s
   - name: orm.sqlite3
-    path: ../../.build/dependencies/sputnik-orm/src/orm/sqlite3.s
+    path: ../../.build/dependencies/orm/src/orm/sqlite3.s
   - name: orbit
     path: ../../src/orbit.s
   - name: orbit.telemetry
@@ -33,10 +33,10 @@ native_extensions:
   - name: sqlite3
     language: c
     sources:
-      - ../../.build/dependencies/sqlite3-sputnik/native/sqlite3_ext.c
-      - ../../.build/dependencies/sqlite3-sputnik/native/sqlite3.c
+      - ../../.build/dependencies/sqlite3/native/sqlite3_ext.c
+      - ../../.build/dependencies/sqlite3/native/sqlite3.c
     headers:
-      - ../../.build/dependencies/sqlite3-sputnik/native/sqlite3.h
+      - ../../.build/dependencies/sqlite3/native/sqlite3.h
     defines:
       - SQLITE_THREADSAFE=1
       - SQLITE_ENABLE_COLUMN_METADATA=1

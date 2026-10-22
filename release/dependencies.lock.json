@@ -12,7 +12,7 @@
       "tree": "1db8817cc8d195f999605806975bb1572b198f07"
     },
     {
-      "name": "sputnik-orm",
+      "name": "orm",
       "package_version": "0.1.0-dev",
       "scope": "orm-integration",
       "source": "https://github.com/orlando-labs/orm.git",
@@ -20,7 +20,7 @@
       "tree": "7e2e098a8547f79f2c82754d8be60f13ebce479a"
     },
     {
-      "name": "sqlite3-sputnik",
+      "name": "sqlite3",
       "package_version": "0.1.0-dev",
       "scope": "orm-integration",
       "source": "https://github.com/orlando-labs/sqlite3.git",

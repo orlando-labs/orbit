@@ -288,7 +288,7 @@ request-scoped lease behavior and safe `503` mapping for pool timeout/closed/
 lease failures are stable. `PoolIntegration` also implements the server
 lifecycle: it rejects an already-closed pool at startup, reports readiness,
 and closes the pool after drain/cancellation. ORM model/query APIs belong to
-`sputnik-orm`.
+`orm`.
 
 ## Explicitly out of scope
 

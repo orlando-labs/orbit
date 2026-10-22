@@ -19,8 +19,8 @@ locks and rebuild applications after updating these names.
 Replace source paths outside the application checkout with exact package
 versions. Core applications depend only on `orbit = 1.0.0-rc.1`. ORM
 applications additionally use `orbit-orm = 1.0.0-rc.1`, the tested
-`sputnik-orm = 0.1.0-dev` revision, and a tested adapter such as
-`sqlite3-sputnik = 0.1.0-dev`. Commit the generated `sputnik.lock`.
+`orm = 0.1.0-dev` revision, and a tested adapter such as
+`sqlite3 = 0.1.0-dev`. Commit the generated `sputnik.lock`.
 
 Use the exact Sputnik compiler/runtime row in
 [COMPATIBILITY.md](COMPATIBILITY.md); rebuild every native/bytecode artifact.

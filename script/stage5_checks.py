@@ -101,7 +101,7 @@ def check_release_files(errors: list[str], sputnik: Path | None) -> None:
         if (path := ROOT / relative).is_file()
         and path != ROOT / "script/stage5_checks.py"
     )
-    for forbidden in ("../../sputnik-orm", "../../sqlite3-sputnik", "../sputnik-lang/build/sputnik"):
+    for forbidden in ("../../orm", "../../sqlite3", "../sputnik-lang/build/sputnik"):
         if forbidden in tracked_text:
             fail(errors, f"tracked release path still contains sibling dependency: {forbidden}")
     required = [

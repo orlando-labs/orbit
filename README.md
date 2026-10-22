@@ -33,8 +33,8 @@ The `1.0.0-rc.1` release candidate includes:
   `before` annotation macro;
 - structured redacted access/error/lifecycle telemetry, bounded metrics,
   trusted-edge W3C tracing, and lifecycle-aware health/readiness probes;
-- optional request-scoped `sputnik-orm` pool integration backed by
-  `sqlite3-sputnik`.
+- optional request-scoped `orm` pool integration backed by
+  `sqlite3`.
 
 Core Orbit is source-only and ORM-neutral. Importing `orbit` does not pull in
 SQLite, FFI, sessions, or a filesystem template loader.

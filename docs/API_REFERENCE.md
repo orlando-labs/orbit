@@ -148,8 +148,8 @@ content-type, headers, bytes, text, and `file?`; forms expose `parts`, `first`,
 
 Install the separate `orbit-orm` package to use `pool`, `connection`,
 `PoolIntegration`, and `ConnectionMiddleware`. It pins `orbit` and
-`sputnik-orm`; applications that use the SQLite adapter additionally pin the
-tested `sqlite3-sputnik` row from [COMPATIBILITY.md](COMPATIBILITY.md). Core
+`orm`; applications that use the SQLite adapter additionally pin the
+tested `sqlite3` row from [COMPATIBILITY.md](COMPATIBILITY.md). Core
 Orbit has no ORM, SQLite, or FFI dependency.
 
 ## Unsupported preview surface

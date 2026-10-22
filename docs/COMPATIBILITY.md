@@ -120,7 +120,7 @@ The tested `1.0.0-rc.1` ORM row is:
 | Integration package | `orbit-orm 1.0.0-rc.1` |
 | Orbit | `1.0.0-rc.1` |
 | Sputnik ORM | `0.1.0-dev`, revision `3575602c2f03a3337dec5685eafecbe9d918597f`, tree `7e2e098a8547f79f2c82754d8be60f13ebce479a` |
-| SQLite adapter | `sqlite3-sputnik 0.1.0-dev`, revision `96f3a62a19f448fc231268fcac33fddf9958e83e`, tree `d8bc6685ea7405c3a6aed9c70381a623326affef` |
+| SQLite adapter | `sqlite3 0.1.0-dev`, revision `96f3a62a19f448fc231268fcac33fddf9958e83e`, tree `d8bc6685ea7405c3a6aed9c70381a623326affef` |
 | Bundled SQLite | `3.51.0`, source ID `fb2c931ae597f8d00a37574ff67aeed3eced4e5547f9120744ae4bfa8e74527b` |
 | Tested platform | Linux x86_64 native integration CI; other platform rows are unsupported for this optional package until listed |
 
