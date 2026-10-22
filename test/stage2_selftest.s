@@ -1,7 +1,7 @@
-package ember.stage2_selftest
+package orbit.stage2_selftest
 
-import ember
-import ember.testing
+import orbit
+import orbit.testing
 import io
 import net
 import task
@@ -13,43 +13,43 @@ def assert(condition, message):
   raise ArgumentError(message) unless condition
 
 def buffered(request):
-  ember.render(text: request.path)
+  orbit.render(text: request.path)
 
 def streamed(request):
-  ember.stream() |body|:
+  orbit.stream() |body|:
     raise ArgumentError("HEAD invoked the streaming producer")
 
 def no_content(request):
-  ember.Response(status: 204, body: "")
+  orbit.Response(status: 204, body: "")
 
 def reset_content(request):
-  ember.Response(status: 205, body: "")
+  orbit.Response(status: 205, body: "")
 
 def not_modified(request):
-  ember.Response(status: 304, headers: {"content-length": "42"}, body: "")
+  orbit.Response(status: 304, headers: {"content-length": "42"}, body: "")
 
 def invalid_no_content(request):
-  ember.Response(status: 204, body: "not allowed")
+  orbit.Response(status: 204, body: "not allowed")
 
 def invalid_info(request):
-  ember.Response(status: 103, body: "")
+  orbit.Response(status: 103, body: "")
 
 def invalid_length(request):
-  ember.Response(status: 200, headers: {"content-length": "99"}, body: "short")
+  orbit.Response(status: 200, headers: {"content-length": "99"}, body: "short")
 
 def failure(request):
   raise ValueError("private detail")
 
 def slow(request):
   task.sleep(120)
-  ember.render(text: "slow")
+  orbit.render(text: "slow")
 
-class CancelledController < ember.Controller:
+class CancelledController < orbit.Controller:
   def show():
     task.sleep(5000)
     render(text: "too late")
 
-class LifecycleIntegration < ember.Integration:
+class LifecycleIntegration < orbit.Integration:
   def init(@events)
 
   def ready?():
@@ -84,7 +84,7 @@ class FailedStartIntegration < LifecycleIntegration:
   def stop():
     null
 
-class LeaseIntegration < ember.Integration:
+class LeaseIntegration < orbit.Integration:
   attr active
   attr stops
 
@@ -108,7 +108,7 @@ class LeaseIntegration < ember.Integration:
     ensure:
       @active -= 1
 
-routes = ember.routes:
+routes = orbit.routes:
   get "/one", to: &buffered
   get "/two", to: &buffered
   get "/stream", to: &streamed
@@ -135,10 +135,10 @@ def raw_exchange(port, payload):
   socket.read_all!().to_str
 
 def response_semantics():
-  app = ember.App(routes: routes, expose_exceptions: false)
+  app = orbit.App(routes: routes, expose_exceptions: false)
 
   head_stream = app.call(testing.head("/stream"))
-  assert(ember.Response === head_stream, "HEAD converts stream to buffered metadata")
+  assert(orbit.Response === head_stream, "HEAD converts stream to buffered metadata")
   assert(head_stream.body_text == "", "HEAD never starts a streaming producer")
 
   head_failure = app.call(testing.head("/failure"))
@@ -162,7 +162,7 @@ def response_semantics():
   true
 
 def keepalive_and_conformance():
-  app = ember.App(routes: routes)
+  app = orbit.App(routes: routes)
   server = app.start(
     port: 0,
     workers: 1,
@@ -233,7 +233,7 @@ def keepalive_and_conformance():
 
 def lifecycle_and_drain():
   events = []
-  app = ember.App(
+  app = orbit.App(
     routes: routes,
     integrations: [FirstLifecycleIntegration(events), LegacyIntegration(),
       SecondLifecycleIntegration(events)])
@@ -252,7 +252,7 @@ def lifecycle_and_drain():
   failed_events = []
   failed = false
   try:
-    ember.App(
+    orbit.App(
       routes: routes,
       integrations: [FirstLifecycleIntegration(failed_events), FailedStartIntegration(failed_events)]
     ).server(port: 0)
@@ -263,7 +263,7 @@ def lifecycle_and_drain():
   true
 
 def overload_rejection():
-  server = ember.App(routes: routes).start(
+  server = orbit.App(routes: routes).start(
     port: 0,
     workers: 1,
     max_concurrent_per_worker: 1,
@@ -282,7 +282,7 @@ def overload_rejection():
 
 def deadline_cancellation():
   integration = LeaseIntegration()
-  server = ember.App(
+  server = orbit.App(
     routes: routes,
     integrations: [integration]
   ).start(port: 0, idle_timeout: 0.1)

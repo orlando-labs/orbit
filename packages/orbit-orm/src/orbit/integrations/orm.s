@@ -1,6 +1,6 @@
-package ember.integrations.orm
+package orbit.integrations.orm
 
-from ember import Integration, render
+from orbit import Integration, render
 from orm.pool import ConnectionPoolClosedError
 from orm.pool import ConnectionPoolLeaseError
 from orm.pool import ConnectionPoolTimeoutError
@@ -26,7 +26,7 @@ class PoolIntegration < Integration:
 
   def start():
     if @database.closed?():
-      raise ConnectionPoolClosedError("cannot start Ember with a closed ORM pool")
+      raise ConnectionPoolClosedError("cannot start Orbit with a closed ORM pool")
     self
 
   def ready?():

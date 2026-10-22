@@ -1,11 +1,11 @@
-package ember.strong_params_selftest
+package orbit.strong_params_selftest
 
-import ember
-import ember.testing
+import orbit
+import orbit.testing
 
 export main
 
-create_user_params = ember.params(root: :user):
+create_user_params = orbit.params(root: :user):
   field(:name, required: true)
   field(:age, type: Int)
   field(:newsletter, type: Bool)
@@ -17,29 +17,29 @@ create_user_params = ember.params(root: :user):
     field(:city, required: true)
     field(:zip)
 
-strict_user_params = ember.params(root: :user, unknown: :reject):
+strict_user_params = orbit.params(root: :user, unknown: :reject):
   field(:name, required: true)
 
-search_params = ember.params:
+search_params = orbit.params:
   field(:q)
   array(:tag, of: Str)
 
 def create_user_schema():
   create_user_params
 
-class Users < ember.Controller:
+class Users < orbit.Controller:
   def create():
     attrs = params.json.expect(create_user_schema())
     render(json: attrs, status: :created)
 
-routes = ember.routes:
+routes = orbit.routes:
   post "/users", to: &Users#create
 
 def assert(condition, message):
   raise ArgumentError(message) unless condition
 
 def main():
-  app = ember.App(routes: routes, expose_exceptions: true)
+  app = orbit.App(routes: routes, expose_exceptions: true)
 
   user_response = app.call(testing.post("/users", json: {
     user: {

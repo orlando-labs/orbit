@@ -1,6 +1,6 @@
 schema: sputnik.build.v1
-name: ember.example.soak.client
-root: ember.example.soak.client
+name: orbit.example.soak.client
+root: orbit.example.soak.client
 
 profiles:
   required: [core.v1]
@@ -8,5 +8,5 @@ profiles:
   forbidden: []
 
 modules:
-  - name: ember.example.soak.client
+  - name: orbit.example.soak.client
     path: client.s

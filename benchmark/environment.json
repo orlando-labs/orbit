@@ -1,5 +1,5 @@
 {
-  "schema": "ember.benchmark.environment.v1",
+  "schema": "orbit.benchmark.environment.v1",
   "recorded_at": "2026-07-22",
   "runner": {
     "model": "Mac mini (Mac16,10)",
@@ -16,7 +16,7 @@
     "target": "native cpp-bytecode-direct-v1"
   },
   "sources": {
-    "ember_parent": "8556e77b95d11852acc4928a0ef5e976ce84af16",
+    "orbit_parent": "8556e77b95d11852acc4928a0ef5e976ce84af16",
     "sputnik_lang": "14b32257e0e7b3b10e4dff6bf97a1bd0c757380c",
     "sputnik_orm": "1e64d37859f7e1b6f92ebcebb01df9c4f599ff86",
     "sqlite3_sputnik": "8ffb543bf7678e3011dce8e8e58276b6d9725f88"

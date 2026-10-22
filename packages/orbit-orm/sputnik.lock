@@ -2,19 +2,19 @@
 schema = "sputnik.lock.v1"
 
 [package]
-name = "ember-orm"
+name = "orbit-orm"
 version = "1.0.0-rc.1"
-root = "ember.integrations.orm"
+root = "orbit.integrations.orm"
 
 [[dependencies]]
-name = "ember"
+name = "orbit"
 version = "1.0.0-rc.1"
 source = "registry"
-checksum = "sha256:e3dd8fa26a9642748eefbb7cbfe0ebbf8520cb0030e0a06ed455e990d04fa5bd"
+checksum = "sha256:20a97e13f3d94ffb98d219ab917fa1dd5b6057d6d511b3fc43a981ac014aaf58"
 
 [[dependencies]]
-name = "sputnik-orm"
-version = "0.1.0-dev"
+name = "orm"
+version = "0.1.0"
 source = "registry"
 checksum = "sha256:013d753107986fe33c552824d5668ea655eba15ea2cb5fddc6c3928317f8c5dd"
 

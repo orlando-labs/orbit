@@ -1,10 +1,10 @@
-package ember.multipart
+package orbit.multipart
 
-import ember
+import orbit
 
 export MultipartLimits, MultipartPart, MultipartForm, MultipartError, parse
 
-class MultipartError < ember.RequestParamsError
+class MultipartError < orbit.RequestParamsError
 
 class MultipartLimits:
   attr max_total_bytes
@@ -78,10 +78,10 @@ class MultipartForm:
 
 def _boundary_from(content_type):
   unless content_type:
-    raise ember.ParamsUnsupportedMediaTypeError("multipart parameters require Content-Type")
+    raise orbit.ParamsUnsupportedMediaTypeError("multipart parameters require Content-Type")
   pieces = content_type.to_str.split(";")
   unless pieces[0].trim.downcase == "multipart/form-data":
-    raise ember.ParamsUnsupportedMediaTypeError("request Content-Type is not multipart/form-data")
+    raise orbit.ParamsUnsupportedMediaTypeError("request Content-Type is not multipart/form-data")
   boundary = null
   index = 1
   while index < pieces.count:
@@ -159,7 +159,7 @@ def _parse_part(block, limits):
       raise MultipartError("multipart part header is malformed")
     pairs.push!([line.slice(0...colon), line.slice(colon + 1...line.length).trim])
   headers = try:
-    ember.Headers(pairs)
+    orbit.Headers(pairs)
   rescue InvalidHeaderError |error|:
     raise MultipartError("invalid multipart header: " + error.message)
   dispositions = headers.all("content-disposition")
@@ -185,8 +185,8 @@ def _parse_part(block, limits):
   MultipartPart(name, filename, content_type, headers, data)
 
 def parse(request, limits: MultipartLimits()):
-  unless ember.Request === request:
-    raise ArgumentError("multipart.parse expects ember.Request")
+  unless orbit.Request === request:
+    raise ArgumentError("multipart.parse expects orbit.Request")
   boundary = _boundary_from(request.header("content-type"))
   request.body_stream.claim_params!()
   bytes = request.body_bytes()

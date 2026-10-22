@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: ember-app
+  name: orbit-app
 spec:
   replicas: 2
   strategy:
@@ -11,16 +11,16 @@ spec:
       maxSurge: 1
   selector:
     matchLabels:
-      app: ember-app
+      app: orbit-app
   template:
     metadata:
       labels:
-        app: ember-app
+        app: orbit-app
     spec:
       terminationGracePeriodSeconds: 45
       containers:
         - name: app
-          image: registry.example.test/ember-app@sha256:REPLACE_WITH_RELEASE_DIGEST
+          image: registry.example.test/orbit-app@sha256:REPLACE_WITH_RELEASE_DIGEST
           ports:
             - name: http
               containerPort: 3000
@@ -55,10 +55,10 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: ember-app
+  name: orbit-app
 spec:
   selector:
-    app: ember-app
+    app: orbit-app
   ports:
     - name: http
       port: 3000

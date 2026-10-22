@@ -1,10 +1,10 @@
-package ember
+package orbit
 
 from net.http import Server, ServerRequest, ServerResponse
 from sync import Atomic, Mutex
 import task
 
-# Ember core is deliberately source-only. The router, application pipeline,
+# Orbit core is deliberately source-only. The router, application pipeline,
 # controller lifecycle, and HTTP adapter do not depend on an ORM or an FFI
 # package.
 
@@ -33,7 +33,7 @@ export RequestParams, RequestParamSource
 export render, redirect, stream, normalize_response, status_code
 export request_method, request_path, request_id_context, response_status, with_response_header
 export request_route_pattern
-export EmberError, RouteError, InvalidRouteError, DuplicateRouteError
+export OrbitError, RouteError, InvalidRouteError, DuplicateRouteError
 export DuplicateRouteNameError, InvalidPathError, RouteParamError
 export RouteNotFoundError, UnknownRouteNameError, PathGenerationError
 export InvalidResponseError, DoubleRenderError, ResponseCommittedError
@@ -44,7 +44,7 @@ export ParamsUnsupportedMediaTypeError, ParamsBodyConsumedError
 export RequestSecurityError, InvalidAuthorityError, UnauthorizedHostError
 export InvalidForwardedRequestError
 
-class EmberError < Exception:
+class OrbitError < Exception:
   attr message
 
   def init(@message as Str)
@@ -53,7 +53,7 @@ class EmberError < Exception:
   def str():
     @message
 
-class RouteError < EmberError
+class RouteError < OrbitError
 class InvalidRouteError < RouteError
 class DuplicateRouteError < RouteError
 class DuplicateRouteNameError < RouteError
@@ -62,15 +62,15 @@ class RouteParamError < RouteError
 class RouteNotFoundError < RouteError
 class UnknownRouteNameError < RouteError
 class PathGenerationError < RouteError
-class InvalidResponseError < EmberError
-class ServerLifecycleError < EmberError
-class DoubleRenderError < EmberError
-class ResponseCommittedError < EmberError
-class UnknownStatusError < EmberError
-class UnknownServiceError < EmberError
-class UnsafeRedirectError < EmberError
-class RequestParamsError < EmberError
-class RequestSecurityError < EmberError
+class InvalidResponseError < OrbitError
+class ServerLifecycleError < OrbitError
+class DoubleRenderError < OrbitError
+class ResponseCommittedError < OrbitError
+class UnknownStatusError < OrbitError
+class UnknownServiceError < OrbitError
+class UnsafeRedirectError < OrbitError
+class RequestParamsError < OrbitError
+class RequestSecurityError < OrbitError
 class InvalidAuthorityError < RequestSecurityError
 class UnauthorizedHostError < RequestSecurityError
 class InvalidForwardedRequestError < RequestSecurityError
@@ -269,7 +269,7 @@ class Headers:
               source.each |name, value|:
                 normalized_pairs.push!(_validated_header_pair(name, value))
             rescue NoMethodError:
-              raise ArgumentError("headers must be ember.Headers, net.http.Headers, a Map, or ordered pairs")
+              raise ArgumentError("headers must be orbit.Headers, net.http.Headers, a Map, or ordered pairs")
     @pairs = normalized_pairs.freeze
     semantics = _header_semantics!(@pairs)
     @content_length = semantics[0]
@@ -508,10 +508,18 @@ class StreamingResponse:
   attr status
   attr headers
   attr trailers
+  attr length
+  attr on_complete
 
-  def init(status: 200, headers: {}, trailers: [], &producer):
+  def init(status: 200, headers: {}, trailers: [], length: null, on_complete: null, &producer):
     unless producer:
       raise ArgumentError("streaming response requires a producer block")
+    if length != null and (not (Int === length) or length < 0):
+      raise ArgumentError("length must be a nonnegative Int or null")
+    if length != null and not trailers.empty?:
+      raise InvalidHeaderError("fixed-length response does not permit trailers")
+    @length = length
+    @on_complete = on_complete
     @status = status_code(status)
     @headers = _headers(headers)
     if @headers._content_length() != null or @headers._transfer_encoding?() or @headers._trailer?():
@@ -534,6 +542,8 @@ class StreamingResponse:
     StreamingResponse(
       status: @status,
       headers: selected,
+      length: @length,
+      on_complete: @on_complete,
       trailers: @trailers) |body|:
         producer(body)
 
@@ -542,6 +552,8 @@ class StreamingResponse:
     StreamingResponse(
       status: @status,
       headers: @headers.merge(headers),
+      length: @length,
+      on_complete: @on_complete,
       trailers: @trailers) |body|:
         producer(body)
 
@@ -550,13 +562,17 @@ class StreamingResponse:
     ServerResponse.stream(
       status: @status,
       headers: @headers.to_native,
+      length: @length,
+      on_complete: @on_complete,
       trailers: @trailers) |native_body|:
         producer(StreamBody(native_body))
 
-def stream(status: :ok, headers: {}, trailers: [], &producer):
+def stream(status: :ok, headers: {}, trailers: [], length: null, on_complete: null, &producer):
   StreamingResponse(
     status: status,
     headers: headers,
+    length: length,
+    on_complete: on_complete,
     trailers: trailers) |body|:
       producer(body)
 
@@ -591,11 +607,14 @@ def _apply_response_rules(response, method):
     if contentless:
       raise InvalidResponseError("streaming response status does not permit content")
     if method == "HEAD":
-      return Response(status: code, headers: response.headers, body: "")
+      headers = response.headers
+      if response.length != null:
+        headers = headers.set("content-length", response.length.to_str)
+      return Response(status: code, headers: headers, body: "")
     return response
 
   unless Response === response:
-    raise InvalidResponseError("response rules expect an Ember response")
+    raise InvalidResponseError("response rules expect an Orbit response")
 
   body_size = response.body_bytes.count
   if contentless and body_size != 0:
@@ -608,7 +627,7 @@ def _apply_response_rules(response, method):
   elif code == 205:
     _validate_buffered_content_length!(response, 0)
   elif code == 304:
-    # Ember cannot prove the size of the selected 200 representation at this
+    # Orbit cannot prove the size of the selected 200 representation at this
     # boundary, so an application-supplied value is omitted rather than
     # forwarding unverified framing metadata.
     headers = headers.delete("content-length")
@@ -624,7 +643,7 @@ def _apply_response_rules(response, method):
 def response_status(response):
   return _streaming_response_status(response) if StreamingResponse === response
   return _buffered_response_status(response) if Response === response
-  raise InvalidResponseError("response_status expects an Ember response")
+  raise InvalidResponseError("response_status expects an Orbit response")
 
 def _buffered_response_status(response as Response):
   response.status
@@ -637,7 +656,7 @@ def with_response_header(response, name, value, append: false):
     return _with_streaming_response_header(response, name, value, append)
   if Response === response:
     return _with_buffered_response_header(response, name, value, append)
-  raise InvalidResponseError("with_response_header expects an Ember response")
+  raise InvalidResponseError("with_response_header expects an Orbit response")
 
 def _with_buffered_response_header(response as Response, name, value, append):
   response.with_header(name, value, append: append)
@@ -648,6 +667,8 @@ def _with_streaming_response_header(response as StreamingResponse, name, value, 
   StreamingResponse(
     status: response.status,
     headers: selected,
+    length: response.length,
+    on_complete: response.on_complete,
     trailers: response.trailers) |body|:
       producer(body)
 
@@ -658,12 +679,14 @@ def _merge_response_headers(headers, header_names, response):
     return StreamingResponse(
       status: response.status,
       headers: response.headers._merge_known(headers, header_names),
+      length: response.length,
+      on_complete: response.on_complete,
       trailers: response.trailers) |body|:
         producer(body)
   if Response === response:
     return response._with_headers(
       response.headers._merge_known(headers, header_names))
-  raise InvalidResponseError("response header merge expects an Ember response")
+  raise InvalidResponseError("response header merge expects an Orbit response")
 
 def _render_response(
   value = null,
@@ -691,7 +714,7 @@ def _render_response(
     return Response(status: code, headers: _content_type(headers, "text/plain; charset=utf-8"), body: text.to_str)
   if html != null:
     unless Html === html:
-      raise InvalidResponseError("render html: expects ember.Html")
+      raise InvalidResponseError("render html: expects orbit.Html")
     return Response(status: code, headers: _content_type(headers, "text/html; charset=utf-8"), body: html)
   if json != null:
     return Response(status: code, headers: _content_type(headers, "application/json; charset=utf-8"), body: Json.generate(json))
@@ -864,7 +887,7 @@ class RequestParamSource:
 
   def check(schema):
     unless ParamSchema === schema:
-      raise ArgumentError("RequestParamSource#check expects ember.ParamSchema")
+      raise ArgumentError("RequestParamSource#check expects orbit.ParamSchema")
     schema.check(@value)
 
   def expect(schema):
@@ -1108,21 +1131,21 @@ class RequestBodyStream:
       raise ParamsBodyConsumedError("request body has already been consumed as parameters")
     @claimed_by = :stream
     @started = true
-    unless @native:
-      return null if @local_closed
-      remaining = @bytes.count - @offset
-      count = if max_bytes == null or max_bytes > remaining then remaining else max_bytes
-      unless Int === count and count > 0:
-        raise ArgumentError("max_bytes must be a positive Int")
-      data = @bytes.slice(@offset, count)
-      @offset += count
-      @local_closed = true if @offset == @bytes.count
-      return RequestChunk(data: data)
-    native_chunk = if max_bytes == null:
-      @native.read_chunk
-    else:
-      @native.read_chunk(max_bytes: max_bytes)
-    if native_chunk then RequestChunk(native_chunk) else null
+    if @native:
+      native_chunk = if max_bytes == null:
+        @native.read_chunk
+      else:
+        @native.read_chunk(max_bytes: max_bytes)
+      return (if native_chunk then RequestChunk(native_chunk) else null)
+    return null if @local_closed
+    remaining = @bytes.count - @offset
+    count = if max_bytes == null or max_bytes > remaining then remaining else max_bytes
+    unless Int === count and count > 0:
+      raise ArgumentError("max_bytes must be a positive Int")
+    data = @bytes.slice(@offset, count)
+    @offset += count
+    @local_closed = true if @offset == @bytes.count
+    RequestChunk(data: data)
 
   def each_chunk(max_bytes: null, &block):
     unless block:
@@ -1135,7 +1158,7 @@ class RequestBodyStream:
     if @native:
       return @native.trailers
     unless @local_closed:
-      raise EmberError("request trailers are available after body completion")
+      raise OrbitError("request trailers are available after body completion")
     {}.freeze
 
   def closed?():
@@ -1592,8 +1615,8 @@ class Request:
     @effective_authority = effective_authority
     @client_ip = client_ip
     @trusted_proxy = trusted_proxy
-    unless @response_header_sink.has_key?("__ember_input_request_id"):
-      @response_header_sink.store!("__ember_input_request_id", @header_lookup[?"x-request-id"])
+    unless @response_header_sink.has_key?("__orbit_input_request_id"):
+      @response_header_sink.store!("__orbit_input_request_id", @header_lookup[?"x-request-id"])
     @query_params = null
     @params = null
 
@@ -1613,9 +1636,9 @@ class Request:
     )
 
   def header(name):
-    if name == "__ember_request_id_context":
+    if name == "__orbit_request_id_context":
       return [@header_lookup[?"x-request-id"], @response_header_sink]
-    return @response_header_sink if name == "__ember_response_header_sink"
+    return @response_header_sink if name == "__orbit_response_header_sink"
     @header_lookup[?name.to_str.downcase]
 
   def method_name():
@@ -1702,24 +1725,24 @@ class Request:
 
 def request_method(request):
   unless Request === request:
-    raise ArgumentError("request_method expects ember.Request")
+    raise ArgumentError("request_method expects orbit.Request")
   request.method
 
 def request_path(request):
   unless Request === request:
-    raise ArgumentError("request_path expects ember.Request")
+    raise ArgumentError("request_path expects orbit.Request")
   request.path
 
 def request_id_context(request):
   unless Request === request:
-    raise ArgumentError("request_id_context expects ember.Request")
+    raise ArgumentError("request_id_context expects orbit.Request")
   sink = request.response_header_sink
-  [sink[?"__ember_input_request_id"], sink, request]
+  [sink[?"__orbit_input_request_id"], sink, request]
 
 def request_route_pattern(request):
   unless Request === request:
-    raise ArgumentError("request_route_pattern expects ember.Request")
-  request.response_header_sink[?"__ember_route_pattern"]
+    raise ArgumentError("request_route_pattern expects orbit.Request")
+  request.response_header_sink[?"__orbit_route_pattern"]
 
 class Target:
   attr kind
@@ -1773,7 +1796,7 @@ class IntegrationNext:
     @called = false
   def call(request):
     if @called:
-      raise EmberError("integration next may only be called once")
+      raise OrbitError("integration next may only be called once")
     @called = true
     if @index >= @integrations.count:
       return @endpoint(request)
@@ -2202,7 +2225,7 @@ class MiddlewareNext:
     @called = false
   def call(request):
     if @called:
-      raise EmberError("middleware next may only be called once")
+      raise OrbitError("middleware next may only be called once")
     @called = true
     if @index >= @middleware.count:
       return @endpoint(request)
@@ -2216,7 +2239,7 @@ class BeforeEndpoint:
 
 def __before(middleware, request, &block):
   unless block:
-    raise ArgumentError("ember.__before requires a handler block")
+    raise ArgumentError("orbit.__before requires a handler block")
   MiddlewareNext(_middleware_list(middleware), 0, BeforeEndpoint(block))(request)
 
 class RouteEndpoint:
@@ -2250,7 +2273,7 @@ class DispatchEndpoint:
       return Response(status: :no_content,
         headers: {"allow": lookup.allowed_methods.join(", ")}, body: "")
     match = lookup.match
-    request.response_header_sink.store!("__ember_route_pattern", match.route.pattern)
+    request.response_header_sink.store!("__orbit_route_pattern", match.route.pattern)
     routed = request._routed(@routes, match.route, match.path_params, @services)
     if match.route.middleware.empty?:
       return match.route.target.invoke(routed, match.captures, @integrations)
@@ -2610,7 +2633,7 @@ class App:
     @services = services.copy.freeze
     @security = security or SecurityPolicy()
     unless SecurityPolicy === @security:
-      raise ArgumentError("security must be an ember.SecurityPolicy")
+      raise ArgumentError("security must be an orbit.SecurityPolicy")
     @head_fallback = head_fallback
     @automatic_options = automatic_options
     @expose_exceptions = expose_exceptions
@@ -2626,7 +2649,7 @@ class App:
   def call(request):
     normalized = if ServerRequest === request then Request.from_server(request) else request
     unless Request === normalized:
-      raise ArgumentError("App#call expects ember.Request or net.http.ServerRequest")
+      raise ArgumentError("App#call expects orbit.Request or net.http.ServerRequest")
     _call_normalized(normalized)
 
   def _call_normalized(request as Request):
@@ -2670,7 +2693,7 @@ class App:
     rescue RequestParamsError |error|:
       response = render(text: "bad request", status: :bad_request)
     rescue Exception |error|:
-      route_pattern = request.response_header_sink[?"__ember_route_pattern"]
+      route_pattern = request.response_header_sink[?"__orbit_route_pattern"]
       if _propagated_error?(error):
         _telemetry_exception(
           @telemetry, telemetry_token, error, effective_request, route_pattern)
@@ -2684,7 +2707,7 @@ class App:
     unless finalized:
       protected = @security.protect_response(normalize_response(response), effective_request)
       final_response = _apply_response_rules(protected, request.method)
-    route_pattern = request.response_header_sink[?"__ember_route_pattern"]
+    route_pattern = request.response_header_sink[?"__orbit_route_pattern"]
     _telemetry_response(
       @telemetry, telemetry_token, final_response, effective_request, route_pattern)
 
@@ -2843,7 +2866,7 @@ class Controller:
     @committed = true
     response
 
-  def stream(status: null, headers: {}, trailers: [], &producer):
+  def stream(status: null, headers: {}, trailers: [], length: null, on_complete: null, &producer):
     _ensure_renderable!
     unless producer:
       raise ArgumentError("Controller#stream requires a producer block")
@@ -2852,6 +2875,8 @@ class Controller:
     response = StreamingResponse(
       status: chosen_status,
       headers: merged_headers,
+      length: length,
+      on_complete: on_complete,
       trailers: trailers) |body|:
         producer(body)
     @committed = true
@@ -2893,7 +2918,7 @@ def __mount(routes, at: "/", before: []):
 
 macro def params(root as Ast: null, unknown as Ast: null, &blk) -> Ast:
   unless blk:
-    raise ArgumentError("EMBER_PARAMS_BLOCK: ember.params requires a block")
+    raise ArgumentError("ORBIT_PARAMS_BLOCK: orbit.params requires a block")
   root_node = root
   unless root_node:
     root_node = quote:
@@ -2904,7 +2929,7 @@ macro def params(root as Ast: null, unknown as Ast: null, &blk) -> Ast:
       :drop
   fields = blk().expressions
   return quote:
-    ember.ParamSchema([#{*fields}], root: #{root_node}, unknown: #{unknown_node})
+    orbit.ParamSchema([#{*fields}], root: #{root_node}, unknown: #{unknown_node})
 
 macro def field(
   name as Ast,
@@ -2925,7 +2950,7 @@ macro def field(
     nullable_node = quote:
       false
   return quote:
-    ember.ParamField(
+    orbit.ParamField(
       #{name},
       type: #{type_node},
       required: #{required_node},
@@ -2939,7 +2964,7 @@ macro def object(
   &blk
 ) -> Ast:
   unless blk:
-    raise ArgumentError("EMBER_PARAMS_OBJECT_BLOCK: object requires a block")
+    raise ArgumentError("ORBIT_PARAMS_OBJECT_BLOCK: object requires a block")
   required_node = required
   unless required_node:
     required_node = quote:
@@ -2954,7 +2979,7 @@ macro def object(
       null
   fields = blk().expressions
   return quote:
-    ember.ParamObject(
+    orbit.ParamObject(
       #{name},
       fields: [#{*fields}],
       required: #{required_node},
@@ -2970,9 +2995,9 @@ macro def array(
   &blk
 ) -> Ast:
   if of and blk:
-    raise ArgumentError("EMBER_PARAMS_ARRAY_SHAPE: array accepts either of: or a field block")
+    raise ArgumentError("ORBIT_PARAMS_ARRAY_SHAPE: array accepts either of: or a field block")
   unless of or blk:
-    raise ArgumentError("EMBER_PARAMS_ARRAY_SHAPE: array requires of: or a field block")
+    raise ArgumentError("ORBIT_PARAMS_ARRAY_SHAPE: array requires of: or a field block")
   of_node = of
   unless of_node:
     of_node = quote:
@@ -2993,7 +3018,7 @@ macro def array(
   if blk:
     fields = blk().expressions
   return quote:
-    ember.ParamArray(
+    orbit.ParamArray(
       #{name},
       of: #{of_node},
       fields: [#{*fields}],
@@ -3003,20 +3028,20 @@ macro def array(
 
 macro def routes(&blk) -> Ast:
   unless blk:
-    raise ArgumentError("EMBER_ROUTES_BLOCK: ember.routes requires a block")
+    raise ArgumentError("ORBIT_ROUTES_BLOCK: orbit.routes requires a block")
   entries = blk().expressions
   return quote:
-    ember.Routes([#{*entries}])
+    orbit.Routes([#{*entries}])
 
 macro def _route_macro(method, pattern as Ast, target as Ast, **opts) -> Ast:
   unless pattern.kind == "AstStringLiteral" and not pattern.interpolation:
-    raise ArgumentError("EMBER_ROUTE_PATTERN: route pattern must be a static string literal")
+    raise ArgumentError("ORBIT_ROUTE_PATTERN: route pattern must be a static string literal")
   unless target.kind == "AstCallableRef":
-    raise ArgumentError("EMBER_ROUTE_TARGET: to: must be an Sputnik callable reference")
+    raise ArgumentError("ORBIT_ROUTE_TARGET: to: must be an Sputnik callable reference")
   allowed = ["as", "params", "before"]
   opts.keys.each |name|:
     unless allowed.include?(name.to_str):
-      raise ArgumentError("EMBER_ROUTE_OPTION: unknown route option " + name.to_str)
+      raise ArgumentError("ORBIT_ROUTE_OPTION: unknown route option " + name.to_str)
   name = opts[?"as"]
   params = opts[?"params"]
   before = opts[?"before"]
@@ -3033,12 +3058,12 @@ macro def _route_macro(method, pattern as Ast, target as Ast, **opts) -> Ast:
   descriptor = null
   if target.ref_kind == "unbound_instance":
     descriptor = quote:
-      ember.Target.controller(#{target.receiver}, #{target}, label: #{label})
+      orbit.Target.controller(#{target.receiver}, #{target}, label: #{label})
   else:
     descriptor = quote:
-      ember.Target.function(#{target}, label: #{label})
+      orbit.Target.function(#{target}, label: #{label})
   return quote:
-    ember.__route(#{Ast.lift(method)}, #{pattern}, #{descriptor}, name: #{name}, params: #{params}, before: #{before})
+    orbit.__route(#{Ast.lift(method)}, #{pattern}, #{descriptor}, name: #{name}, params: #{params}, before: #{before})
 
 macro def get(pattern as Ast, to as Ast:, **opts) -> Ast:
   return _route_macro("GET", pattern, to, **opts)
@@ -3066,14 +3091,14 @@ macro def options(pattern as Ast, to as Ast:, **opts) -> Ast:
 
 macro def scope(prefix as Ast, before as Ast: null, &blk) -> Ast:
   unless blk:
-    raise ArgumentError("EMBER_SCOPE_BLOCK: scope requires a block")
+    raise ArgumentError("ORBIT_SCOPE_BLOCK: scope requires a block")
   entries = blk().expressions
   middleware = before
   unless middleware:
     middleware = quote:
       []
   return quote:
-    ember.__scope(#{prefix}, [#{*entries}], before: #{middleware})
+    orbit.__scope(#{prefix}, [#{*entries}], before: #{middleware})
 
 macro def mount(routes as Ast, at as Ast: null, before as Ast: null) -> Ast:
   prefix = at
@@ -3085,4 +3110,4 @@ macro def mount(routes as Ast, at as Ast: null, before as Ast: null) -> Ast:
     middleware = quote:
       []
   return quote:
-    ember.__mount(#{routes}, at: #{prefix}, before: #{middleware})
+    orbit.__mount(#{routes}, at: #{prefix}, before: #{middleware})

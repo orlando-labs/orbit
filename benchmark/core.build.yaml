@@ -1,6 +1,6 @@
 schema: sputnik.build.v1
-name: ember.benchmark.core
-root: ember.benchmark.core
+name: orbit.benchmark.core
+root: orbit.benchmark.core
 
 profiles:
   required: [core.v1, macro.v1]
@@ -8,9 +8,9 @@ profiles:
   forbidden: []
 
 modules:
-  - name: ember
-    path: ../src/ember.s
-  - name: ember.testing
-    path: ../src/ember/testing.s
-  - name: ember.benchmark.core
+  - name: orbit
+    path: ../src/orbit.s
+  - name: orbit.testing
+    path: ../src/orbit/testing.s
+  - name: orbit.benchmark.core
     path: core.s

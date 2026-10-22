@@ -38,7 +38,7 @@ def expect(
 
 
 def main() -> None:
-    with tempfile.TemporaryDirectory(prefix="ember-soak-provenance-") as path:
+    with tempfile.TemporaryDirectory(prefix="orbit-soak-provenance-") as path:
         root = Path(path)
         git(root, "init", "-q")
         git(root, "config", "user.email", "soak-test@example.invalid")

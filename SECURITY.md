@@ -2,7 +2,7 @@
 
 ## Supported versions
 
-Until Ember 1.0 is released, only the latest release candidate receives
+Until Orbit 1.0 is released, only the latest release candidate receives
 security fixes. After 1.0, the support window in
 [the compatibility policy](docs/COMPATIBILITY.md) applies.
 
@@ -14,7 +14,7 @@ security fixes. After 1.0, the support window in
 ## Reporting a vulnerability
 
 Do not open a public issue for a suspected vulnerability. Use GitHub private
-vulnerability reporting for the Ember repository. If that route is
+vulnerability reporting for the Orbit repository. If that route is
 unavailable, contact `security@orlando-labs.com` with:
 
 - affected version and platform;

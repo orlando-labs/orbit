@@ -1,4 +1,4 @@
-Вердикт: Ember `1.0.0-rc.1` закрывает этапы 0–5, но пока не production-ready. HTTP correctness, lifecycle, graceful shutdown, production transport, security, observability/performance и release engineering реализованы и имеют воспроизводимые gates. Оставшийся блок — длительная RC-валидация в production-equivalent окружении.
+Вердикт: Orbit `1.0.0-rc.1` закрывает этапы 0–5, но пока не production-ready. HTTP correctness, lifecycle, graceful shutdown, production transport, security, observability/performance и release engineering реализованы и имеют воспроизводимые gates. Оставшийся блок — длительная RC-валидация в production-equivalent окружении.
 
 ## Текущее состояние
 
@@ -22,19 +22,19 @@
 - исходная ChaCha20-Poly1305 реализация ожидает независимый cryptographic review до финального 1.0;
 - TLS и HTTP/2/3 остаются ответственностью обязательного trusted edge.
 
-## Рекомендуемая граница Ember 1.0
+## Рекомендуемая граница Orbit 1.0
 
 Разумный первый production-контракт:
 
-> Ember 1.0 — production-ready HTTP/API и server-rendered framework, разворачиваемый за TLS reverse proxy.
+> Orbit 1.0 — production-ready HTTP/API и server-rendered framework, разворачиваемый за TLS reverse proxy.
 
-TLS и HTTP/2/3 можно оставить нижнему транспортному или edge-слою. Но keep-alive между proxy и Ember, graceful shutdown, trusted proxies, browser security primitives и observability должны попасть в 1.0.
+TLS и HTTP/2/3 можно оставить нижнему транспортному или edge-слою. Но keep-alive между proxy и Orbit, graceful shutdown, trusted proxies, browser security primitives и observability должны попасть в 1.0.
 
 ## Рабочая дорожная карта
 
 | Этап | Результат | Критерий выхода |
 |---|---|---|
-| 0. Контракт, 1 неделя — **выполнен 2026-07-19** | Зафиксировать HEAD fallback, trailing slash, status/body semantics, публичный API, edge deployment model и compatibility policy | Принят [ADR-0001](docs/adr/0001-ember-1-0-contract.md), опубликованы контракты и [definition of production-ready](docs/PRODUCTION_READINESS.md), решения закреплены self-test |
+| 0. Контракт, 1 неделя — **выполнен 2026-07-19** | Зафиксировать HEAD fallback, trailing slash, status/body semantics, публичный API, edge deployment model и compatibility policy | Принят [ADR-0001](docs/adr/0001-orbit-1-0-contract.md), опубликованы контракты и [definition of production-ready](docs/PRODUCTION_READINESS.md), решения закреплены self-test |
 | 1. Correctness и lifecycle, 2–3 недели — **выполнен 2026-07-21** | Исправить streaming middleware, cancellation propagation, immutable snapshots, multi-value headers; добавить error hook и configurable server limits/timeouts | Все invariants покрыты unit/property tests; shutdown и cancellation не превращаются в 500 |
 | 2. Production transport, 3–4 недели — **выполнен 2026-07-21** | Server handle, stop accepting, drain in-flight requests, shutdown deadline, keep-alive, overload policy, integration start/stop; корректные HEAD/204/304/1xx semantics | Graceful shutdown воспроизводим; нет потерянных ORM leases и зависших streams; HTTP conformance suite зелёный |
 | 3. Security baseline, 3–4 недели — **выполнен 2026-07-22** | Host authorization, explicit trusted-proxy/CIDR policy, secure request-id validation, security headers, CORS; cookies, signed/encrypted sessions, CSRF, multipart с жёсткими лимитами; context-aware HTML или запрет опасных контекстов | Threat model закрыт; выполнен framework-relevant профиль [OWASP ASVS 5.0](https://owasp.org/www-project-application-security-verification-standard/); нет critical/high findings |
@@ -52,7 +52,7 @@ TLS и HTTP/2/3 можно оставить нижнему транспортн�
 - [Модель edge deployment](docs/DEPLOYMENT.md) задаёт поддерживаемый профиль за
   TLS reverse proxy, trust boundary и startup/shutdown lifecycle.
 - [Compatibility policy](docs/COMPATIBILITY.md) задаёт SemVer, deprecation,
-  матрицу Ember × Sputnik/runtime/platform и срок поддержки.
+  матрицу Orbit × Sputnik/runtime/platform и срок поддержки.
 - [Definition of production-ready](docs/PRODUCTION_READINESS.md) превращает
   этапы 1–5 и RC в измеримые release gates с обязательными доказательствами.
 - `test/contract_selftest.s` проверяет уже реализованные решения этапа 0;
@@ -60,7 +60,7 @@ TLS и HTTP/2/3 можно оставить нижнему транспортн�
 
 ### Результат этапа 1
 
-- `ember.Headers` сохраняет порядок и повторяемые поля, валидирует имена/значения и исключает неоднозначное framing.
+- `orbit.Headers` сохраняет порядок и повторяемые поля, валидирует имена/значения и исключает неоднозначное framing.
 - Streaming-safe middleware сохраняет тип response и повторяемые заголовки; cancellation/runtime control flow не превращается в `500`.
 - Immutable snapshots усилены для routes, matches, request metadata и headers; `on_error` получает редактированный `ErrorEvent`.
 - Все server limits/timeouts доступны через `App`, валидируются до bind.
@@ -70,25 +70,25 @@ TLS и HTTP/2/3 можно оставить нижнему транспортн�
 
 - Публичный `ServerHandle` реализует readiness, `stop_accepting`, in-flight/stats, blocking/async serve, clean drain, deadline cancellation и идемпотентный shutdown.
 - HTTP/1.1 transport поддерживает bounded keep-alive/pipelining, idle timeout, ограничение запросов на соединение и немедленный `503` при исчерпании hard capacity.
-- Lifecycle-aware integrations наследуют `ember.Integration`; их hooks запускаются до readiness и останавливаются после drain/cancellation в обратном порядке, а startup failure выполняет unwind уже запущенных hooks. ORM pool закрывается только после освобождения request lease.
+- Lifecycle-aware integrations наследуют `orbit.Integration`; их hooks запускаются до readiness и останавливаются после drain/cancellation в обратном порядке, а startup failure выполняет unwind уже запущенных hooks. ORM pool закрывается только после освобождения request lease.
 - Wire rules для `HEAD`, final `1xx`, `204`, `205`, `304`, `Content-Length`, `Transfer-Encoding`, trailers и malformed Host/CL-TE/obs-fold проверяются до/на границе transport.
 - `test/stage2_selftest.s` и `sputnik-lang/tests/vm_net_http_tests.cpp` воспроизводят keep-alive, raw-socket conformance, overload, clean/forced shutdown и cancel/unwind без потерянных leases или зависших задач.
 - Конкретный API и операционные ограничения опубликованы в [TRANSPORT.md](docs/TRANSPORT.md).
 
 ### Результат этапа 3
 
-- `ember.SecurityPolicy` авторизует Host до routing, принимает forwarding metadata только от явных IPv4 CIDR/exact IPv6 `/128` peers, ограничивает число hops и формирует безопасные `origin`, scheme и client IP.
+- `orbit.SecurityPolicy` авторизует Host до routing, принимает forwarding metadata только от явных IPv4 CIDR/exact IPv6 `/128` peers, ограничивает число hops и формирует безопасные `origin`, scheme и client IP.
 - Response security headers применяются и к success, и к error responses; HSTS зависит только от validated HTTPS provenance. `RequestIdMiddleware` принимает лишь bounded ASCII IDs или генерирует secure Base64URL ID.
-- Новый `ember.security` реализует bounded Cookie/Set-Cookie, HMAC-signed values, RFC 8439 ChaCha20-Poly1305 encrypted sessions с expiry/key rotation, exact CORS и session-bound signed double-submit CSRF.
-- Новый `ember.multipart` строго разбирает `multipart/form-data` с aggregate/part/header/field/file/name limits и запретом path-like filenames; storage/content validation оставлены явной политикой приложения.
-- `ember.html` различает text, quoted attribute, URL, JavaScript, CSS, event, srcdoc и запрещённые контексты; URL/script/style требуют typed wrappers, comments/tag syntax/unquoted attributes завершают macro expansion ошибкой `EMBER_HTML_CONTEXT`.
+- Новый `orbit.security` реализует bounded Cookie/Set-Cookie, HMAC-signed values, RFC 8439 ChaCha20-Poly1305 encrypted sessions с expiry/key rotation, exact CORS и session-bound signed double-submit CSRF.
+- Новый `orbit.multipart` строго разбирает `multipart/form-data` с aggregate/part/header/field/file/name limits и запретом path-like filenames; storage/content validation оставлены явной политикой приложения.
+- `orbit.html` различает text, quoted attribute, URL, JavaScript, CSS, event, srcdoc и запрещённые контексты; URL/script/style требуют typed wrappers, comments/tag syntax/unquoted attributes завершают macro expansion ошибкой `ORBIT_HTML_CONTEXT`.
 - `test/stage3_selftest.s` проверяет positive/negative security corpus и официальный RFC 8439 vector; два compile-fail fixture закрепляют запрет неоднозначных HTML-контекстов.
 - Опубликованы [security contract](docs/SECURITY.md), versioned [threat model](docs/THREAT_MODEL.md), [OWASP ASVS 5.0.0 mapping](docs/ASVS_5_MAPPING.md) и [security review/scan record](docs/SECURITY_REVIEW.md). Открытых critical/high findings нет; lower-severity risks имеют владельца и release gate.
 
 ### Результат этапа 4
 
 - `App(telemetry:)` наблюдает полный request lifecycle: buffered ответы завершаются после validation, streaming — после producer; sink failure не меняет response/cancellation semantics.
-- Новый `ember.telemetry` публикует JSON access/error/lifecycle events с request ID, route template, status, duration, bytes и outcome; raw path/query/body/cookie/auth/error message не входят в schema, дополнительные поля редактируются политикой.
+- Новый `orbit.telemetry` публикует JSON access/error/lifecycle events с request ID, route template, status, duration, bytes и outcome; raw path/query/body/cookie/auth/error message не входят в schema, дополнительные поля редактируются политикой.
 - `MetricsRegistry` считает requests, in-flight, OTel duration buckets, bytes, errors, bounded route series, stream/server/rejection/shutdown state и bounded integration-pool gauges.
 - W3C `traceparent` принимается только от validated trusted proxy; server spans используют актуальные OpenTelemetry HTTP names, low-cardinality span name и privacy-safe path default.
 - `HealthProbe` привязан к `ServerHandle`: readiness меняется на `503` до bind и при drain, liveness остаётся process-local.
@@ -98,7 +98,7 @@ TLS и HTTP/2/3 можно оставить нижнему транспортн�
 ### Результат этапа 5
 
 - Зафиксирован SemVer `1.0.0-rc.1`; core и ORM integration разделены на
-  versioned `ember`/`ember-orm` packages с детерминированными `sputnik.lock`.
+  versioned `orbit`/`orbit-orm` packages с детерминированными `sputnik.lock`.
 - `release/dependencies.lock.json` фиксирует версии, commits и tree digests
   Sputnik/ORM/SQLite; все tracked build manifests используют только внутренний
   `.build/dependencies`, который clean-room resolver создаёт без sibling checkout.
@@ -135,7 +135,7 @@ TLS и HTTP/2/3 можно оставить нижнему транспортн�
 - fuzzing percent decoding, query/JSON/multipart и HTTP framing; для C++-части подходит continuous fuzzing наподобие [ClusterFuzzLite](https://github.com/google/clusterfuzzlite);
 - concurrency, cancellation, slowloris, slow reader/writer, client disconnect;
 - load/soak профили для small JSON, 1K/4K routes, streaming, ORM pool exhaustion;
-- compatibility matrix Ember × Sputnik compiler/runtime.
+- compatibility matrix Orbit × Sputnik compiler/runtime.
 
 ## Приоритеты
 
@@ -145,7 +145,7 @@ P0 до первого production deployment:
 - production exporter/dashboard/alert configuration для опубликованной telemetry schema;
 - deployment-specific security configuration и application threat-model extension.
 
-P1 до Ember 1.0:
+P1 до Orbit 1.0:
 
 - RC load/soak evidence и проверка performance baseline на release runner;
 - независимый cryptographic review или vetted runtime primitive;

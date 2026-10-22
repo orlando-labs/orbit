@@ -1,6 +1,6 @@
 schema: sputnik.build.v1
-name: ember.example.hello
-root: ember.example.hello
+name: orbit.example.hello
+root: orbit.example.hello
 
 profiles:
   required: [core.v1, macro.v1]
@@ -8,15 +8,15 @@ profiles:
   forbidden: []
 
 modules:
-  - name: ember
-    path: ../src/ember.s
-  - name: ember.html
-    path: ../src/ember/html.s
-  - name: ember.middleware
-    path: ../src/ember/middleware.s
-  - name: ember.telemetry
-    path: ../src/ember/telemetry.s
-  - name: ember.example.views.home
+  - name: orbit
+    path: ../src/orbit.s
+  - name: orbit.html
+    path: ../src/orbit/html.s
+  - name: orbit.middleware
+    path: ../src/orbit/middleware.s
+  - name: orbit.telemetry
+    path: ../src/orbit/telemetry.s
+  - name: orbit.example.views.home
     path: views/home.s
-  - name: ember.example.hello
+  - name: orbit.example.hello
     path: hello.s

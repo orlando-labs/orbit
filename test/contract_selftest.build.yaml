@@ -1,6 +1,6 @@
 schema: sputnik.build.v1
-name: ember.contract_selftest
-root: ember.contract_selftest
+name: orbit.contract_selftest
+root: orbit.contract_selftest
 
 profiles:
   required: [core.v1, macro.v1]
@@ -8,9 +8,9 @@ profiles:
   forbidden: []
 
 modules:
-  - name: ember
-    path: ../src/ember.s
-  - name: ember.testing
-    path: ../src/ember/testing.s
-  - name: ember.contract_selftest
+  - name: orbit
+    path: ../src/orbit.s
+  - name: orbit.testing
+    path: ../src/orbit/testing.s
+  - name: orbit.contract_selftest
     path: contract_selftest.s

@@ -1,6 +1,6 @@
-package ember.testing
+package orbit.testing
 
-import ember
+import orbit
 
 export request, get, query, post, put, patch, delete, head, options
 export assert_status, assert_header, assert_body
@@ -15,7 +15,7 @@ def request(
 ):
   if json != null and body != "":
     raise ArgumentError("testing.request accepts either body: or json:")
-  request_headers = ember.Headers(headers)
+  request_headers = orbit.Headers(headers)
   unless request_headers.include?("host"):
     request_headers = request_headers.set("host", "localhost")
   request_body = body
@@ -34,7 +34,7 @@ def request(
   full_target = path
   if raw_query and raw_query != "":
     full_target = path + "?" + raw_query
-  ember.Request(
+  orbit.Request(
     method: method,
     target: full_target,
     path: path,
@@ -68,7 +68,7 @@ def options(target, **opts):
   request("OPTIONS", target, **opts)
 
 def assert_status(response, expected):
-  code = ember.status_code(expected)
+  code = orbit.status_code(expected)
   unless response.status == code:
     raise ArgumentError("expected response status #{code}, got #{response.status}")
   response

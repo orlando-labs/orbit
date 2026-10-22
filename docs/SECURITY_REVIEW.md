@@ -1,7 +1,7 @@
 # Stage 3 security review and scan record
 
 Review date: 2026-07-22  
-Ember base revision: `35f492bb0d2aec40a7849bb327929eb85061b582` plus the stage-3 working-tree change set  
+Orbit base revision: `35f492bb0d2aec40a7849bb327929eb85061b582` plus the stage-3 working-tree change set
 Compiler: locked `sputnik 0.1.0-dev` revision `14b32257e0e7b3b10e4dff6bf97a1bd0c757380c`
 Verdict: **zero open critical/high findings** in the reviewed stage-3 scope.
 
@@ -11,13 +11,13 @@ attestation. Those stronger artifacts remain release/RC gates.
 
 ## Reviewed scope
 
-- `src/ember.s`: HTTP values, Host authorization, proxy trust, provenance,
+- `src/orbit.s`: HTTP values, Host authorization, proxy trust, provenance,
   security headers, application error boundary, and transport configuration;
-- `src/ember/html.s`: context tracking, escaping, typed trusted wrappers, and
+- `src/orbit/html.s`: context tracking, escaping, typed trusted wrappers, and
   compile-time rejection;
-- `src/ember/security.s`: cookie parsing/serialization, HMAC, AEAD session
+- `src/orbit/security.s`: cookie parsing/serialization, HMAC, AEAD session
   envelope, CORS, and CSRF;
-- `src/ember/multipart.s`: media type, framing, headers, limits, and filename
+- `src/orbit/multipart.s`: media type, framing, headers, limits, and filename
   handling;
 - request-id middleware, testing helpers, manifests, stage-0..3 regression
   tests, edge documentation, and relevant sibling Sputnik native HTTP/digest
@@ -35,12 +35,12 @@ attestation. Those stronger artifacts remain release/RC gates.
 | Local documentation links | Resolve relative Markdown targets in README, roadmap, and `docs/` | All targets resolve |
 | Fresh stage-3 build | Native `--no-cache --grant random.secure` build and executable | Passed; executable returned `true` |
 | Security regression | `test/stage3_selftest.s` | Host/proxy/request-id/AEAD/cookies/session/CORS/CSRF/multipart/HTML pass |
-| HTML compile-fail | Both `stage3_html_*_rejected.build.yaml` builds | Fail with expected `EMBER_HTML_CONTEXT` |
+| HTML compile-fail | Both `stage3_html_*_rejected.build.yaml` builds | Fail with expected `ORBIT_HTML_CONTEXT` |
 | Prior conformance | Stage 0, 1, 2, core, strong-params, HTTP, and ORM self-tests | Passed; every executable returned `true` |
 
 These command results come from a fresh no-cache verification pass over this
 working tree. A release must replace local evidence with immutable CI artifacts
-and exact Ember/Sputnik/package provenance.
+and exact Orbit/Sputnik/package provenance.
 
 ## Review findings
 
@@ -76,7 +76,7 @@ The reviewer updates this section only from a fresh, no-cache pass. On
 
 - stage 3 native regression built without cache and returned `true`;
 - both HTML negative fixtures failed with the expected
-  `EMBER_HTML_CONTEXT` diagnostic;
+  `ORBIT_HTML_CONTEXT` diagnostic;
 - contract/stage 0, stage 1, stage 2, core, strong-params, HTTP loopback, and
   ORM/sqlite native self-tests built without cache and returned `true`;
 - stage 2 and HTTP loopback executables ran with only local socket access;

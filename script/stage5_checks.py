@@ -34,7 +34,7 @@ def check_public_api(errors: list[str]) -> None:
     manifest = json.loads((ROOT / "release/public-api.json").read_text(encoding="utf-8"))
     reference = (ROOT / "docs/API_REFERENCE.md").read_text(encoding="utf-8")
     sources = list((ROOT / "src").rglob("*.s"))
-    sources += list((ROOT / "packages/ember-orm/src").rglob("*.s"))
+    sources += list((ROOT / "packages/orbit-orm/src").rglob("*.s"))
     actual: dict[str, set[str]] = {}
     for source in sources:
         package, names = exported_names(source)
@@ -80,13 +80,13 @@ def check_release_files(errors: list[str], sputnik: Path | None) -> None:
     version = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
     if not re.fullmatch(r"\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?", version):
         fail(errors, f"VERSION is not SemVer: {version}")
-    for path in (ROOT / "sputnik.toml", ROOT / "packages/ember-orm/sputnik.toml"):
+    for path in (ROOT / "sputnik.toml", ROOT / "packages/orbit-orm/sputnik.toml"):
         source = path.read_text(encoding="utf-8")
         if f'version = "{version}"' not in source:
             fail(errors, f"{path.relative_to(ROOT)} does not match VERSION")
     api = json.loads((ROOT / "release/public-api.json").read_text(encoding="utf-8"))
     deps = json.loads((ROOT / "release/dependencies.lock.json").read_text(encoding="utf-8"))
-    if api["version"] != version or deps["ember_version"] != version:
+    if api["version"] != version or deps["orbit_version"] != version:
         fail(errors, "machine-readable release manifests do not match VERSION")
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
     if f"[{version}]" not in changelog:
@@ -108,8 +108,8 @@ def check_release_files(errors: list[str], sputnik: Path | None) -> None:
         "LICENSE", "SECURITY.md", "CHANGELOG.md", "docs/API_REFERENCE.md",
         "docs/CONFIGURATION.md", "docs/RUNBOOK.md", "docs/MIGRATION_1_0.md",
         "docs/RELEASING.md", "docs/SOAK_TEST.md",
-        "deploy/nginx.conf", "deploy/systemd/ember.service",
-        "deploy/kubernetes/ember.yaml", ".github/workflows/ci.yml",
+        "deploy/nginx.conf", "deploy/systemd/orbit.service",
+        "deploy/kubernetes/orbit.yaml", ".github/workflows/ci.yml",
         ".github/workflows/release.yml",
     ]
     for relative in required:
@@ -118,7 +118,7 @@ def check_release_files(errors: list[str], sputnik: Path | None) -> None:
     if sputnik:
         pairs = [
             (ROOT / "sputnik.toml", ROOT / "sputnik.lock"),
-            (ROOT / "packages/ember-orm/sputnik.toml", ROOT / "packages/ember-orm/sputnik.lock"),
+            (ROOT / "packages/orbit-orm/sputnik.toml", ROOT / "packages/orbit-orm/sputnik.lock"),
         ]
         for manifest, lock in pairs:
             generated = package_lock(sputnik, manifest)

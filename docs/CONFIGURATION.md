@@ -1,6 +1,6 @@
 # Production configuration reference
 
-This reference combines the Ember, security, transport, telemetry, and edge
+This reference combines the Orbit, security, transport, telemetry, and edge
 settings that must be reviewed together. Framework defaults are development
 defaults; production records the selected values and a non-secret
 configuration digest in deployment metadata.
@@ -46,7 +46,7 @@ wire behavior.
 Production constructs `SecurityPolicy` explicitly:
 
 ```sputnik
-security = ember.SecurityPolicy(
+security = orbit.SecurityPolicy(
   allowed_hosts: ["app.example.test"],
   trusted_proxy_cidrs: ["10.20.0.0/16"],
   forwarded: :x_forwarded,
@@ -58,7 +58,7 @@ security = ember.SecurityPolicy(
 
 The edge removes client `Forwarded`/`X-Forwarded-*` values and writes exactly
 one canonical `X-Forwarded-For`, `X-Forwarded-Host`, and
-`X-Forwarded-Proto`. `forwarded_hops` counts the trusted values reaching Ember;
+`X-Forwarded-Proto`. `forwarded_hops` counts the trusted values reaching Orbit;
 it is not an estimate. Trust-all and an empty host allowlist are invalid
 production choices. IPv6 networks broader than `/128` are unsupported.
 
@@ -95,15 +95,15 @@ For a normal rollout:
 
 ```text
 edge readiness removal propagation
-  + Ember shutdown_timeout
+  + Orbit shutdown_timeout
   + integration stop overhead
   < platform termination grace
 
-Ember read/write timeout < edge upstream timeout < client-visible timeout
-Ember idle_timeout < edge upstream keep-alive timeout
+Orbit read/write timeout < edge upstream timeout < client-visible timeout
+Orbit idle_timeout < edge upstream keep-alive timeout
 ```
 
 The reviewed starting point for the supplied examples is 5 seconds readiness
-propagation, 30 seconds Ember shutdown, and 45 seconds platform grace. Streaming
+propagation, 30 seconds Orbit shutdown, and 45 seconds platform grace. Streaming
 applications increase the inner/outer write deadlines together and test
 disconnect propagation before deployment.

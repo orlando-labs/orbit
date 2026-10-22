@@ -1,0 +1,13 @@
+{
+  "name": "orbit",
+  "version": "1.0.0-rc.1",
+  "root": "orbit",
+  "sources": [
+    "src/**/*.s",
+    "src/*.s"
+  ],
+  "capabilities": {
+    "net.listen": true,
+    "random.secure": true
+  }
+}

@@ -1,4 +1,4 @@
-package ember.benchmark.orm_pool
+package orbit.benchmark.orm_pool
 
 import orm
 import task
@@ -48,14 +48,14 @@ def measure_rejections(database, iterations):
 def main():
   result = null
   memory_pool(
-    name: "ember_benchmark_exhaustion",
+    name: "orbit_benchmark_exhaustion",
     min_size: 1,
     max_size: 1,
     checkout_timeout: 0
   ) |database|:
     result = exhausted_pool(database, 500)
   io.stdout.write_line(Json.generate({
-    "schema": "ember.benchmark.result.v1",
+    "schema": "orbit.benchmark.result.v1",
     "suite": "orm",
     "workloads": {"orm_pool_exhaustion": result}
   }))

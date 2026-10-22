@@ -1,18 +1,18 @@
-package ember.contract_selftest
+package orbit.contract_selftest
 
-import ember
-import ember.testing
+import orbit
+import orbit.testing
 
 export main
 
 def fallback(request):
-  ember.render(text: "fallback", headers: {"x-handler": "get"})
+  orbit.render(text: "fallback", headers: {"x-handler": "get"})
 
 def explicit_get(request):
-  ember.render(text: "get", headers: {"x-handler": "get"})
+  orbit.render(text: "get", headers: {"x-handler": "get"})
 
 def explicit_head(request):
-  ember.render(text: "head", status: :accepted,
+  orbit.render(text: "head", status: :accepted,
     headers: {"x-handler": "head"})
 
 def strict_path(request):
@@ -24,7 +24,7 @@ def no_value(request):
 def empty_value(request):
   ""
 
-routes = ember.routes:
+routes = orbit.routes:
   get "/fallback", to: &fallback
   get "/explicit", to: &explicit_get
   head "/explicit", to: &explicit_head
@@ -36,7 +36,7 @@ def assert(condition, message):
   raise ArgumentError(message) unless condition
 
 def main():
-  app = ember.App(routes: routes, expose_exceptions: true)
+  app = orbit.App(routes: routes, expose_exceptions: true)
 
   fallback_head = app.call(testing.head("/fallback"))
   assert(fallback_head.status == 200, "HEAD falls back to GET by default")
@@ -48,7 +48,7 @@ def main():
   assert(explicit_head_response.body_text == "", "explicit HEAD content is suppressed")
   assert(explicit_head_response.header("x-handler") == "head", "explicit HEAD handler selected")
 
-  exact_only = ember.App(routes: routes, head_fallback: false)
+  exact_only = orbit.App(routes: routes, head_fallback: false)
   rejected_head = exact_only.call(testing.head("/fallback"))
   assert(rejected_head.status == 405, "HEAD fallback can be disabled")
   assert(rejected_head.header("allow") == "GET, OPTIONS", "exact-only Allow methods")
@@ -70,11 +70,11 @@ def main():
   empty_value_response = app.call(testing.get("/empty-value"))
   assert(empty_value_response.status == 200 and empty_value_response.body_text == "", "empty text remains 200")
 
-  assert(ember.status_code(599) == 599, "highest valid HTTP status")
+  assert(orbit.status_code(599) == 599, "highest valid HTTP status")
   invalid_status_rejected = false
   try:
-    ember.status_code(600)
-  rescue ember.UnknownStatusError |error|:
+    orbit.status_code(600)
+  rescue orbit.UnknownStatusError |error|:
     invalid_status_rejected = true
   assert(invalid_status_rejected, "status outside 100..599 is rejected")
   true

@@ -1,7 +1,7 @@
-package ember.stage3_html_unquoted_rejected
+package orbit.stage3_html_unquoted_rejected
 
-import ember
-from ember.html import html
+import orbit
+from orbit.html import html
 
 export main
 

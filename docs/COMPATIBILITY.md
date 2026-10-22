@@ -1,11 +1,11 @@
-# Ember compatibility policy
+# Orbit compatibility policy
 
 Status: normative 1.0 policy, accepted 2026-07-19 by
-[ADR-0001](adr/0001-ember-1-0-contract.md).
+[ADR-0001](adr/0001-orbit-1-0-contract.md).
 
 ## Versioning
 
-Ember releases use [Semantic Versioning 2.0.0](https://semver.org/). The public
+Orbit releases use [Semantic Versioning 2.0.0](https://semver.org/). The public
 API is the surface defined in [PUBLIC_API.md](PUBLIC_API.md) and the observable
 behavior defined by the accepted contracts and ADRs.
 
@@ -22,7 +22,7 @@ behavior defined by the accepted contracts and ADRs.
 
 Deprecation is documented in API reference and release notes and emits a
 tool-supported warning when Sputnik supports it. A deprecated public API remains
-available for the rest of the current Ember major and is removed only in the
+available for the rest of the current Orbit major and is removed only in the
 next major. Vulnerable behavior may be disabled earlier under the security
 exception above.
 
@@ -42,7 +42,7 @@ Compatibility covers:
 - strong-parameter filtering, types, issue codes, and immutable result shape;
 - public test helpers and their assertions;
 - documented configuration keys and environment-independent behavior;
-- the supported Ember/Sputnik/dependency/platform matrix.
+- the supported Orbit/Sputnik/dependency/platform matrix.
 
 It does not cover private/`__*` names, undocumented object attributes, exact
 error strings, plain-text log formatting, source locations, generated C++ or
@@ -56,23 +56,28 @@ behavior and is covered.
 ## Sputnik compiler and runtime
 
 Sputnik source, compiler, standard library, runtime, and `net.http` form one
-compatibility unit for Ember. A release is supported only on combinations
+compatibility unit for Orbit. A release is supported only on combinations
 listed in its release matrix and exercised in CI.
 
-Rules for Ember 1.x:
+The unreleased fixed-length response API requires the matching Sputnik runtime
+with `net.http.ServerResponse.stream(length:)`. The locked older RC dependency
+is not evidence for this extension: update the release pin/matrix after the
+runtime change is committed and repeat the fixed-length VM/native conformance lane.
 
-- While Sputnik is below 1.0, an Ember minor supports one Sputnik minor line (for
+Rules for Orbit 1.x:
+
+- While Sputnik is below 1.0, an Orbit minor supports one Sputnik minor line (for
   example `0.a.*`) with an explicit minimum patch. A new Sputnik minor requires a
-  new Ember minor; Ember patch releases do not silently move Sputnik minor lines.
-- Once Sputnik is 1.0 or newer, an Ember minor supports the current Sputnik minor at
+  new Orbit minor; Orbit patch releases do not silently move Sputnik minor lines.
+- Once Sputnik is 1.0 or newer, an Orbit minor supports the current Sputnik minor at
   release time and the immediately previous Sputnik minor, subject to a listed
   minimum patch for each.
 - The native target, stdlib, runtime, and compiler must use the same Sputnik
   release. Mixed compiler/runtime artifacts are unsupported.
-- A newly published Sputnik patch enters the matrix only after all Ember unit,
+- A newly published Sputnik patch enters the matrix only after all Orbit unit,
   conformance, native, integration, and smoke tests pass. “It compiles” is not
   sufficient.
-- Supported platform triples are listed per release. Ember 1.0 must at minimum
+- Supported platform triples are listed per release. Orbit 1.0 must at minimum
   test Linux x86_64 and Linux arm64 for production and macOS arm64 as a
   development platform. Other targets are best effort unless listed.
 
@@ -86,7 +91,7 @@ Hosted release validation follows publication of the dependency commits.
 
 | Component | Supported candidate row |
 |---|---|
-| Ember core package | `ember 1.0.0-rc.1` |
+| Orbit core package | `orbit 1.0.0-rc.1` |
 | Sputnik compiler/runtime/stdlib | `sputnik 0.1.0-dev`, revision `3383a5eecb4466077dd7ba580698a22ae40dbd3d`, tree `1db8817cc8d195f999605806975bb1572b198f07` |
 | Build profiles | required `core.v1`, `macro.v1`; no optional core profile |
 | Linux production targets | x86_64 and arm64, native target, required CI rows |
@@ -103,8 +108,8 @@ publishable only when its immutable tag CI job is green.
 
 ## Optional integrations
 
-Core Ember remains ORM-neutral. Each optional integration has an independent
-matrix in the Ember release notes. An integration is supported only when Ember,
+Core Orbit remains ORM-neutral. Each optional integration has an independent
+matrix in the Orbit release notes. An integration is supported only when Orbit,
 Sputnik, the integration package, its native client/library, and the target
 platform all appear in one tested row.
 
@@ -112,20 +117,20 @@ The tested `1.0.0-rc.1` ORM row is:
 
 | Component | Exact row |
 |---|---|
-| Integration package | `ember-orm 1.0.0-rc.1` |
-| Ember | `1.0.0-rc.1` |
+| Integration package | `orbit-orm 1.0.0-rc.1` |
+| Orbit | `1.0.0-rc.1` |
 | Sputnik ORM | `0.1.0-dev`, revision `3575602c2f03a3337dec5685eafecbe9d918597f`, tree `7e2e098a8547f79f2c82754d8be60f13ebce479a` |
 | SQLite adapter | `sqlite3-sputnik 0.1.0-dev`, revision `96f3a62a19f448fc231268fcac33fddf9958e83e`, tree `d8bc6685ea7405c3a6aed9c70381a623326affef` |
 | Bundled SQLite | `3.51.0`, source ID `fb2c931ae597f8d00a37574ff67aeed3eced4e5547f9120744ae4bfa8e74527b` |
 | Tested platform | Linux x86_64 native integration CI; other platform rows are unsupported for this optional package until listed |
 
-Updating any entry requires at least an Ember patch plus the full integration
+Updating any entry requires at least an Orbit patch plus the full integration
 suite. Core applications do not inherit native/SQLite dependencies merely
 because the companion package exists.
 
 ## Support window
 
-For Ember 1.x, security and correctness fixes are produced for the latest minor
+For Orbit 1.x, security and correctness fixes are produced for the latest minor
 release. The immediately previous minor receives critical/high security fixes
 for six months after the next minor is released. Older minors and all preview
 snapshots are unsupported.
@@ -138,7 +143,7 @@ last affected version, the supported upgrade target, and any mitigation.
 
 Every release publishes:
 
-- Ember version and source tag;
+- Orbit version and source tag;
 - exact dependency lock and supported Sputnik/platform/integration matrix;
 - changelog with additions, fixes, deprecations, security/standards changes,
   and migrations;

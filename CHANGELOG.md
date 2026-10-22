@@ -1,11 +1,21 @@
 # Changelog
 
-All notable changes are recorded here. Ember follows
+All notable changes are recorded here. Orbit follows
 [Semantic Versioning](https://semver.org/) and the compatibility rules in
 [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md).
 
 ## [Unreleased]
 
+- Added `stream(length: N)`/`StreamingResponse(length: N)` with fixed-length
+  response streaming in VM/native `net.http`, exact byte enforcement,
+  known-length HEAD metadata, and preservation through middleware/telemetry.
+  The default remains chunked; raw framing headers stay transport-owned.
+- Fixed native HTTP response producers treating an unused final expression
+  (such as a StreamBody or telemetry event) as a handler result and aborting
+  otherwise complete keep-alive responses.
+- Renamed the framework to Orbit, including the `orbit` and `orbit-orm`
+  packages, module paths, `OrbitError`, `ORBIT_*` diagnostics and configuration,
+  telemetry schemas, deployment examples, and benchmark commands.
 - Added a representative controller-based catalog REST service, an Sputnik
   CRUD/strict-4xx client, and a reproducible 72-hour resource/metrics soak
   runner.
@@ -15,7 +25,7 @@ All notable changes are recorded here. Ember follows
 
 ## [1.0.0-rc.1] - 2026-07-22
 
-This is the first release candidate for the trusted-edge Ember 1.0 contract.
+This is the first release candidate for the trusted-edge Orbit 1.0 contract.
 It is not a production-ready declaration: the separate RC soak, fuzz, canary,
 rollback, and independent security-review gates remain mandatory.
 
@@ -29,7 +39,7 @@ rollback, and independent security-review gates remain mandatory.
   values, encrypted sessions, exact CORS, CSRF, and bounded multipart parsing.
 - Structured redacted logs, bounded metrics, W3C trace-context handling,
   health/readiness probes, and performance budgets.
-- Versioned `ember` and `ember-orm` packages, deterministic lock files,
+- Versioned `orbit` and `orbit-orm` packages, deterministic lock files,
   clean-room build tooling, platform CI, release provenance/checksums, API
   reference, deployment examples, runbook, and migration guide.
 
@@ -41,7 +51,7 @@ rollback, and independent security-review gates remain mandatory.
 - Headers are immutable ordered multi-value values rather than mutable maps.
 - Host authorization runs before routing; origin and client identity use only
   validated proxy provenance.
-- ORM support is distributed as the separate `ember-orm` companion package,
+- ORM support is distributed as the separate `orbit-orm` companion package,
   so importing core never brings in ORM, SQLite, or FFI.
 
 ### Security
@@ -63,5 +73,5 @@ rollback, and independent security-review gates remain mandatory.
 - Independent cryptographic review and the full RC validation campaign remain
   open release gates.
 
-[Unreleased]: https://github.com/orlando-labs/ember/compare/v1.0.0-rc.1...HEAD
-[1.0.0-rc.1]: https://github.com/orlando-labs/ember/releases/tag/v1.0.0-rc.1
+[Unreleased]: https://github.com/orlando-labs/orbit/compare/v1.0.0-rc.1...HEAD
+[1.0.0-rc.1]: https://github.com/orlando-labs/orbit/releases/tag/v1.0.0-rc.1

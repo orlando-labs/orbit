@@ -1,8 +1,8 @@
-package ember.stage1_selftest
+package orbit.stage1_selftest
 
-import ember
-import ember.testing
-from ember.middleware import AccessLogMiddleware, RequestIdMiddleware
+import orbit
+import orbit.testing
+from orbit.middleware import AccessLogMiddleware, RequestIdMiddleware
 
 export main
 
@@ -12,15 +12,15 @@ def assert(condition, message):
   raise ArgumentError(message) unless condition
 
 def buffered(request):
-  ember.Response(
-    headers: ember.Headers([
+  orbit.Response(
+    headers: orbit.Headers([
       ["set-cookie", "theme=dark"],
       ["set-cookie", "session=abc"]]),
     body: "buffered")
 
 def streamed(request):
-  ember.stream(
-    headers: ember.Headers([
+  orbit.stream(
+    headers: orbit.Headers([
       ["set-cookie", "theme=dark"],
       ["set-cookie", "session=abc"]])) |body|:
         body.write("streamed")
@@ -46,7 +46,7 @@ def broken_error_hook(event):
 def cancelling_error_hook(event):
   raise CancelledError("reporter cancelled")
 
-routes = ember.routes:
+routes = orbit.routes:
   get "/buffered", to: &buffered, as: :buffered
   get "/streamed", to: &streamed
   get "/failure", to: &failure
@@ -70,7 +70,7 @@ def propagated(app, path, error_type):
     error_type === error
 
 def main():
-  headers = ember.Headers([
+  headers = orbit.Headers([
     ["Set-Cookie", "a=1"],
     ["set-cookie", "b=2"],
     ["Vary", "accept"],
@@ -78,9 +78,9 @@ def main():
   assert(headers.first("SET-cookie") == "a=1", "case-insensitive first header")
   assert(headers.all("set-cookie") == ["a=1", "b=2"], "ordered repeated Set-Cookie")
   assert(headers.to_pairs[2][0] == "vary", "canonical header names")
-  token_header = ember.Headers({"X-!#$%&'*+.^_`|~": "value"})
+  token_header = orbit.Headers({"X-!#$%&'*+.^_`|~": "value"})
   assert(token_header.first("x-!#$%&'*+.^_`|~") == "value", "HTTP token header name")
-  base_headers = ember.Headers({"x-base": "one", "x-remove": "old"})
+  base_headers = orbit.Headers({"x-base": "one", "x-remove": "old"})
   added_headers = base_headers.add("x-added", "two")
   set_headers = base_headers.set("x-base", "updated")
   deleted_headers = base_headers.delete("x-remove")
@@ -97,7 +97,7 @@ def main():
     merged_headers.first("x-base") == "merged" and
     merged_headers.first("x-new") == "three",
     "header merge derives pairs")
-  base_response = ember.Response(headers: {"x-base": "one"}, body: "payload")
+  base_response = orbit.Response(headers: {"x-base": "one"}, body: "payload")
   derived_response = base_response.with_header("x-added", "two")
   assert(base_response.header("x-added") == null,
     "response header derivation does not mutate source")
@@ -108,31 +108,31 @@ def main():
     "response header derivation preserves response state")
 
   invalid_name = rejects():
-    ember.Headers({"bad name": "value"})
+    orbit.Headers({"bad name": "value"})
   injected_value = rejects():
-    ember.Headers({"x-test": "one\r\ntwo"})
+    orbit.Headers({"x-test": "one\r\ntwo"})
   conflicting_length = rejects():
-    ember.Headers([
+    orbit.Headers([
       ["content-length", "1"],
       ["content-length", "2"]])
   ambiguous_framing = rejects():
-    ember.Headers([
+    orbit.Headers([
       ["content-length", "1"],
       ["transfer-encoding", "chunked"]])
   duplicate_host = rejects():
-    ember.Headers([["host", "a"], ["Host", "b"]])
+    orbit.Headers([["host", "a"], ["Host", "b"]])
   transformed_ambiguous_framing = rejects():
-    ember.Headers({"content-length": "1"}).add("transfer-encoding", "chunked")
+    orbit.Headers({"content-length": "1"}).add("transfer-encoding", "chunked")
   transformed_duplicate_host = rejects():
-    ember.Headers({"host": "a"}).add("Host", "b")
+    orbit.Headers({"host": "a"}).add("Host", "b")
   transformed_injected_value = rejects():
-    ember.Headers().add("x-test", "one\r\ntwo")
+    orbit.Headers().add("x-test", "one\r\ntwo")
   buffered_framing = rejects():
-    ember.Response(headers: {"transfer-encoding": "chunked"})
+    orbit.Response(headers: {"transfer-encoding": "chunked"})
   transformed_buffered_framing = rejects():
-    ember.Response(headers: ember.Headers().set("transfer-encoding", "chunked"))
+    orbit.Response(headers: orbit.Headers().set("transfer-encoding", "chunked"))
   streaming_framing = rejects():
-    ember.stream(headers: {"content-length": "1"}) |body|:
+    orbit.stream(headers: {"content-length": "1"}) |body|:
       null
   assert(invalid_name, "invalid header name")
   assert(injected_value, "header injection")
@@ -147,8 +147,8 @@ def main():
   assert(streaming_framing, "streaming response owns framing")
 
   log = io.Buffer.new()
-  app = ember.App(routes: routes, middleware: [RequestIdMiddleware()], expose_exceptions: true)
-  logging_app = ember.App(routes: routes, middleware: [AccessLogMiddleware(to: log)])
+  app = orbit.App(routes: routes, middleware: [RequestIdMiddleware()], expose_exceptions: true)
+  logging_app = orbit.App(routes: routes, middleware: [AccessLogMiddleware(to: log)])
   probe = testing.get("/streamed", headers: {"x-request-id": "stage-one"})
   assert(probe.header("x-request-id") == "stage-one", "request id input snapshot")
   streaming_response = app.call(testing.get(
@@ -157,10 +157,10 @@ def main():
   buffered_response = app.call(testing.get(
     "/buffered",
     headers: {"x-request-id": "stage-one", "x-input": "before"}))
-  if ember.Response === streaming_response:
+  if orbit.Response === streaming_response:
     raise ArgumentError("unexpected stream response: " + streaming_response.body_text)
-  assert(ember.Response === buffered_response, "request-id preserves buffered response")
-  assert(ember.StreamingResponse === streaming_response, "request-id preserves streaming response")
+  assert(orbit.Response === buffered_response, "request-id preserves buffered response")
+  assert(orbit.StreamingResponse === streaming_response, "request-id preserves streaming response")
   assert(buffered_response.header("x-request-id") != null, "buffered request id")
   assert(streaming_response.header("x-request-id") != null, "streaming request id")
   assert(buffered_response.headers.all("set-cookie") == ["theme=dark", "session=abc"],
@@ -169,14 +169,14 @@ def main():
     "middleware preserves repeated streaming headers")
   logged_buffered = logging_app.call(testing.get("/buffered"))
   logged_stream = logging_app.call(testing.get("/streamed"))
-  assert(ember.Response === logged_buffered, "access log preserves buffered response")
-  assert(ember.StreamingResponse === logged_stream, "access log preserves streaming response")
+  assert(orbit.Response === logged_buffered, "access log preserves buffered response")
+  assert(orbit.StreamingResponse === logged_stream, "access log preserves streaming response")
   assert(log.to_str.contains?("\"event.kind\":\"access\""), "structured access log")
   assert(log.to_str.contains?("\"http.route\":\"/buffered\""),
     "access log uses route template")
 
   input = {"x-before": "yes"}
-  request = ember.Request(
+  request = orbit.Request(
     target: "/buffered?tag=a&tag=b",
     path: "/buffered",
     raw_query: "tag=a&tag=b",
@@ -184,7 +184,7 @@ def main():
   input.store!("x-before", "changed")
   assert(request.header("x-before") == "yes", "request headers snapshot input")
   pair_source = [["x-snapshot", "before"]]
-  pair_headers = ember.Headers(pair_source)
+  pair_headers = orbit.Headers(pair_source)
   pair_source[0][1] = "after"
   pair_source.push!(["x-extra", "after"])
   assert(pair_headers.to_pairs == [["x-snapshot", "before"]],
@@ -193,7 +193,7 @@ def main():
 
   before_source = []
   param_source = {id: Int}
-  snapshot_route = ember.Route(
+  snapshot_route = orbit.Route(
     "GET", "/snap/:id", routes.routes[0].target,
     params: param_source,
     before: before_source)
@@ -203,19 +203,19 @@ def main():
   assert(snapshot_route.middleware.empty?, "route middleware snapshot")
   assert(not snapshot_route.param_types.has_key?(:other), "route params snapshot")
   route_source = [snapshot_route]
-  snapshot_routes = ember.Routes(route_source)
+  snapshot_routes = orbit.Routes(route_source)
   route_source.push!(routes.routes[0])
   assert(snapshot_routes.routes.count == 1, "route table snapshot")
 
   match_params_source = {id: 42}
   captures_source = [42]
-  snapshot_match = ember.RouteMatch(snapshot_route, match_params_source, captures_source)
+  snapshot_match = orbit.RouteMatch(snapshot_route, match_params_source, captures_source)
   match_params_source.store!(:id, 7)
   captures_source[0] = 7
   assert(snapshot_match.path_params[:id] == 42, "match path params snapshot")
   assert(snapshot_match.captures == [42], "match captures snapshot")
   allowed_source = ["GET"]
-  snapshot_lookup = ember.RouteLookup(:method_not_allowed, allowed_methods: allowed_source)
+  snapshot_lookup = orbit.RouteLookup(:method_not_allowed, allowed_methods: allowed_source)
   allowed_source.push!("TRACE")
   assert(snapshot_lookup.allowed_methods == ["GET"], "allowed methods snapshot")
   [1, 2, 7, 42, 999].each |id|:
@@ -223,7 +223,7 @@ def main():
     round_trip = routes.match(path, method: "GET")
     assert(round_trip.match.path_params["id"] == id, "route/path property round-trip")
 
-  observed = ember.App(routes: routes, on_error: &record_error)
+  observed = orbit.App(routes: routes, on_error: &record_error)
   error_response = observed.call(testing.get("/failure"))
   assert(error_response.status == 500 and error_response.body_text == "internal server error",
     "safe application error response")
@@ -233,10 +233,10 @@ def main():
   assert(event.method != null and event.route_pattern != null,
     "error event exposes only documented redacted request metadata")
 
-  broken_hook_app = ember.App(routes: routes, on_error: &broken_error_hook)
+  broken_hook_app = orbit.App(routes: routes, on_error: &broken_error_hook)
   assert(broken_hook_app.call(testing.get("/failure")).status == 500,
     "ordinary reporter failure cannot replace response")
-  cancelling_hook_app = ember.App(routes: routes, on_error: &cancelling_error_hook)
+  cancelling_hook_app = orbit.App(routes: routes, on_error: &cancelling_error_hook)
   assert(propagated(cancelling_hook_app, "/failure", CancelledError),
     "error hook cancellation propagates")
 

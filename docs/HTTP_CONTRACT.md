@@ -1,10 +1,10 @@
-# Ember 1.0 HTTP contract
+# Orbit 1.0 HTTP contract
 
 Status: normative 1.0 target, accepted 2026-07-19 by
-[ADR-0001](adr/0001-ember-1-0-contract.md).
+[ADR-0001](adr/0001-orbit-1-0-contract.md).
 
 The key words **MUST**, **MUST NOT**, **SHOULD**, and **MAY** have their usual
-RFC meaning. This document defines Ember behavior at both `App#call` and the
+RFC meaning. This document defines Orbit behavior at both `App#call` and the
 network adapter. Where the preview implementation differs, this document wins
 and the gap must be closed before 1.0.
 
@@ -12,7 +12,7 @@ and the gap must be closed before 1.0.
 
 - Routing uses the decoded path only. The query string never participates in
   route selection.
-- `/resource` and `/resource/` are different paths. Ember does not add or
+- `/resource` and `/resource/` are different paths. Orbit does not add or
   remove a trailing slash and does not generate an implicit redirect.
 - The root path is `/`. Empty paths, non-origin-form paths at `App#call`,
   malformed percent encoding, paths over 8192 bytes, more than 128 segments,
@@ -28,9 +28,9 @@ and the gap must be closed before 1.0.
 
 ## Method selection
 
-Ember route declarations support `GET`, `QUERY`, `POST`, `PUT`, `PATCH`,
+Orbit route declarations support `GET`, `QUERY`, `POST`, `PUT`, `PATCH`,
 `DELETE`, `HEAD`, and `OPTIONS`. `QUERY` follows
-[RFC 10008](https://www.rfc-editor.org/rfc/rfc10008.html); an Ember `QUERY`
+[RFC 10008](https://www.rfc-editor.org/rfc/rfc10008.html); an Orbit `QUERY`
 request without `Content-Type` is rejected with `400 Bad Request` before its
 handler runs.
 
@@ -61,8 +61,8 @@ Every automatic `OPTIONS` and `405` response has a deterministic, sorted
 - A buffered fallback preserves the headers and status that the GET route
   selected. The adapter computes `Content-Length` from the hypothetical GET
   content when it is known.
-- A streaming producer is not started for HEAD. Headers that require producing
-  stream content, including a computed length and late trailers, are omitted.
+- A streaming producer is not started for HEAD. A declared `stream(length: N)`
+  becomes `Content-Length: N`; unknown lengths and late trailers are omitted.
 - The adapter never sends content or trailers and never adds
   `Transfer-Encoding` to a HEAD response.
 
@@ -91,7 +91,7 @@ not a closed set of HTTP status codes.
 
 ## Status and content rules
 
-Ember applies these rules after the handler and middleware chain and before a
+Orbit applies these rules after the handler and middleware chain and before a
 response reaches either `App#call` or the network adapter:
 
 | Response | Application content | Framing and metadata |
@@ -105,10 +105,10 @@ response reaches either `App#call` or the network adapter:
 
 `1xx`, `204`, and `304` are header-terminated responses under
 [RFC 9110 sections 15.2, 15.3.5, and 15.4.5](https://www.rfc-editor.org/rfc/rfc9110.html#section-15).
-Ember additionally treats `205` as contentless per RFC 9110 section 15.3.6.
+Orbit additionally treats `205` as contentless per RFC 9110 section 15.3.6.
 
 Supplying content, a stream, or trailers for a contentless status is a
-programmer error. Ember raises `InvalidResponseError` before commit; the
+programmer error. Orbit raises `InvalidResponseError` before commit; the
 top-level `App` error policy turns an uncaught instance into a safe `500`.
 Silently changing the developer-selected status is not allowed.
 
@@ -119,9 +119,22 @@ Silently changing the developer-selected status is not allowed.
   fields directly.
 - An application-supplied `Content-Length` on a buffered response MUST equal
   the exact body byte count. A mismatch is an invalid response.
+- Streaming responses select framing through `length: null|N`, never raw
+  `Content-Length`, `Transfer-Encoding`, or `Trailer` headers. `null` uses chunked
+  coding; a nonnegative `Int` emits `Content-Length: N` without chunk coding.
+  Fixed streams forbid trailers/chunk extensions. Overflow raises
+  `BodyLengthError` before excess data is emitted; a short close/producer also
+  fails. Length violations poison the writer and close the connection even if
+  application code catches the write error; no following pipelined response is sent.
+  Empty fixed writes are no-ops, zero-length streams are valid, and fixed
+  close/finish do not append chunk terminators or CRLF bytes. See
+  [RFC 9112 sections 6.2–6.3](https://www.rfc-editor.org/rfc/rfc9112.html#section-6.2).
+- A producer's return value is ignored in both VM and native execution. Only
+  writes produce response content; returning a StreamBody or telemetry event
+  does not require converting that object into an HTTP handler response.
 - `Content-Length` on HEAD is permitted only when it describes the selected
   GET representation. On `304`, it is permitted only when it equals the size
-  of the selected `200` representation. If Ember cannot prove the value, it
+  of the selected `200` representation. If Orbit cannot prove the value, it
   omits the field.
 - The adapter, not application middleware, makes the final framing decision.
   Conflicting `Content-Length`/`Transfer-Encoding` combinations never reach the

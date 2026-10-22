@@ -1,7 +1,7 @@
 {
-  "schema": "ember.stage5-evidence.v1",
+  "schema": "orbit.stage5-evidence.v1",
   "recorded_at": "2026-07-22",
-  "ember_version": "1.0.0-rc.1",
+  "orbit_version": "1.0.0-rc.1",
   "host": {
     "os": "Darwin",
     "architecture": "arm64",
@@ -14,12 +14,12 @@
   },
   "locks": {
     "dependencies_sha256": "cbbf6c3d70df434cb5fb27a0156fa5c86b7af318f1b82e30437404b12d6dc5ff",
-    "ember_sha256": "1a9a7e089aa82edd01258f6f386a356a0a7cf0a6a8b6563b45701c47deb26b01",
-    "ember_orm_sha256": "7627850b1f8952593e92c795d5425d2621b108f41bfbf9aeeb70f21baab21868"
+    "orbit_sha256": "1a9a7e089aa82edd01258f6f386a356a0a7cf0a6a8b6563b45701c47deb26b01",
+    "orbit_orm_sha256": "7627850b1f8952593e92c795d5425d2621b108f41bfbf9aeeb70f21baab21868"
   },
   "packages": {
-    "ember-1.0.0-rc.1.sputnikpkg": "27d2975bc4541802f5e985ff6767c192fe54f4d97874f95a14066d04b4c2b4ed",
-    "ember-orm-1.0.0-rc.1.sputnikpkg": "776d39e756b5b000473a2b0e5f1b667ef7f3282e61a07f0d249f880dd9165eeb"
+    "orbit-1.0.0-rc.1.sputnikpkg": "27d2975bc4541802f5e985ff6767c192fe54f4d97874f95a14066d04b4c2b4ed",
+    "orbit-orm-1.0.0-rc.1.sputnikpkg": "776d39e756b5b000473a2b0e5f1b667ef7f3282e61a07f0d249f880dd9165eeb"
   },
   "results": {
     "dependencies_verified_by_revision_and_tree": true,
@@ -35,6 +35,7 @@
   },
   "notes": [
     "This local record is development evidence, not a substitute for immutable tag CI.",
-    "The tag workflow regenerates signed artifacts, source/package checksums, and provenance."
+    "The tag workflow regenerates signed artifacts, source/package checksums, and provenance.",
+    "Artifact and lock digests describe the historical pre-rename release; regenerate evidence for current Orbit builds."
   ]
 }

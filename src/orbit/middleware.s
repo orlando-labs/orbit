@@ -1,7 +1,7 @@
-package ember.middleware
+package orbit.middleware
 
-import ember
-import ember.telemetry
+import orbit
+import orbit.telemetry
 
 export request_id, access_log, RequestIdMiddleware, AccessLogMiddleware
 export macro before
@@ -31,8 +31,8 @@ class RequestIdContinuation:
   def call():
     supplied = @request.header("x-request-id")
     @request_id = if @accept_incoming and _valid?(supplied) then supplied else SecureRandom.base64url(18)
-    response = ember.normalize_response(@next(@request))
-    ember.with_response_header(response, "x-request-id", @request_id)
+    response = orbit.normalize_response(@next(@request))
+    orbit.with_response_header(response, "x-request-id", @request_id)
 
 def access_log(request, next):
   AccessLogMiddleware()(request, next)
@@ -52,20 +52,20 @@ class AccessLogContinuation:
     observation = @telemetry.start_request(@request)
     @telemetry.authorized_request(observation, @request)
     try:
-      response = ember.normalize_response(@next(@request))
-      route_pattern = ember.request_route_pattern(@request)
+      response = orbit.normalize_response(@next(@request))
+      route_pattern = orbit.request_route_pattern(@request)
       @telemetry.finish_response(observation, response, @request, route_pattern)
     rescue Exception |error|:
-      route_pattern = ember.request_route_pattern(@request)
+      route_pattern = orbit.request_route_pattern(@request)
       @telemetry.finish_exception(observation, error, @request, route_pattern)
       raise error
 
 macro def before(middleware as Ast, declaration as Ast) -> Ast:
   unless declaration.kind == "AstDefStmt":
-    raise ArgumentError("EMBER_BEFORE_DECLARATION: before supports module functions")
+    raise ArgumentError("ORBIT_BEFORE_DECLARATION: before supports module functions")
   params = declaration.signature.params
   if params.empty? or params[0].param_kind != "positional":
-    raise ArgumentError("EMBER_BEFORE_REQUEST: annotated function must accept request first")
+    raise ArgumentError("ORBIT_BEFORE_REQUEST: annotated function must accept request first")
 
   request_name = params[0].local_name
   request = Ast.node("AstName", {name: request_name})
@@ -74,10 +74,10 @@ macro def before(middleware as Ast, declaration as Ast) -> Ast:
     body: declaration.body
   })
   wrapped = quote:
-    return ember.__before(#{middleware}, __ember_before_request__) |__ember_before_next__|:
-      __ember_before_body__(__ember_before_next__)
-  wrapped = wrapped.replace_name("__ember_before_request__", request)
-  wrapped = wrapped.replace_name("__ember_before_body__", original)
+    return orbit.__before(#{middleware}, __orbit_before_request__) |__orbit_before_next__|:
+      __orbit_before_body__(__orbit_before_next__)
+  wrapped = wrapped.replace_name("__orbit_before_request__", request)
+  wrapped = wrapped.replace_name("__orbit_before_body__", original)
   return Ast.node("AstDefStmt", {
     name: declaration.name,
     signature: declaration.signature,

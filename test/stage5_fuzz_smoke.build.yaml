@@ -1,6 +1,6 @@
 schema: sputnik.build.v1
-name: ember.stage5_fuzz_smoke
-root: ember.stage5_fuzz_smoke
+name: orbit.stage5_fuzz_smoke
+root: orbit.stage5_fuzz_smoke
 
 profiles:
   required: [core.v1, macro.v1]
@@ -8,11 +8,11 @@ profiles:
   forbidden: []
 
 modules:
-  - name: ember
-    path: ../src/ember.s
-  - name: ember.testing
-    path: ../src/ember/testing.s
-  - name: ember.multipart
-    path: ../src/ember/multipart.s
-  - name: ember.stage5_fuzz_smoke
+  - name: orbit
+    path: ../src/orbit.s
+  - name: orbit.testing
+    path: ../src/orbit/testing.s
+  - name: orbit.multipart
+    path: ../src/orbit/multipart.s
+  - name: orbit.stage5_fuzz_smoke
     path: stage5_fuzz_smoke.s

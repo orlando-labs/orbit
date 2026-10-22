@@ -1,9 +1,9 @@
-# Definition of production-ready for Ember 1.0
+# Definition of production-ready for Orbit 1.0
 
 Status: normative release gate, accepted 2026-07-19 by
-[ADR-0001](adr/0001-ember-1-0-contract.md).
+[ADR-0001](adr/0001-orbit-1-0-contract.md).
 
-Ember is production-ready only for the profile defined here: HTTP/API and
+Orbit is production-ready only for the profile defined here: HTTP/API and
 server-rendered applications behind the trusted edge described in
 [DEPLOYMENT.md](DEPLOYMENT.md). “Production-ready” is a release claim supported
 by evidence, not a synonym for compiling, passing smoke tests, or being used by
@@ -23,7 +23,7 @@ cannot turn a failed mandatory gate green.
   explicit.
 - [x] This production-ready definition has objective release evidence.
 
-Evidence: [ADR-0001](adr/0001-ember-1-0-contract.md),
+Evidence: [ADR-0001](adr/0001-orbit-1-0-contract.md),
 [HTTP_CONTRACT.md](HTTP_CONTRACT.md), [PUBLIC_API.md](PUBLIC_API.md),
 [DEPLOYMENT.md](DEPLOYMENT.md), and [COMPATIBILITY.md](COMPATIBILITY.md).
 
@@ -141,7 +141,7 @@ initial named Apple M4 runner baseline.
   raw HTTP conformance, fuzz smoke tests, native builds, integrations, examples,
   and the supported compatibility/platform matrix.
 - [x] Dependencies are versioned and locked; a clean supported environment can
-  install and build Ember with one documented command and no sibling checkout.
+  install and build Orbit with one documented command and no sibling checkout.
 - [x] Release has a SemVer tag, license, changelog, security policy/reporting
   route, checksums, compatibility matrix, and reproducible dependency manifest.
 - [x] API reference covers every public name and has compile-tested examples.
@@ -155,7 +155,7 @@ Required evidence: clean-room build log, release checklist, artifact/source
 checksums, documentation link checker/example compilation, and compatibility CI.
 
 Evidence: `VERSION`, `sputnik.toml`, `sputnik.lock`, the separate
-`packages/ember-orm` package, `release/dependencies.lock.json`,
+`packages/orbit-orm` package, `release/dependencies.lock.json`,
 `release/public-api.json`, `release/evidence/stage5-local.json`,
 `.github/workflows/ci.yml`,
 `.github/workflows/release.yml`, `script/clean-room-build`, `script/ci`,
@@ -197,7 +197,7 @@ publication review.
 
 Before RC, the release manager creates a versioned evidence index linking each
 checkbox to an immutable CI run, report, test, benchmark, or runbook exercise.
-Evidence must state the Ember/Sputnik revisions, dependency lock, target triple,
+Evidence must state the Orbit/Sputnik revisions, dependency lock, target triple,
 and configuration digest.
 
 The 1.0 release is production-ready only when every checkbox is green and the

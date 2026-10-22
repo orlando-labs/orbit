@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compare Ember benchmark results to absolute budgets and an approved baseline."""
+"""Compare Orbit benchmark results to absolute budgets and an approved baseline."""
 
 from __future__ import annotations
 
@@ -88,7 +88,7 @@ def main() -> int:
     })
 
     result = {
-        "schema": "ember.performance-gate.v1",
+        "schema": "orbit.performance-gate.v1",
         "status": "fail" if any(item["status"] == "fail" for item in checks) else "pass",
         "regression_threshold_percent": budgets["regression_threshold_percent"],
         "checks": checks,

@@ -1,14 +1,14 @@
-# Ember 1.0 edge deployment model
+# Orbit 1.0 edge deployment model
 
 Status: normative 1.0 target, accepted 2026-07-19 by
-[ADR-0001](adr/0001-ember-1-0-contract.md).
+[ADR-0001](adr/0001-orbit-1-0-contract.md).
 
-Ember 1.0 is a production application server deployed behind a TLS-terminating
+Orbit 1.0 is a production application server deployed behind a TLS-terminating
 reverse proxy or managed ingress. Direct public-Internet exposure is outside
 the supported 1.0 profile.
 
 ```text
-client -- HTTPS / HTTP2+ --> trusted edge -- HTTP/1.1 keep-alive --> Ember
+client -- HTTPS / HTTP2+ --> trusted edge -- HTTP/1.1 keep-alive --> Orbit
                                   |                                  |
                       public protocol policy              application lifecycle
                       TLS and certificates                 routing and rendering
@@ -16,13 +16,13 @@ client -- HTTPS / HTTP2+ --> trusted edge -- HTTP/1.1 keep-alive --> Ember
                       coarse overload limits               graceful drain
 ```
 
-The edge-to-Ember hop MUST be loopback, a private network protected from
+The edge-to-Orbit hop MUST be loopback, a private network protected from
 untrusted peers, or an authenticated service-mesh channel. If that hop crosses
 a trust boundary, it MUST be encrypted and authenticated by the platform.
 
 ## Responsibility boundary
 
-| Concern | Edge/ingress | Ember 1.0 |
+| Concern | Edge/ingress | Orbit 1.0 |
 |---|---|---|
 | TLS certificates, ALPN, HTTP/2 and HTTP/3 | required | out of process |
 | HTTP/1 message validity and smuggling defense | required before forwarding | required again at parser boundary |
@@ -34,13 +34,13 @@ a trust boundary, it MUST be encrypted and authenticated by the platform.
 | graceful shutdown and request drain | stop routing new traffic | stop accept, drain, cancel at deadline |
 | access logs/metrics/traces | edge hop telemetry | application hop telemetry with correlation |
 
-Defense at the edge does not allow Ember limits, parsing checks, or host policy
+Defense at the edge does not allow Orbit limits, parsing checks, or host policy
 to be disabled.
 
 ## Effective request provenance
 
 The socket peer is untrusted unless it matches the configured trusted-proxy
-policy. Ember 1.0 MUST apply these rules in order:
+policy. Orbit 1.0 MUST apply these rules in order:
 
 1. Validate the HTTP authority/`Host` syntax and reject missing, duplicate, or
    unauthorized hosts before application routing.
@@ -75,21 +75,21 @@ Framework defaults are safe for development, not a substitute for a reviewed
 production configuration. Configuration and its non-secret digest must be
 visible in startup telemetry. Secrets never appear in command output or logs.
 
-The concrete stage-3 configuration uses `ember.SecurityPolicy`:
+The concrete stage-3 configuration uses `orbit.SecurityPolicy`:
 
 ```sputnik
-security = ember.SecurityPolicy(
+security = orbit.SecurityPolicy(
   allowed_hosts: ["app.example.test"],
   trusted_proxy_cidrs: ["10.20.0.0/16"],
   forwarded: :x_forwarded,
   forwarded_hops: 2,
   hsts: true)
 
-app = ember.App(routes: routes, security: security)
+app = orbit.App(routes: routes, security: security)
 ```
 
 The edge removes client-supplied `X-Forwarded-*` fields and writes one
-canonical set. Ember supports arbitrary IPv4 CIDR prefixes and exact IPv6
+canonical set. Orbit supports arbitrary IPv4 CIDR prefixes and exact IPv6
 `/128` entries. A configuration requiring a broader IPv6 proxy network must
 keep the edge hop on a private IPv4 address or wait for canonical IPv6 CIDR
 support; trust-all is not a fallback. See [SECURITY.md](SECURITY.md) for the
@@ -121,7 +121,7 @@ temporarily unavailable.
 
 The process exits successfully after a clean drain and non-zero after startup
 failure, fatal runtime failure, or an exceeded shutdown deadline. Orchestrators
-must allow at least the Ember drain deadline plus readiness propagation and
+must allow at least the Orbit drain deadline plus readiness propagation and
 hook overhead before sending an unconditional kill.
 
 Roadmap stage 2 implements this lifecycle through `App#server`, `App#start`,
@@ -144,13 +144,13 @@ hook completed. Request-task cancellation resumes the persistent handler VM so
 
 The edge MUST permit streaming without unbounded buffering, preserve response
 backpressure, and use timeouts compatible with the application's longest
-supported stream. Client disconnect must reach Ember as cancellation. A
-deployment that buffers all responses or lets the edge timeout before Ember's
-write deadline does not support Ember streaming, even if buffered endpoints
+supported stream. Client disconnect must reach Orbit as cancellation. A
+deployment that buffers all responses or lets the edge timeout before Orbit's
+write deadline does not support Orbit streaming, even if buffered endpoints
 work.
 
-Keep-alive is required on the trusted edge-to-Ember HTTP/1.1 hop for the 1.0
-production profile. TLS, HTTP/2/3, WebSocket, and direct TLS inside Ember are
+Keep-alive is required on the trusted edge-to-Orbit HTTP/1.1 hop for the 1.0
+production profile. TLS, HTTP/2/3, WebSocket, and direct TLS inside Orbit are
 not 1.0 release requirements.
 
 ## Operational endpoints
@@ -162,9 +162,9 @@ are excluded from noisy access logs only through explicit telemetry policy.
 
 ## Unsupported deployments
 
-The following do not satisfy the Ember 1.0 production contract:
+The following do not satisfy the Orbit 1.0 production contract:
 
-- binding Ember directly to a public interface without a trusted edge;
+- binding Orbit directly to a public interface without a trusted edge;
 - deriving HTTPS or client identity from unchecked forwarding headers;
 - infinite or absent request, concurrency, stream, or shutdown limits;
 - marking ready before integrations start or remaining ready while draining;
@@ -174,9 +174,9 @@ The following do not satisfy the Ember 1.0 production contract:
 
 The tracked [nginx example](../deploy/nginx.conf) overwrites forwarding fields,
 uses HTTP/1.1 upstream keep-alive, and disables response/request buffering for
-streaming. The [systemd unit](../deploy/systemd/ember.service) and
-[Kubernetes deployment](../deploy/kubernetes/ember.yaml) reserve 45 seconds
-for the documented 5-second readiness propagation plus 30-second Ember drain
+streaming. The [systemd unit](../deploy/systemd/orbit.service) and
+[Kubernetes deployment](../deploy/kubernetes/orbit.yaml) reserve 45 seconds
+for the documented 5-second readiness propagation plus 30-second Orbit drain
 and hook overhead. Adapt paths, addresses, resources, probes, and certificates
 without weakening the boundary. Operational response, backup, restore, and
 rollback procedures are in [RUNBOOK.md](RUNBOOK.md); the complete setting

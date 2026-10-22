@@ -1,10 +1,10 @@
-package ember.example.strong_params
+package orbit.example.strong_params
 
-import ember
+import orbit
 
 export main
 
-create_user_params = ember.params(root: :user):
+create_user_params = orbit.params(root: :user):
   field(:name, required: true)
   field(:age, type: Int)
   field(:newsletter, type: Bool)
@@ -17,10 +17,10 @@ create_user_params = ember.params(root: :user):
 
 def create_user(request):
   attrs = request.params.json.expect(create_user_params)
-  ember.render(json: attrs, status: :created)
+  orbit.render(json: attrs, status: :created)
 
-routes = ember.routes:
+routes = orbit.routes:
   post "/users", to: &create_user
 
 def main():
-  ember.App(routes: routes).run(port: 3000)
+  orbit.App(routes: routes).run(port: 3000)

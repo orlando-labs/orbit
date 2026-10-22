@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run Ember CI lanes locally or on the hosted matrix."""
+"""Run Orbit CI lanes locally or on the hosted matrix."""
 
 import argparse
 import os
@@ -19,7 +19,7 @@ def run(*args: str, cwd: Path = ROOT) -> None:
 
 def sync(scope: str) -> Path:
     command = [sys.executable, str(ROOT / "script/dependencies.py"), "sync", "--scope", scope]
-    local = os.environ.get("EMBER_LOCAL_SOURCE_ROOT")
+    local = os.environ.get("ORBIT_LOCAL_SOURCE_ROOT")
     if local:
         command += ["--local-source-root", local]
     run(*command)
@@ -89,13 +89,14 @@ def core(sputnik: Path) -> None:
         ("test/core_selftest.build.yaml", ()),
         ("test/strong_params_selftest.build.yaml", ()),
         ("test/http_selftest.build.yaml", ("net.listen", "net.connect")),
+        ("test/fixed_length_selftest.build.yaml", ("net.listen", "net.connect", "random.secure")),
         ("test/api_reference_selftest.build.yaml", ("random.secure",)),
         ("test/stage5_fuzz_smoke.build.yaml", ("net.listen", "net.connect")),
     ]
     for manifest, grants in suites:
         build_and_run(sputnik, manifest, grants)
-    expect_compile_failure(sputnik, "test/stage3_html_unquoted_rejected.build.yaml", "EMBER_HTML_CONTEXT")
-    expect_compile_failure(sputnik, "test/stage3_html_comment_rejected.build.yaml", "EMBER_HTML_CONTEXT")
+    expect_compile_failure(sputnik, "test/stage3_html_unquoted_rejected.build.yaml", "ORBIT_HTML_CONTEXT")
+    expect_compile_failure(sputnik, "test/stage3_html_comment_rejected.build.yaml", "ORBIT_HTML_CONTEXT")
     sputnik_source = ROOT / ".build/dependencies/sputnik-lang"
     jobs = str(max(1, min(4, os.cpu_count() or 1)))
     run("make", f"-j{jobs}", "build/vm_net_http_tests", cwd=sputnik_source)

@@ -1,22 +1,22 @@
-package ember.http_selftest
+package orbit.http_selftest
 
-import ember
+import orbit
 import task
 from net.http import Client, RequestBody, Server
 
 export main
 
 def hello(request, name):
-  ember.render(
+  orbit.render(
     json: {
       greeting: "hello " + name,
       query: request.query(:source),
       request_id: request.header("x-request-id")
     },
-    headers: {"x-ember": "yes"})
+    headers: {"x-orbit": "yes"})
 
 def events(request):
-  ember.stream(
+  orbit.stream(
     headers: {"content-type": "text/event-stream"},
     trailers: ["x-stream-state"]) |body|:
       body.write("event: one\n\n", extensions: [["sequence", "1"]])
@@ -26,7 +26,7 @@ def events(request):
       body.finish
 
 def echo(request):
-  ember.stream(trailers: ["x-echo-state"]) |body|:
+  orbit.stream(trailers: ["x-echo-state"]) |body|:
     request.body_stream.each_chunk |chunk|:
       body.write(chunk.bytes, extensions: chunk.extensions)
     body.close
@@ -34,9 +34,9 @@ def echo(request):
     body.finish
 
 def search(request):
-  ember.render(text: request.method + ":" + request.body_text())
+  orbit.render(text: request.method + ":" + request.body_text())
 
-routes = ember.routes:
+routes = orbit.routes:
   get "/hello/:name", to: &hello, as: :hello
   get "/events", to: &events
   post "/echo", to: &echo
@@ -46,7 +46,7 @@ def assert(condition, message):
   raise ArgumentError(message) unless condition
 
 def main():
-  app = ember.App(routes: routes, expose_exceptions: true)
+  app = orbit.App(routes: routes, expose_exceptions: true)
   server = Server(
     host: "127.0.0.1",
     port: 0,
@@ -88,7 +88,7 @@ def main():
   assert(response.status == 200,
     "loopback status: " + response.status.to_str + ":" + body)
   assert(response.headers.first("content-type") == "application/json; charset=utf-8", "loopback type")
-  assert(response.headers.first("x-ember") == "yes", "loopback response header")
+  assert(response.headers.first("x-orbit") == "yes", "loopback response header")
   assert(body.contains?("hello Sputnik"), "loopback route capture")
   assert(body.contains?("loopback"), "loopback query parsing")
   assert(body.contains?("http-selftest"), "loopback request header")

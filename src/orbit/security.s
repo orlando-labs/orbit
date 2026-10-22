@@ -1,6 +1,6 @@
-package ember.security
+package orbit.security
 
-import ember
+import orbit
 import io
 
 export CookieLimits, CookieJar, SetCookie
@@ -8,7 +8,7 @@ export Aead, SignedCookieCodec, SessionCodec
 export CorsMiddleware, CsrfProtection, CsrfMiddleware
 export SecurityError, CookieError, SessionError, CsrfError
 
-class SecurityError < ember.EmberError
+class SecurityError < orbit.OrbitError
 class CookieError < SecurityError
 class SessionError < SecurityError
 class CsrfError < SecurityError
@@ -412,7 +412,7 @@ class SessionCodec:
     @max_payload_bytes = max_payload_bytes
     @ttl = ttl
     @clock_skew = clock_skew
-    @aad = Bytes.new("ember.session.v1")
+    @aad = Bytes.new("orbit.session.v1")
 
   def encode(data, now: null):
     issued_at = if now == null then Time.now.unix_seconds else now
@@ -470,10 +470,10 @@ def _origin_valid?(origin):
 
 def _vary_origin(response):
   existing = response.header("vary")
-  return ember.with_response_header(response, "vary", "Origin") unless existing
+  return orbit.with_response_header(response, "vary", "Origin") unless existing
   values = existing.split(",").map: _1.trim.downcase
   return response if values.include?("origin") or values.include?("*")
-  ember.with_response_header(response, "vary", existing + ", Origin")
+  orbit.with_response_header(response, "vary", existing + ", Origin")
 
 class CorsMiddleware:
   def init(
@@ -511,32 +511,32 @@ class CorsMiddleware:
     allowed = @origins.include?("*") or @origins.include?(origin)
     preflight = request.method == "OPTIONS" and request.header("access-control-request-method")
     if preflight:
-      return ember.render(text: "forbidden", status: :forbidden) unless allowed
+      return orbit.render(text: "forbidden", status: :forbidden) unless allowed
       requested_method = request.header("access-control-request-method").to_str.upcase
-      return ember.render(text: "forbidden", status: :forbidden) unless @methods.include?(requested_method)
+      return orbit.render(text: "forbidden", status: :forbidden) unless @methods.include?(requested_method)
       requested_headers = []
       raw_headers = request.header("access-control-request-headers")
       if raw_headers:
         requested_headers = raw_headers.split(",").map: _1.trim.downcase
-        return ember.render(text: "bad request", status: :bad_request) if requested_headers.any? |name|: name.empty?
-        return ember.render(text: "forbidden", status: :forbidden) if requested_headers.any? |name|: not @headers.include?(name)
-      response = ember.Response(status: :no_content, body: "")
-      response = ember.with_response_header(response, "access-control-allow-methods", @methods.join(", "))
+        return orbit.render(text: "bad request", status: :bad_request) if requested_headers.any? |name|: name.empty?
+        return orbit.render(text: "forbidden", status: :forbidden) if requested_headers.any? |name|: not @headers.include?(name)
+      response = orbit.Response(status: :no_content, body: "")
+      response = orbit.with_response_header(response, "access-control-allow-methods", @methods.join(", "))
       if requested_headers.present?:
-        response = ember.with_response_header(response, "access-control-allow-headers", requested_headers.join(", "))
-      response = ember.with_response_header(response, "access-control-max-age", @max_age.to_str)
+        response = orbit.with_response_header(response, "access-control-allow-headers", requested_headers.join(", "))
+      response = orbit.with_response_header(response, "access-control-max-age", @max_age.to_str)
       return _cors_headers(response, origin)
-    response = ember.normalize_response(next(request))
+    response = orbit.normalize_response(next(request))
     return response unless allowed
     _cors_headers(response, origin)
 
   def _cors_headers(response, origin):
     selected = if @origins.include?("*") then "*" else origin
-    result = ember.with_response_header(response, "access-control-allow-origin", selected)
+    result = orbit.with_response_header(response, "access-control-allow-origin", selected)
     if @credentials:
-      result = ember.with_response_header(result, "access-control-allow-credentials", "true")
+      result = orbit.with_response_header(result, "access-control-allow-credentials", "true")
     if @expose_headers.present?:
-      result = ember.with_response_header(result, "access-control-expose-headers", @expose_headers.join(", "))
+      result = orbit.with_response_header(result, "access-control-expose-headers", @expose_headers.join(", "))
     _vary_origin(result)
 
 class CsrfProtection:
@@ -566,8 +566,8 @@ class CsrfProtection:
 class CsrfMiddleware:
   def init(
     secret:,
-    session_cookie: "ember-session",
-    token_cookie: "ember-csrf",
+    session_cookie: "orbit-session",
+    token_cookie: "orbit-csrf",
     header: "x-csrf-token",
     cookie_limits: CookieLimits()
   ):
@@ -585,21 +585,21 @@ class CsrfMiddleware:
 
   def call(request, next):
     jar = _parse_cookies(request)
-    return ember.render(text: "bad request", status: :bad_request) unless jar
+    return orbit.render(text: "bad request", status: :bad_request) unless jar
     session_id = jar.get(@session_cookie) or "anonymous"
     safe = ["GET", "HEAD", "OPTIONS"].include?(request.method)
     unless safe:
       fetch_site = request.header("sec-fetch-site")
-      return ember.render(text: "forbidden", status: :forbidden) if fetch_site and fetch_site.downcase == "cross-site"
+      return orbit.render(text: "forbidden", status: :forbidden) if fetch_site and fetch_site.downcase == "cross-site"
       origin = request.header("origin")
-      return ember.render(text: "forbidden", status: :forbidden) unless origin and origin == request.origin()
+      return orbit.render(text: "forbidden", status: :forbidden) unless origin and origin == request.origin()
       cookie_token = jar.get(@token_cookie)
       header_token = request.header(@header)
       valid = cookie_token and header_token and _constant_text_equal(cookie_token, header_token)
       valid = valid and @protection.valid?(header_token, session_id)
-      return ember.render(text: "forbidden", status: :forbidden) unless valid
+      return orbit.render(text: "forbidden", status: :forbidden) unless valid
       return next(request)
-    response = ember.normalize_response(next(request))
+    response = orbit.normalize_response(next(request))
     existing = jar.get(@token_cookie)
     return response if existing and @protection.valid?(existing, session_id)
     token = @protection.token(session_id)
@@ -609,4 +609,4 @@ class CsrfMiddleware:
       secure: request.secure?(),
       http_only: false,
       same_site: :lax)
-    ember.with_response_header(response, "set-cookie", cookie.header_value(), append: true)
+    orbit.with_response_header(response, "set-cookie", cookie.header_value(), append: true)

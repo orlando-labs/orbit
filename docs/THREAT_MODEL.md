@@ -1,8 +1,8 @@
-# Ember threat model
+# Orbit threat model
 
 Version: 1.0  
 Review date: 2026-07-22  
-Scope: Ember source at roadmap gates 0–5 and the supported trusted-edge profile.
+Scope: Orbit source at roadmap gates 0–5 and the supported trusted-edge profile.
 
 This is the framework threat model required by roadmap stage 3. Application
 teams must extend it with their identities, authorization model, data classes,
@@ -33,7 +33,7 @@ trusted TLS edge / ingress
         |
         | private or authenticated HTTP/1.1 hop
         v
-Sputnik native HTTP parser ---> Ember SecurityPolicy ---> router/middleware/app
+Sputnik native HTTP parser ---> Orbit SecurityPolicy ---> router/middleware/app
                                       |                         |
                                       | validated provenance    | explicit APIs
                                       v                         v
@@ -42,14 +42,14 @@ Sputnik native HTTP parser ---> Ember SecurityPolicy ---> router/middleware/app
 
 The edge is trusted only when the socket peer is inside the configured CIDR
 set. Header presence never establishes trust. The runtime HTTP parser and
-Ember both enforce message/header limits. Application code is trusted to use
+Orbit both enforce message/header limits. Application code is trusted to use
 explicit unsafe wrappers only after validation or sanitization. Databases,
 filesystems, service meshes, secret managers, scanners, and TLS configuration
 remain deployment/application boundaries.
 
 ## Assumptions
 
-- Public traffic reaches Ember through the edge contract in
+- Public traffic reaches Orbit through the edge contract in
   [DEPLOYMENT.md](DEPLOYMENT.md); direct Internet exposure is unsupported.
 - The edge removes user-supplied forwarding fields and writes its own values.
 - Production disables exception exposure, keeps all documented limits finite,

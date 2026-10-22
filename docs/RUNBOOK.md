@@ -1,6 +1,6 @@
-# Ember operations runbook
+# Orbit operations runbook
 
-This runbook covers Ember 1.0 behind the trusted edge in
+This runbook covers Orbit 1.0 behind the trusted edge in
 [DEPLOYMENT.md](DEPLOYMENT.md). Replace example service names and paths, but do
 not remove the trust, limit, readiness, or drain invariants.
 
@@ -27,7 +27,7 @@ The process adapter handles the platform termination signal in this order:
 3. call `shutdown` with the configured deadline and then `wait`;
 4. exit zero only when `shutdown` reports a clean drain.
 
-The platform grace period must exceed propagation plus Ember drain plus stop
+The platform grace period must exceed propagation plus Orbit drain plus stop
 hooks. A forced deadline increments `forced_shutdowns`, emits lifecycle
 telemetry, and exits non-zero; it is an incident signal, not a normal rollout.
 
@@ -36,7 +36,7 @@ telemetry, and exits non-zero; it is an incident signal, not a normal rollout.
 | Symptom | First evidence | Immediate safe action |
 |---|---|---|
 | Readiness 503 | integration readiness, pool gauges, startup event | Stop promotion; keep failed instance out of service; inspect dependency health. |
-| Elevated 5xx | `ember.error` type, route template, trace ID | Roll back if correlated with release; never enable exception exposure in production. |
+| Elevated 5xx | `orbit.error` type, route template, trace ID | Roll back if correlated with release; never enable exception exposure in production. |
 | Overload 503 | rejection/capacity/active metrics, edge queue | Shed/rate-limit at edge; scale within tested bounds; do not add an unbounded queue. |
 | Latency regression | route-template histogram and pool waiting | Compare release baseline, dependency time, and saturation; disable the canary. |
 | Streaming stalls | active streams, write timeouts, edge buffering | Stop new streaming traffic; verify proxy buffering/timeouts and disconnect propagation. |
@@ -62,7 +62,7 @@ retain read-side session keys through the rollback window.
 
 ## Backup and restore
 
-Ember core is stateless and owns no backup format. Back up application data,
+Orbit core is stateless and owns no backup format. Back up application data,
 configuration metadata, release evidence, and secret versions using the
 storage engine's supported online-backup procedure. For SQLite, do not copy
 only the main file while WAL writes are active; use SQLite's backup API or a

@@ -65,7 +65,7 @@ jobs:
           token: ${{ secrets.DEPENDENCY_READ_TOKEN || github.token }}
       - name: ORM, SQLite native extension, integration example, and CRUD soak smoke
         env:
-          EMBER_LOCAL_SOURCE_ROOT: ${{ github.workspace }}/.dependency-source
+          ORBIT_LOCAL_SOURCE_ROOT: ${{ github.workspace }}/.dependency-source
         run: ./script/ci integration
 
   clean-room:

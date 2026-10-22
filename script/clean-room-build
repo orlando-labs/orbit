@@ -33,7 +33,7 @@ def sha256(path: Path) -> str:
 
 
 def main() -> int:
-    local_root = os.environ.get("EMBER_LOCAL_SOURCE_ROOT")
+    local_root = os.environ.get("ORBIT_LOCAL_SOURCE_ROOT")
     sync = [sys.executable, str(ROOT / "script/dependencies.py"), "sync", "--scope", "core"]
     if local_root:
         sync += ["--local-source-root", local_root]
@@ -54,7 +54,7 @@ def main() -> int:
 
     version = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
     packages: list[Path] = []
-    for name, manifest in (("ember", "sputnik.toml"), ("ember-orm", "packages/ember-orm/sputnik.toml")):
+    for name, manifest in (("orbit", "sputnik.toml"), ("orbit-orm", "packages/orbit-orm/sputnik.toml")):
         first = BUILD / "dist" / f"{name}-{version}.first.sputnikpkg"
         second = BUILD / "dist" / f"{name}-{version}.second.sputnikpkg"
         run(str(sputnik), "package-build", manifest, str(first))
@@ -75,7 +75,7 @@ def main() -> int:
         "--cache-dir", str(BUILD / "cache-api"), "--no-cache",
         "--grant", "random.secure",
     )
-    run(str(api_out / "ember.api_reference_selftest"))
+    run(str(api_out / "orbit.api_reference_selftest"))
     run(
         str(sputnik), "build", "examples/hello.build.yaml",
         "--target", "native", "--out-dir", str(hello_out),
@@ -85,8 +85,8 @@ def main() -> int:
 
     dependencies = json.loads((ROOT / "release/dependencies.lock.json").read_text(encoding="utf-8"))
     evidence = {
-        "schema": "ember.clean-room-evidence.v1",
-        "ember_version": version,
+        "schema": "orbit.clean-room-evidence.v1",
+        "orbit_version": version,
         "sputnik_revision": dependencies["dependencies"][0]["revision"],
         "dependency_lock_sha256": sha256(ROOT / "release/dependencies.lock.json"),
         "packages": {package.name: sha256(package) for package in packages},

@@ -1,6 +1,6 @@
 schema: sputnik.build.v1
-name: ember.example.soak.service
-root: ember.example.soak.service
+name: orbit.example.soak.service
+root: orbit.example.soak.service
 
 profiles:
   required: [core.v1, ffi.v1, macro.v1]
@@ -20,13 +20,13 @@ modules:
     path: ../../.build/dependencies/sputnik-orm/src/orm/sqlite3/pool.s
   - name: orm.sqlite3
     path: ../../.build/dependencies/sputnik-orm/src/orm/sqlite3.s
-  - name: ember
-    path: ../../src/ember.s
-  - name: ember.telemetry
-    path: ../../src/ember/telemetry.s
-  - name: ember.integrations.orm
-    path: ../../packages/ember-orm/src/ember/integrations/orm.s
-  - name: ember.example.soak.service
+  - name: orbit
+    path: ../../src/orbit.s
+  - name: orbit.telemetry
+    path: ../../src/orbit/telemetry.s
+  - name: orbit.integrations.orm
+    path: ../../packages/orbit-orm/src/orbit/integrations/orm.s
+  - name: orbit.example.soak.service
     path: service.s
 
 native_extensions:
@@ -37,8 +37,6 @@ native_extensions:
       - ../../.build/dependencies/sqlite3-sputnik/native/sqlite3.c
     headers:
       - ../../.build/dependencies/sqlite3-sputnik/native/sqlite3.h
-    blocking_symbols:
-      - amsq_pool_acquire_wait
     defines:
       - SQLITE_THREADSAFE=1
       - SQLITE_ENABLE_COLUMN_METADATA=1

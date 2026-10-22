@@ -26,27 +26,27 @@ jobs:
         run: ./script/clean-room-build
       - name: Build signed package twice and source archive
         env:
-          EMBER_PACKAGE_SIGNING_KEY: ${{ secrets.EMBER_PACKAGE_SIGNING_KEY }}
-          EMBER_PACKAGE_KEY_ID: ${{ vars.EMBER_PACKAGE_KEY_ID }}
+          ORBIT_PACKAGE_SIGNING_KEY: ${{ secrets.ORBIT_PACKAGE_SIGNING_KEY }}
+          ORBIT_PACKAGE_KEY_ID: ${{ vars.ORBIT_PACKAGE_KEY_ID }}
         run: |
-          test -n "${EMBER_PACKAGE_SIGNING_KEY}"
-          test -n "${EMBER_PACKAGE_KEY_ID}"
+          test -n "${ORBIT_PACKAGE_SIGNING_KEY}"
+          test -n "${ORBIT_PACKAGE_KEY_ID}"
           mkdir -p dist
           SPUTNIK=.build/dependencies/sputnik-lang/build/sputnik
           VERSION_VALUE=$(tr -d '\n' < VERSION)
-          "${SPUTNIK}" package-build sputnik.toml "dist/ember-${VERSION_VALUE}.first.sputnikpkg" --sign-key "${EMBER_PACKAGE_SIGNING_KEY}" --key-id "${EMBER_PACKAGE_KEY_ID}" >/dev/null
-          "${SPUTNIK}" package-build sputnik.toml "dist/ember-${VERSION_VALUE}.second.sputnikpkg" --sign-key "${EMBER_PACKAGE_SIGNING_KEY}" --key-id "${EMBER_PACKAGE_KEY_ID}" >/dev/null
-          cmp "dist/ember-${VERSION_VALUE}.first.sputnikpkg" "dist/ember-${VERSION_VALUE}.second.sputnikpkg"
-          mv "dist/ember-${VERSION_VALUE}.first.sputnikpkg" "dist/ember-${VERSION_VALUE}.sputnikpkg"
-          rm "dist/ember-${VERSION_VALUE}.second.sputnikpkg"
-          "${SPUTNIK}" package-verify "dist/ember-${VERSION_VALUE}.sputnikpkg" --sign-key "${EMBER_PACKAGE_SIGNING_KEY}" >/dev/null
-          "${SPUTNIK}" package-build packages/ember-orm/sputnik.toml "dist/ember-orm-${VERSION_VALUE}.first.sputnikpkg" --sign-key "${EMBER_PACKAGE_SIGNING_KEY}" --key-id "${EMBER_PACKAGE_KEY_ID}" >/dev/null
-          "${SPUTNIK}" package-build packages/ember-orm/sputnik.toml "dist/ember-orm-${VERSION_VALUE}.second.sputnikpkg" --sign-key "${EMBER_PACKAGE_SIGNING_KEY}" --key-id "${EMBER_PACKAGE_KEY_ID}" >/dev/null
-          cmp "dist/ember-orm-${VERSION_VALUE}.first.sputnikpkg" "dist/ember-orm-${VERSION_VALUE}.second.sputnikpkg"
-          mv "dist/ember-orm-${VERSION_VALUE}.first.sputnikpkg" "dist/ember-orm-${VERSION_VALUE}.sputnikpkg"
-          rm "dist/ember-orm-${VERSION_VALUE}.second.sputnikpkg"
-          "${SPUTNIK}" package-verify "dist/ember-orm-${VERSION_VALUE}.sputnikpkg" --sign-key "${EMBER_PACKAGE_SIGNING_KEY}" >/dev/null
-          git archive --format=tar --prefix="ember-${VERSION_VALUE}/" "${GITHUB_REF_NAME}" | gzip -n > "dist/ember-${VERSION_VALUE}.tar.gz"
+          "${SPUTNIK}" package-build sputnik.toml "dist/orbit-${VERSION_VALUE}.first.sputnikpkg" --sign-key "${ORBIT_PACKAGE_SIGNING_KEY}" --key-id "${ORBIT_PACKAGE_KEY_ID}" >/dev/null
+          "${SPUTNIK}" package-build sputnik.toml "dist/orbit-${VERSION_VALUE}.second.sputnikpkg" --sign-key "${ORBIT_PACKAGE_SIGNING_KEY}" --key-id "${ORBIT_PACKAGE_KEY_ID}" >/dev/null
+          cmp "dist/orbit-${VERSION_VALUE}.first.sputnikpkg" "dist/orbit-${VERSION_VALUE}.second.sputnikpkg"
+          mv "dist/orbit-${VERSION_VALUE}.first.sputnikpkg" "dist/orbit-${VERSION_VALUE}.sputnikpkg"
+          rm "dist/orbit-${VERSION_VALUE}.second.sputnikpkg"
+          "${SPUTNIK}" package-verify "dist/orbit-${VERSION_VALUE}.sputnikpkg" --sign-key "${ORBIT_PACKAGE_SIGNING_KEY}" >/dev/null
+          "${SPUTNIK}" package-build packages/orbit-orm/sputnik.toml "dist/orbit-orm-${VERSION_VALUE}.first.sputnikpkg" --sign-key "${ORBIT_PACKAGE_SIGNING_KEY}" --key-id "${ORBIT_PACKAGE_KEY_ID}" >/dev/null
+          "${SPUTNIK}" package-build packages/orbit-orm/sputnik.toml "dist/orbit-orm-${VERSION_VALUE}.second.sputnikpkg" --sign-key "${ORBIT_PACKAGE_SIGNING_KEY}" --key-id "${ORBIT_PACKAGE_KEY_ID}" >/dev/null
+          cmp "dist/orbit-orm-${VERSION_VALUE}.first.sputnikpkg" "dist/orbit-orm-${VERSION_VALUE}.second.sputnikpkg"
+          mv "dist/orbit-orm-${VERSION_VALUE}.first.sputnikpkg" "dist/orbit-orm-${VERSION_VALUE}.sputnikpkg"
+          rm "dist/orbit-orm-${VERSION_VALUE}.second.sputnikpkg"
+          "${SPUTNIK}" package-verify "dist/orbit-orm-${VERSION_VALUE}.sputnikpkg" --sign-key "${ORBIT_PACKAGE_SIGNING_KEY}" >/dev/null
+          git archive --format=tar --prefix="orbit-${VERSION_VALUE}/" "${GITHUB_REF_NAME}" | gzip -n > "dist/orbit-${VERSION_VALUE}.tar.gz"
       - name: Checksums and release evidence
         run: |
           python3 - <<'PY'
@@ -59,7 +59,7 @@ jobs:
           (dist / 'SHA256SUMS').write_text(''.join(f'{digest(path)}  {path.name}\n' for path in files))
           lock = json.loads((root / 'release/dependencies.lock.json').read_text())
           evidence = {
-              'schema': 'ember.release-evidence.v1',
+              'schema': 'orbit.release-evidence.v1',
               'version': (root / 'VERSION').read_text().strip(),
               'tag': os.environ['GITHUB_REF_NAME'],
               'commit': os.environ['GITHUB_SHA'],
@@ -75,10 +75,10 @@ jobs:
           subject-path: "dist/*"
       - uses: actions/upload-artifact@v4
         with:
-          name: ember-${{ github.ref_name }}
+          name: orbit-${{ github.ref_name }}
           path: dist/
           if-no-files-found: error
       - name: Publish GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "${GITHUB_REF_NAME}" dist/* --verify-tag --title "Ember ${GITHUB_REF_NAME#v}" --notes-file CHANGELOG.md --prerelease
+        run: gh release create "${GITHUB_REF_NAME}" dist/* --verify-tag --title "Orbit ${GITHUB_REF_NAME#v}" --notes-file CHANGELOG.md --prerelease

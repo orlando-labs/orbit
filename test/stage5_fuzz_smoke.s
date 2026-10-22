@@ -1,8 +1,8 @@
-package ember.stage5_fuzz_smoke
+package orbit.stage5_fuzz_smoke
 
-import ember
-import ember.multipart
-import ember.testing
+import orbit
+import orbit.multipart
+import orbit.testing
 from net.http import Client
 import net.tcp
 
@@ -11,22 +11,22 @@ export main
 def assert(condition, message):
   raise ArgumentError(message) unless condition
 
-schema = ember.params:
+schema = orbit.params:
   field(:name, required: true)
 
 def echo(request):
-  ember.render(json: request.params.json.expect(schema))
+  orbit.render(json: request.params.json.expect(schema))
 
 def ok(request):
-  ember.render(text: "ok")
+  orbit.render(text: "ok")
 
-routes = ember.routes:
+routes = orbit.routes:
   get "/ok", to: &ok
   get "/items/:id", to: &ok
   post "/json", to: &echo
 
 def parser_corpus():
-  app = ember.App(routes: routes)
+  app = orbit.App(routes: routes)
   percent_cases = [
     "/items/%", "/items/%0", "/items/%GG", "/items/%2f", "/items/%00",
     "/items/%25", "/items/a%20b", "/items/%F0%9F%92%A5", "/items/%C0%AF"
@@ -43,7 +43,7 @@ def parser_corpus():
   ]
   query_cases.each |query|:
     try:
-      ember.Request(path: "/ok", target: "/ok?" + query, raw_query: query).query_params()
+      orbit.Request(path: "/ok", target: "/ok?" + query, raw_query: query).query_params()
     rescue Exception:
       null
 
@@ -78,7 +78,7 @@ def raw_exchange(port, payload):
   socket.read_all!().to_str
 
 def framing_corpus():
-  server = ember.App(routes: routes).start(
+  server = orbit.App(routes: routes).start(
     port: 0,
     read_timeout: 0.05,
     write_timeout: 0.2,

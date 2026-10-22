@@ -1,6 +1,6 @@
-package ember.example.views.home
+package orbit.example.views.home
 
-from ember.html import escape, html, join
+from orbit.html import escape, html, join
 
 export page
 
@@ -8,7 +8,7 @@ def page(name as Str):
   html"""
     <!doctype html>
     <html>
-      <head><title>Ember</title></head>
+      <head><title>Orbit</title></head>
       <body><h1>Hello, #{name}</h1></body>
     </html>
     """

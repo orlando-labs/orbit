@@ -1,8 +1,8 @@
-# Ember production transport
+# Orbit production transport
 
 Status: implemented roadmap stage 2, 2026-07-21.
 
-Ember serves plaintext HTTP/1.1 on the trusted inner hop described in
+Orbit serves plaintext HTTP/1.1 on the trusted inner hop described in
 [DEPLOYMENT.md](DEPLOYMENT.md). TLS, HTTP/2/3, public-edge normalization, and
 proxy identity remain out of process. The in-process contract is bounded
 keep-alive, predictable overload, and an explicit lifecycle that can drain or
@@ -92,13 +92,13 @@ bypass the per-connection count or global capacity.
 
 The hard capacity is `workers * max_concurrent_per_worker` active connections.
 When it is full, an accepted excess connection receives a short
-`503 Service Unavailable` response and is closed. Ember does not create an
+`503 Service Unavailable` response and is closed. Orbit does not create an
 unbounded request task or application queue for rejected work. The edge should
 still apply its own earlier connection/rate limits.
 
 ## Integration lifecycle
 
-A lifecycle-aware integration subclasses `ember.Integration` in addition to
+A lifecycle-aware integration subclasses `orbit.Integration` in addition to
 implementing `around_controller(request, next)`. It may override:
 
 - `start()` — run before listener bind and readiness;
@@ -124,6 +124,11 @@ hypothetical representation length, and streaming producers are not invoked.
 `204` omits content framing, `205` uses zero length, and `304` sends no content
 or transfer coding. Application-supplied buffered `Content-Length` must match
 content, except that a HEAD value describes the selected representation.
+`stream(length: N)` writes fixed-length content incrementally and emits exactly
+one transport-owned `Content-Length`, without `Transfer-Encoding`. Native and
+VM writers reject overflow, short close/producer, trailers and chunk extensions.
+Length faults prevent connection reuse. `length: null` preserves chunked mode.
+Tests: `test/fixed_length_selftest.s` and Sputnik `tests/vm_net_http_tests.cpp`.
 
 `Transfer-Encoding` and `Trailer` are transport-owned. The parser rejects
 missing/duplicate HTTP/1.1 `Host`, ambiguous `Content-Length`/

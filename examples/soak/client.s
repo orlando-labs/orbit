@@ -1,4 +1,4 @@
-package ember.example.soak.client
+package orbit.example.soak.client
 
 from net.http import Client, Request
 
@@ -72,7 +72,7 @@ def item_payload(token):
     item: {
       sku: "SOAK-" + token,
       name: "Sputnik soak catalog item " + token,
-      description: "Representative durable catalog item used by the Ember RC soak client.",
+      description: "Representative durable catalog item used by the Orbit RC soak client.",
       category: "hardware",
       status: "active",
       price_cents: 129900,
@@ -449,7 +449,7 @@ def negative_suite(client, base_url, worker, iteration, stats):
 
 def arguments():
   parser = ArgParser()
-  parser.name("ember-soak-client")
+  parser.name("orbit-soak-client")
   parser.arg("--base-url", name: "base_url", default: "http://127.0.0.1:3300")
   parser.arg("--iterations", type: Int, default: 1)
   parser.arg("--worker", type: Int, default: 0)
@@ -498,7 +498,7 @@ def main():
 
   elapsed = (Time.monotonic - started).total_nanoseconds.to_float / 1000000000.0
   io.stdout.write_line(Json.generate({
-    schema: "ember.soak-client.result.v1",
+    schema: "orbit.soak-client.result.v1",
     worker: args["worker"],
     mode: args["mode"],
     iterations: index,

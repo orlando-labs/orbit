@@ -1,6 +1,6 @@
-package ember.telemetry
+package orbit.telemetry
 
-import ember
+import orbit
 from sync import Mutex
 
 export RedactionPolicy, JsonLogSink, MemorySink
@@ -26,10 +26,10 @@ def _error_type(error):
   return "connection_reset" if ConnectionResetError === error
   return "broken_pipe" if BrokenPipeError === error
   return "unexpected_eof" if UnexpectedEofError === error
-  return "route_parameter" if ember.RouteParamError === error
-  return "request_parameters" if ember.RequestParamsError === error
-  return "request_security" if ember.RequestSecurityError === error
-  return "invalid_response" if ember.InvalidResponseError === error
+  return "route_parameter" if orbit.RouteParamError === error
+  return "request_parameters" if orbit.RequestParamsError === error
+  return "request_security" if orbit.RequestSecurityError === error
+  return "invalid_response" if orbit.InvalidResponseError === error
   "Exception"
 
 def _outcome(status, failed, cancelled: false):
@@ -187,7 +187,7 @@ class ErrorLogEvent:
 
   def fields():
     {
-      "event.name": "ember.error",
+      "event.name": "orbit.error",
       "request.id": @request_id,
       "http.request.method": @method,
       "http.route": @route_pattern,
@@ -270,7 +270,7 @@ class Tracer:
     unless Bool === @accept_remote and Bool === @trusted_edge_only and Bool === @capture_url_path:
       raise ArgumentError("tracer policy flags must be Bool")
 
-  def start_server_span(request as ember.Request, request_id):
+  def start_server_span(request as orbit.Request, request_id):
     parent = null
     trusted = not @trusted_edge_only or request.trusted_proxy
     if @accept_remote and trusted:
@@ -423,20 +423,20 @@ class MetricsRegistry:
           "sum": @response_bytes
         }.freeze,
         "http.server.errors": @errors,
-        "ember.streams.active": @streams_active,
-        "ember.streams.completed": @streams_completed,
-        "ember.streams.failed": @streams_failed,
-        "ember.shutdowns": @shutdowns,
-        "ember.shutdowns.forced": @forced_shutdowns,
-        "ember.shutdown.duration_ns": @shutdown_duration_nanoseconds,
-        "ember.request.series": series.freeze,
-        "ember.integration.pools": @integration_pools.copy.freeze,
-        "ember.server": if @server then @server.stats() else null
+        "orbit.streams.active": @streams_active,
+        "orbit.streams.completed": @streams_completed,
+        "orbit.streams.failed": @streams_failed,
+        "orbit.shutdowns": @shutdowns,
+        "orbit.shutdowns.forced": @forced_shutdowns,
+        "orbit.shutdown.duration_ns": @shutdown_duration_nanoseconds,
+        "orbit.request.series": series.freeze,
+        "orbit.integration.pools": @integration_pools.copy.freeze,
+        "orbit.server": if @server then @server.stats() else null
       }.freeze
     local
 
   def response(request = null):
-    ember.render(json: snapshot())
+    orbit.render(json: snapshot())
 
 class HealthProbe:
   def init():
@@ -456,11 +456,11 @@ class HealthProbe:
     server != null and server.ready?()
 
   def liveness(request = null):
-    ember.render(json: {"status": "ok"})
+    orbit.render(json: {"status": "ok"})
 
   def readiness(request = null):
     ready = ready?()
-    ember.render(
+    orbit.render(
       json: {"status": if ready then "ready" else "not_ready"},
       status: if ready then :ok else :service_unavailable)
 
@@ -539,18 +539,18 @@ class Telemetry:
     @tracer = if tracer == false then null else (tracer or Tracer(@sink))
     @health = health or HealthProbe()
 
-  def start_request(request as ember.Request):
+  def start_request(request as orbit.Request):
     supplied = request.header("x-request-id")
     request_id = if _valid_request_id?(supplied) then supplied else SecureRandom.base64url(18)
     observation = RequestObservation(request, request_id)
     @metrics.request_started()
     observation
 
-  def authorized_request(observation as RequestObservation, request as ember.Request):
+  def authorized_request(observation as RequestObservation, request as orbit.Request):
     span = if @tracer then @tracer.start_server_span(request, observation.request_id) else null
     observation.authorize!(request, span)
 
-  def record_error(observation as RequestObservation, error, request as ember.Request, route_pattern):
+  def record_error(observation as RequestObservation, error, request as orbit.Request, route_pattern):
     observation.fail!()
     span = observation.span
     event = ErrorLogEvent(
@@ -563,7 +563,7 @@ class Telemetry:
     _safe_emit(@sink, :error, event.fields())
     event
 
-  def finish_exception(observation as RequestObservation, error, request as ember.Request, route_pattern):
+  def finish_exception(observation as RequestObservation, error, request as orbit.Request, route_pattern):
     cancelled = CancelledError === error or FlowCancelledError === error
     record_error(observation, error, request, route_pattern) unless cancelled
     _complete(
@@ -578,20 +578,22 @@ class Telemetry:
 
   def finish_response(
     observation as RequestObservation,
-    response as (ember.Response | ember.StreamingResponse),
-    request as ember.Request,
+    response as (orbit.Response | orbit.StreamingResponse),
+    request as orbit.Request,
     route_pattern
   ):
     selected = response
     unless response.header("x-request-id"):
-      selected = ember.with_response_header(response, "x-request-id", observation.request_id)
-    if ember.StreamingResponse === selected:
+      selected = orbit.with_response_header(response, "x-request-id", observation.request_id)
+    if orbit.StreamingResponse === selected:
       @metrics.stream_started()
       producer = selected._producer_block()
       telemetry = self
-      return ember.StreamingResponse(
+      return orbit.StreamingResponse(
         status: selected.status,
         headers: selected.headers,
+        length: selected.length,
+        on_complete: selected.on_complete,
         trailers: selected.trailers) |body|:
           try:
             producer(ObservedStreamBody(body, observation))
@@ -628,7 +630,7 @@ class Telemetry:
 
   def _complete(
     observation as RequestObservation,
-    request as ember.Request,
+    request as orbit.Request,
     route_pattern,
     status,
     bytes,
@@ -677,7 +679,7 @@ class Telemetry:
   def record_shutdown(clean, duration_nanoseconds, stats):
     @metrics.record_shutdown(clean, duration_nanoseconds)
     _safe_emit(@sink, :lifecycle, {
-      "event.name": "ember.server.shutdown",
+      "event.name": "orbit.server.shutdown",
       "outcome": if clean then "success" else "forced",
       "duration_ns": duration_nanoseconds,
       "active_requests": stats[:active_requests],

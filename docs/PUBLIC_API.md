@@ -1,9 +1,9 @@
-# Ember 1.0 public API boundary
+# Orbit 1.0 public API boundary
 
 Status: normative `1.0.0-rc.1` candidate, accepted 2026-07-19 by
-[ADR-0001](adr/0001-ember-1-0-contract.md).
+[ADR-0001](adr/0001-orbit-1-0-contract.md).
 
-An Ember name is public only when it is listed here or in a versioned API
+An Orbit name is public only when it is listed here or in a versioned API
 reference shipped with a release. Export visibility alone is insufficient:
 Sputnik macros require a few implementation helpers to be exported. Undocumented
 attributes, concrete collection classes, generated code, exception message
@@ -15,7 +15,7 @@ roadmap work may add public names and optional keyword arguments. Before the
 listed below; no other current public surface may be removed without
 superseding the contract ADR.
 
-## `ember`
+## `orbit`
 
 ### Route declarations
 
@@ -63,7 +63,7 @@ drain was clean. Stats use the stable Symbol keys `accepted`, `completed`,
 `failed`, `rejected`, `active`, `requests`, `active_requests`,
 `keepalive_requests`, `forced_shutdowns`, and `capacity`.
 
-`App#call` accepts `ember.Request` or `net.http.ServerRequest` and returns a
+`App#call` accepts `orbit.Request` or `net.http.ServerRequest` and returns a
 normalized `Response` or `StreamingResponse` subject to the
 [HTTP contract](HTTP_CONTRACT.md).
 
@@ -116,8 +116,8 @@ The following are public:
 
 - `Response(status: 200, headers: {}, body: "")`, with `status`, read-only
   `body`, `header(name)`, `body_text()`, and `body_bytes()`;
-- `StreamingResponse(status: 200, headers: {}, trailers: [], &producer)`, with
-  read-only `status`, `headers`, and `trailers`;
+- `StreamingResponse(status: 200, headers: {}, trailers: [], length: null, &producer)`, with
+  read-only `status`, `headers`, `trailers`, and `length`;
 - `StreamBody#write(data, extensions: null)`, `close()`, `trailer(name, value)`,
   `finish()`, and `closed?()`;
 - `render`, `redirect`, `stream`, `normalize_response`, and `status_code`;
@@ -126,6 +126,11 @@ The following are public:
 `Response#headers` and `StreamingResponse#headers` are immutable `Headers`
 values. Header reads through `header(name)` and values passed through
 constructors/helpers are stable.
+`stream` and `Controller#stream` accept the same optional `length:`. A
+nonnegative `Int` selects fixed-length transport framing; `null` keeps the
+chunked default. Fixed-length writes must total exactly that many bytes;
+trailers and chunk extensions are invalid. Header derivations, middleware and
+telemetry preserve length. Framing headers cannot be supplied directly.
 `to_server_response()` is a public adapter bridge for server integrations, but
 the concrete `net.http` value it returns follows the supported Sputnik version.
 
@@ -193,7 +198,7 @@ type rules, nullability, and error codes are behavioral compatibility surface.
 Applications may catch these error types; their inheritance and semantic
 classification are stable, but their exact message strings are not:
 
-- `EmberError`, `RouteError`, `InvalidRouteError`, `DuplicateRouteError`,
+- `OrbitError`, `RouteError`, `InvalidRouteError`, `DuplicateRouteError`,
   `DuplicateRouteNameError`, `InvalidPathError`, `RouteParamError`,
   `RouteNotFoundError`, `UnknownRouteNameError`, `PathGenerationError`;
 - `InvalidResponseError`, `DoubleRenderError`, `ResponseCommittedError`,
@@ -206,11 +211,11 @@ classification are stable, but their exact message strings are not:
 
 ## Supporting modules
 
-### `ember.html`
+### `orbit.html`
 
 Public API: `html"""..."""`, `escape`, `escape_text`, `escape_attribute`,
 `raw`, `join`, `url`, `trusted_script`, `trusted_style`, `HtmlUrl`,
-`TrustedScript`, and `TrustedStyle`. The macro return value is `ember.Html`.
+`TrustedScript`, and `TrustedStyle`. The macro return value is `orbit.Html`.
 Text and ordinary quoted attributes are escaped automatically. URL, script,
 style, event-handler, and srcdoc contexts require the explicit wrappers
 documented in [SECURITY.md](SECURITY.md); comments, tag syntax, and unquoted
@@ -219,7 +224,7 @@ boundaries, not sanitizers. Exported `_url_attribute`, `_script_body`,
 `_style_body`, `_script_attribute`, `_style_attribute`, and
 `_srcdoc_attribute` functions are macro plumbing and are not public APIs.
 
-### `ember.middleware`
+### `orbit.middleware`
 
 Public API: `before`, `request_id`, `access_log`, `RequestIdMiddleware`, and
 `AccessLogMiddleware`. Constructor keyword additions for policy, validation,
@@ -231,7 +236,7 @@ stable wire/data format; the 1.0 structured event schema is normative in
 incoming values against the bounded ASCII identifier grammar in
 [SECURITY.md](SECURITY.md), otherwise replacing them with a secure random ID.
 
-### `ember.telemetry`
+### `orbit.telemetry`
 
 Public event/sink API: `RedactionPolicy`, `JsonLogSink`, `MemorySink`,
 `AccessEvent`, and `ErrorLogEvent`. Public tracing API: `TraceContext`,
@@ -247,7 +252,7 @@ and lifecycle semantics are normative in
 short-lived capture, not a production exporter. Event read-only attributes and
 `fields()` maps follow the stable schema in the observability contract.
 
-### `ember.security`
+### `orbit.security`
 
 The public cookie API is `CookieLimits`, `CookieJar`, `SetCookie`,
 `CookieError`, `CookieJar.parse`, jar `get`/`include?`/`to_map`, and
@@ -258,7 +263,7 @@ browser middleware is `CorsMiddleware`, `CsrfProtection`, `CsrfMiddleware`,
 and `CsrfError`. Constructor bounds, key requirements, safe defaults, rotation,
 and application responsibilities are normative in [SECURITY.md](SECURITY.md).
 
-### `ember.multipart`
+### `orbit.multipart`
 
 Public API: `parse`, `MultipartLimits`, `MultipartPart`, `MultipartForm`, and
 `MultipartError`. Parts expose `name`, `filename`, `content_type`, `headers`,
@@ -268,17 +273,17 @@ the aggregate, count, header, field, file, name, and filename bounds documented
 in [SECURITY.md](SECURITY.md). Storage and content validation are not part of
 this transport parser.
 
-### `ember.testing`
+### `orbit.testing`
 
 Public API: `request`, `get`, `query`, `post`, `put`, `patch`, `delete`, `head`,
 `options`, `assert_status`, `assert_header`, and `assert_body`. Test helpers
 follow the same HTTP contract as `App#call`.
 
-### `ember.integrations.orm`
+### `orbit.integrations.orm`
 
 Public API: `pool`, `connection`, `PoolIntegration`, and
 `ConnectionMiddleware`. This module is distributed by the separate versioned
-`ember-orm` companion package; Ember core remains ORM-neutral. The integration's
+`orbit-orm` companion package; Orbit core remains ORM-neutral. The integration's
 request-scoped lease behavior and safe `503` mapping for pool timeout/closed/
 lease failures are stable. `PoolIntegration` also implements the server
 lifecycle: it rejects an already-closed pool at startup, reports readiness,

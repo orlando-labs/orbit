@@ -16,3 +16,9 @@ dist/
 *.profraw
 *.profdata
 *.dSYM/
+
+build/
+.sputnik/
+__pycache__/
+*.sputnikpkg
+*.publish-*.json

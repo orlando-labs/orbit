@@ -1,6 +1,6 @@
 schema: sputnik.build.v1
-name: ember.example.strong_params
-root: ember.example.strong_params
+name: orbit.example.strong_params
+root: orbit.example.strong_params
 
 profiles:
   required: [core.v1, macro.v1]
@@ -8,7 +8,7 @@ profiles:
   forbidden: []
 
 modules:
-  - name: ember
-    path: ../src/ember.s
-  - name: ember.example.strong_params
+  - name: orbit
+    path: ../src/orbit.s
+  - name: orbit.example.strong_params
     path: strong_params.s

@@ -1,13 +1,13 @@
-# ADR-0001: Ember 1.0 contract and production boundary
+# ADR-0001: Orbit 1.0 contract and production boundary
 
 - Status: Accepted
 - Date: 2026-07-19
-- Owners: Ember maintainers
-- Decision scope: Ember 1.0
+- Owners: Orbit maintainers
+- Decision scope: Orbit 1.0
 
 ## Context
 
-Ember already has a deterministic router, request/controller pipeline,
+Orbit already has a deterministic router, request/controller pipeline,
 buffered and full-duplex streaming responses, strong parameters, HTML helpers,
 testing helpers, and an optional ORM integration. The preview did not define a
 single normative answer for HEAD fallback, trailing slashes, contentless HTTP
@@ -22,9 +22,9 @@ contract before lifecycle, transport, security, observability, and release work.
 
 ### HTTP and routing semantics
 
-The normative behavior is [the Ember 1.0 HTTP contract](../HTTP_CONTRACT.md):
+The normative behavior is [the Orbit 1.0 HTTP contract](../HTTP_CONTRACT.md):
 
-- `/path` and `/path/` are distinct; Ember never redirects or canonicalizes a
+- `/path` and `/path/` are distinct; Orbit never redirects or canonicalizes a
   trailing slash implicitly.
 - `HEAD` uses an explicit HEAD route first and otherwise falls back to GET by
   default. `head_fallback: false` is the explicit exact-method mode.
@@ -56,21 +56,21 @@ Additive lifecycle/configuration API remains permitted.
 
 ### Production topology
 
-[The deployment contract](../DEPLOYMENT.md) defines Ember 1.0 as an application
+[The deployment contract](../DEPLOYMENT.md) defines Orbit 1.0 as an application
 server behind a trusted TLS-terminating reverse proxy/ingress. The edge owns
-public TLS and newer HTTP versions. Ember still owns inner HTTP parsing and
+public TLS and newer HTTP versions. Orbit still owns inner HTTP parsing and
 limits, host authorization, explicit trusted-proxy interpretation, application
 security, bounded concurrency, keep-alive on the inner HTTP/1.1 hop, readiness,
 and graceful drain.
 
-Direct public exposure, direct TLS, and HTTP/2/3 inside Ember are not part of the
+Direct public exposure, direct TLS, and HTTP/2/3 inside Orbit are not part of the
 1.0 production claim.
 
 ### Compatibility and release claim
 
 [The compatibility policy](../COMPATIBILITY.md) uses SemVer after 1.0, treats
 documented semantics and extension protocols as API, and requires a tested
-Ember/Sputnik/runtime/platform matrix. While Sputnik is pre-1.0, an Ember minor
+Orbit/Sputnik/runtime/platform matrix. While Sputnik is pre-1.0, an Orbit minor
 supports one explicit Sputnik minor line. Preview builds have no production
 support promise.
 
@@ -93,7 +93,7 @@ deployment profile is the only 1.0 production profile.
   deployment contract.
 - Stage 3 must replace direct Host-based origin derivation with validated host
   and proxy policy.
-- Release work cannot label Ember production-ready merely because self-tests or
+- Release work cannot label Orbit production-ready merely because self-tests or
   a sample deployment pass; every release gate needs durable evidence.
 
 ## Alternatives considered
@@ -113,7 +113,7 @@ application can declare both routes or an explicit redirect.
 ### Silently strip invalid status content everywhere
 
 Rejected. The wire must always be compliant, but silently accepting a streamed
-204/304 hides application defects. Ember rejects invalid application responses
+204/304 hides application defects. Orbit rejects invalid application responses
 before commit; HEAD suppression is method semantics rather than such a defect.
 
 ### Support direct public TLS/HTTP2 in 1.0

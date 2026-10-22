@@ -1,35 +1,35 @@
 [package]
-name = "ember"
+name = "orbit"
 version = "1.0.0-rc.1"
-root = "ember"
+root = "orbit"
 
 [[modules]]
-name = "ember"
-path = "src/ember.s"
+name = "orbit"
+path = "src/orbit.s"
 
 [[modules]]
-name = "ember.html"
-path = "src/ember/html.s"
+name = "orbit.html"
+path = "src/orbit/html.s"
 
 [[modules]]
-name = "ember.middleware"
-path = "src/ember/middleware.s"
+name = "orbit.middleware"
+path = "src/orbit/middleware.s"
 
 [[modules]]
-name = "ember.multipart"
-path = "src/ember/multipart.s"
+name = "orbit.multipart"
+path = "src/orbit/multipart.s"
 
 [[modules]]
-name = "ember.security"
-path = "src/ember/security.s"
+name = "orbit.security"
+path = "src/orbit/security.s"
 
 [[modules]]
-name = "ember.telemetry"
-path = "src/ember/telemetry.s"
+name = "orbit.telemetry"
+path = "src/orbit/telemetry.s"
 
 [[modules]]
-name = "ember.testing"
-path = "src/ember/testing.s"
+name = "orbit.testing"
+path = "src/orbit/testing.s"
 
 [capabilities]
 net.listen = true

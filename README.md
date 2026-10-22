@@ -1,12 +1,12 @@
-# Ember
+# Orbit
 
-Ember is a source-first web framework for Sputnik. It implements the contract in
+Orbit is a source-first web framework for Sputnik. It implements the contract in
 `sputnik-lang/DESIGN-web-framework-2026-07-13.md` over the existing
 `net.http.Server`; it does not add another scheduler or socket layer.
 
 The `1.0.0-rc.1` release candidate includes:
 
-- central, immutable route tables built by `ember.routes`;
+- central, immutable route tables built by `orbit.routes`;
 - function, class-side, and per-request controller targets through Sputnik
   callable references;
 - literal, typed parameter, and terminal wildcard routes with deterministic
@@ -36,7 +36,7 @@ The `1.0.0-rc.1` release candidate includes:
 - optional request-scoped `sputnik-orm` pool integration backed by
   `sqlite3-sputnik`.
 
-Core Ember is source-only and ORM-neutral. Importing `ember` does not pull in
+Core Orbit is source-only and ORM-neutral. Importing `orbit` does not pull in
 SQLite, FFI, sessions, or a filesystem template loader.
 
 ## Small application
@@ -44,37 +44,37 @@ SQLite, FFI, sessions, or a filesystem template loader.
 ```sputnik
 package hello
 
-import ember
+import orbit
 
 export main
 
 def hello(request, name):
-  ember.render(json: {message: "hello " + name})
+  orbit.render(json: {message: "hello " + name})
 
-routes = ember.routes:
+routes = orbit.routes:
   get "/hello/:name", to: &hello, as: :hello
 
 def main():
-  ember.App(routes: routes).run(port: 3000)
+  orbit.App(routes: routes).run(port: 3000)
 ```
 
-Resolve the exact Sputnik revision, build and install the reproducible Ember
+Resolve the exact Sputnik revision, build and install the reproducible Orbit
 package, compile the API example, and compile this server with one command:
 
 ```sh
 ./script/clean-room-build
-./.build/clean-room/hello/ember.example.hello
+./.build/clean-room/hello/orbit.example.hello
 ```
 
 The resolver uses `release/dependencies.lock.json`; it does not require a
-sibling checkout. Core is the versioned `ember` package. ORM support is the
-separate `ember-orm` companion package, so core applications do not inherit
+sibling checkout. Core is the versioned `orbit` package. ORM support is the
+separate `orbit-orm` companion package, so core applications do not inherit
 ORM, SQLite, or FFI dependencies.
 
 `App#call` is the primary boundary. Most tests should avoid sockets:
 
 ```sputnik
-import ember.testing
+import orbit.testing
 
 response = app.call(testing.get("/hello/Sputnik"))
 testing.assert_status(response, :ok)
@@ -84,7 +84,7 @@ testing.assert_header(response, "content-type", "application/json; charset=utf-8
 ## Routes
 
 ```sputnik
-routes = ember.routes:
+routes = orbit.routes:
   get "/posts/new", to: &new_post
   get "/posts/:id", to: &Posts#show,
     params: {id: Int}, as: :post
@@ -102,7 +102,7 @@ match strictly, and route/path/segment sizes are bounded. A wildcard must be
 terminal. Duplicate normalized shapes and duplicate names are rejected when a
 `Routes` value is constructed.
 
-The normative Ember 1.0 routing and response rules, including `HEAD`, trailing
+The normative Orbit 1.0 routing and response rules, including `HEAD`, trailing
 slashes, status/content combinations, 404/405, and automatic `OPTIONS`, are in
 the [HTTP contract](docs/HTTP_CONTRACT.md).
 
@@ -115,7 +115,7 @@ Use `routes.path(:post, id: 42)`,
 Controllers are constructed once per request:
 
 ```sputnik
-class Posts < ember.Controller:
+class Posts < orbit.Controller:
   def show(id as Int):
     status(:ok)
     header("cache-control", "private")
@@ -133,9 +133,9 @@ send to that method's `self`, so inherited or included helpers such as
 same name always wins. Outside an object method there is no implicit receiver,
 and an unresolved bare identifier is a compile-time error.
 
-Supported normalized return values are `ember.Response`, `ember.Html`, `Str`,
-`Bytes`, `ember.StreamingResponse`, and `null`. Other values must be passed
-explicitly to `render`, for example `ember.render(json: value)`.
+Supported normalized return values are `orbit.Response`, `orbit.Html`, `Str`,
+`Bytes`, `orbit.StreamingResponse`, and `null`. Other values must be passed
+explicitly to `render`, for example `orbit.render(json: value)`.
 
 ## Strong parameters
 
@@ -145,7 +145,7 @@ every undeclared key and checks the declared transport shape before returning
 a deeply immutable `Map`.
 
 ```sputnik
-create_user_params = ember.params(root: :user):
+create_user_params = orbit.params(root: :user):
   field(:name, required: true)
   field(:age, type: Int)
   array(:tags, of: Str)
@@ -154,7 +154,7 @@ create_user_params = ember.params(root: :user):
 
 def create_user(request):
   attrs = request.params.json.expect(create_user_params)
-  ember.render(json: attrs, status: :created)
+  orbit.render(json: attrs, status: :created)
 ```
 
 `Str` is the default field type, so `field(:name)` is equivalent to
@@ -164,7 +164,7 @@ element type through `of:` or a block describing each object. A schema with
 `root:` requires and unwraps that object.
 
 Unknown keys are dropped recursively. Use
-`ember.params(root: :user, unknown: :reject): ...` when an endpoint should
+`orbit.params(root: :user, unknown: :reject): ...` when an endpoint should
 reject them instead. `check` returns `Result[Map, ParamsShapeError]`; `expect`
 raises the structured error and lets `App` return a safe 400 response. Missing
 or non-JSON content types return 415. Parsing a JSON body after manual
@@ -177,14 +177,14 @@ a complete server.
 ## Streaming
 
 Selecting a streaming response freezes its status, headers, and declared
-trailer names. Ember supplies `Transfer-Encoding: chunked`; every `write` is
+trailer names. By default Orbit supplies `Transfer-Encoding: chunked`; every `write` is
 one HTTP chunk and may carry an ordered list of extension pairs. Close the body
 before writing declared trailers, then finish the trailer section. Returning
 from the producer also closes and finishes an open stream safely.
 
 ```sputnik
 def echo(request):
-  ember.stream(trailers: ["x-state"]) |response|:
+  orbit.stream(trailers: ["x-state"]) |response|:
     request.body_stream.each_chunk |chunk|:
       response.write(chunk.bytes, extensions: chunk.extensions)
     response.close
@@ -199,17 +199,33 @@ extensions or trailers; an unframed request is immediately empty. The producer
 runs cooperatively, so it may alternate request reads and response writes
 without draining the request first.
 
+Use `orbit.stream(length: size)` (also available in `Controller#stream`) when
+the byte count is known. The transport emits `Content-Length` and writes each
+part directly without chunk framing or whole-body buffering:
+
+```sputnik
+orbit.stream(length: 6) |response|:
+  response.write("one")
+  response.write("two")
+```
+
+`length` is a nonnegative `Int`, or `null` for chunked mode. Fixed-length
+streams reject trailers/chunk extensions. Overflow raises `BodyLengthError`
+before excess bytes are sent; a short close/producer also fails and closes
+the connection. HEAD preserves the declared length without invoking the
+producer. Framing headers remain transport-owned in either mode.
+
 ## Middleware and `before`
 
 Middleware follows `(Request, Next) -> Response`. Application middleware wraps
 scope/mount middleware, which wraps route middleware and then the target.
 
 ```sputnik
-from ember.middleware import before
+from orbit.middleware import before
 
 before [&request_id, &authenticate]
 def create(request):
-  ember.render(text: request.query(:name), status: :created)
+  orbit.render(text: request.query(:name), status: :created)
 ```
 
 `before` preserves the public function name and signature and applies to direct
@@ -219,11 +235,11 @@ list. Route-dependent policy belongs in the central route declaration.
 ## HTML and views
 
 Views are ordinary typed Sputnik modules. Interpolation in `html"""..."""` is
-escaped by default and returns `ember.Html`; trusted output requires explicit
+escaped by default and returns `orbit.Html`; trusted output requires explicit
 `raw(...)`.
 
 ```sputnik
-from ember.html import escape, html, join
+from orbit.html import escape, html, join
 
 def page(title as Str):
   html"""
@@ -232,7 +248,7 @@ def page(title as Str):
 ```
 
 External `.amv` files are intentionally not advertised: they require the
-compiler-level source-format registry described by the design. Ember does not
+compiler-level source-format registry described by the design. Orbit does not
 read templates from the filesystem during macro expansion.
 
 The macro tracks the output interpreter context. Text and ordinary quoted
@@ -240,10 +256,10 @@ attributes escape automatically; URL attributes require `url(...)`, script or
 event-handler data requires `trusted_script(...)`, style data requires
 `trusted_style(...)`, and `srcdoc` requires explicit `raw(...)`. Interpolation
 inside comments, tag syntax, or unquoted attributes is a compile-time
-`EMBER_HTML_CONTEXT` error.
+`ORBIT_HTML_CONTEXT` error.
 
 ```sputnik
-from ember.html import html, url
+from orbit.html import html, url
 
 def item_link(label, id):
   destination = url("/items/" + id.to_str)
@@ -257,29 +273,29 @@ def item_link(label, id):
 
 ## Security baseline
 
-Every application has an `ember.SecurityPolicy`. Its development default
+Every application has an `orbit.SecurityPolicy`. Its development default
 accepts only localhost authorities, ignores forwarding headers, and adds CSP,
 nosniff, frame, referrer, permissions, and opener policies. Production must
 configure exact hosts and its trusted edge explicitly:
 
 ```sputnik
-security = ember.SecurityPolicy(
+security = orbit.SecurityPolicy(
   allowed_hosts: ["app.example.test"],
   trusted_proxy_cidrs: ["10.20.0.0/16"],
   forwarded: :x_forwarded,
   forwarded_hops: 2,
   hsts: true)
 
-app = ember.App(routes: routes, security: security)
+app = orbit.App(routes: routes, security: security)
 ```
 
 Host authorization happens before routing. Untrusted forwarding fields are
 ignored; trusted chains are bounded and validated before they drive
 `request.origin()`, `request.client_ip`, or secure-cookie/HSTS decisions.
 
-Import `ember.security` for `CookieJar`, `SetCookie`, `SignedCookieCodec`,
+Import `orbit.security` for `CookieJar`, `SetCookie`, `SignedCookieCodec`,
 `SessionCodec`, `CorsMiddleware`, and `CsrfMiddleware`. Import
-`ember.multipart` for the strict parser and `MultipartLimits`. These APIs do
+`orbit.multipart` for the strict parser and `MultipartLimits`. These APIs do
 not turn authentication, authorization, upload content validation/storage,
 key management, or CORS policy into implicit framework behavior. The
 [threat model](docs/THREAT_MODEL.md), [ASVS map](docs/ASVS_5_MAPPING.md), and
@@ -288,31 +304,31 @@ key management, or CORS policy into implicit framework behavior. The
 ## ORM integration
 
 Models bind to one shareable pool during startup. Installing
-`ember.integrations.orm.pool(database)` gives every controller target one
+`orbit.integrations.orm.pool(database)` gives every controller target one
 request-scoped lease; nested ORM calls reuse it and spawned child tasks acquire
 their own lease.
 
 ```sputnik
 import orm
-from ember.integrations.orm import pool as orm_pool
+from orbit.integrations.orm import pool as orm_pool
 
 class Person:
   use orm.model(table: :people)
 
 database.bind!(Person).or_raise
 
-app = ember.App(
+app = orbit.App(
   routes: routes,
   integrations: [orm_pool(database)])
 ```
 
 Bare handlers have no hidden controller lifecycle. Use route middleware
-`before: [ember_orm.connection(database)]` or the `before` annotation.
+`before: [orbit_orm.connection(database)]` or the `before` annotation.
 Pool timeout, closed, and lease failures become a safe 503 response.
 Transactions remain explicit business boundaries through the ORM model/pool.
 The pool integration participates in server startup/readiness/shutdown, so a
 deadline cancellation unwinds request leases before the pool closes.
-Custom lifecycle-aware controller integrations subclass `ember.Integration`;
+Custom lifecycle-aware controller integrations subclass `orbit.Integration`;
 its default `start`, `attach_server`, `ready?`, and `stop` methods are safe no-ops.
 
 See `examples/sqlite_users.s` and `test/orm_selftest.s` for complete graphs.
@@ -358,7 +374,7 @@ and [edge deployment model](docs/DEPLOYMENT.md).
 ./script/soak smoke
 
 # Constant/mixed-load run; 72h is the default and required evidence duration
-./script/soak run --duration 72h --artifacts /durable/ember-soak-evidence
+./script/soak run --duration 72h --artifacts /durable/orbit-soak-evidence
 ```
 
 CI runs the core lane on Linux x86_64, Linux arm64, and macOS arm64 against the
@@ -371,9 +387,9 @@ and publishes checksums plus provenance. See the
 Sputnik CRUD/4xx client, resource thresholds, and evidence format are documented
 in the [72-hour soak test](docs/SOAK_TEST.md).
 
-## Ember 1.0 contract
+## Orbit 1.0 contract
 
-The accepted [Ember 1.0 contract ADR](docs/adr/0001-ember-1-0-contract.md)
+The accepted [Orbit 1.0 contract ADR](docs/adr/0001-orbit-1-0-contract.md)
 closes the semantic decisions from roadmap stage 0. Its supporting documents
 define the [public API boundary](docs/PUBLIC_API.md),
 [edge deployment model](docs/DEPLOYMENT.md),
@@ -392,7 +408,7 @@ and pipelining, finite idle/request limits, hard connection capacity, and
 immediate `503` overload rejection. Buffered and chunked full-duplex bodies are
 supported, including `Expect: 100-continue`, chunk extensions, and trailers.
 The server handle implements stop-accepting, clean drain, deadline
-cancellation, and idempotent shutdown. Ember now provides strict multipart,
+cancellation, and idempotent shutdown. Orbit now provides strict multipart,
 cookie/session, CSRF/CORS, Host, and proxy-trust primitives. It still does not
 claim direct TLS, HTTP/2/3, WebSocket, user authentication/authorization,
 uploaded-file storage/scanning, or complete application security; those remain

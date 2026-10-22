@@ -1,6 +1,6 @@
 schema: sputnik.build.v1
-name: ember.benchmark.orm_pool
-root: ember.benchmark.orm_pool
+name: orbit.benchmark.orm_pool
+root: orbit.benchmark.orm_pool
 
 profiles:
   required: [core.v1, ffi.v1, macro.v1]
@@ -20,7 +20,7 @@ modules:
     path: ../.build/dependencies/sputnik-orm/src/orm/sqlite3/pool.s
   - name: orm.sqlite3
     path: ../.build/dependencies/sputnik-orm/src/orm/sqlite3.s
-  - name: ember.benchmark.orm_pool
+  - name: orbit.benchmark.orm_pool
     path: orm_pool.s
 
 native_extensions:
@@ -31,8 +31,6 @@ native_extensions:
       - ../.build/dependencies/sqlite3-sputnik/native/sqlite3.c
     headers:
       - ../.build/dependencies/sqlite3-sputnik/native/sqlite3.h
-    blocking_symbols:
-      - amsq_pool_acquire_wait
     defines:
       - SQLITE_THREADSAFE=1
       - SQLITE_ENABLE_COLUMN_METADATA=1

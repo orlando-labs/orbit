@@ -1,4 +1,4 @@
-# Ember performance contract
+# Orbit performance contract
 
 Status: normative stage-4 performance contract, 2026-07-22.
 
@@ -34,11 +34,11 @@ mkdir -p benchmark/results
 .build/dependencies/sputnik-lang/build/sputnik build benchmark/core.build.yaml \
   --target native --out-dir out-bench-core --cache-dir cache-bench-core --no-cache \
   --grant net.listen --grant net.connect
-./out-bench-core/ember.benchmark.core > benchmark/results/core.json
+./out-bench-core/orbit.benchmark.core > benchmark/results/core.json
 
 .build/dependencies/sputnik-lang/build/sputnik build benchmark/orm_pool.build.yaml \
   --target native --out-dir out-bench-orm --cache-dir cache-bench-orm --no-cache
-./out-bench-orm/ember.benchmark.orm_pool > benchmark/results/orm.json
+./out-bench-orm/orbit.benchmark.orm_pool > benchmark/results/orm.json
 
 python3 benchmark/performance_gate.py \
   --current benchmark/results/core.json \

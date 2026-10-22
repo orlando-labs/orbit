@@ -1,13 +1,13 @@
-package ember.stage3_selftest
+package orbit.stage3_selftest
 
-import ember
-import ember.multipart
-import ember.testing
-from ember.html import escape, html, join, raw, trusted_script, trusted_style, url
-from ember.middleware import RequestIdMiddleware
-from ember.security import Aead, CookieError, CookieJar, CookieLimits
-from ember.security import CorsMiddleware, CsrfMiddleware, CsrfProtection
-from ember.security import SessionCodec, SessionError, SetCookie, SignedCookieCodec
+import orbit
+import orbit.multipart
+import orbit.testing
+from orbit.html import escape, html, join, raw, trusted_script, trusted_style, url
+from orbit.middleware import RequestIdMiddleware
+from orbit.security import Aead, CookieError, CookieJar, CookieLimits
+from orbit.security import CorsMiddleware, CsrfMiddleware, CsrfProtection
+from orbit.security import SessionCodec, SessionError, SetCookie, SignedCookieCodec
 
 export main
 
@@ -15,43 +15,43 @@ def assert(condition, message):
   raise ArgumentError(message) unless condition
 
 def inspect_request(request):
-  ember.render(text: request.origin() + "|" + request.client_ip.to_str + "|" + request.trusted_proxy.to_str)
+  orbit.render(text: request.origin() + "|" + request.client_ip.to_str + "|" + request.trusted_proxy.to_str)
 
 def ok(request):
-  ember.render(text: "ok")
+  orbit.render(text: "ok")
 
-routes = ember.routes:
+routes = orbit.routes:
   get "/inspect", to: &inspect_request
   get "/ok", to: &ok
   post "/ok", to: &ok
 
 def security_policy_checks():
-  assert(ember.SecurityPolicy(trusted_proxy_cidrs: ["2001:db8::1/128"]) != null,
+  assert(orbit.SecurityPolicy(trusted_proxy_cidrs: ["2001:db8::1/128"]) != null,
     "canonical exact IPv6 trusted proxy entry is accepted")
   invalid_ipv6 = false
   try:
-    ember.SecurityPolicy(trusted_proxy_cidrs: ["::::/128"])
+    orbit.SecurityPolicy(trusted_proxy_cidrs: ["::::/128"])
   rescue ArgumentError:
     invalid_ipv6 = true
   assert(invalid_ipv6, "malformed IPv6 trusted proxy entry is rejected")
-  policy = ember.SecurityPolicy(
+  policy = orbit.SecurityPolicy(
     allowed_hosts: ["app.example.test", "internal.example", "localhost"],
     trusted_proxy_cidrs: ["10.0.0.0/8"],
     forwarded: :x_forwarded,
     forwarded_hops: 2,
     hsts: true)
-  app = ember.App(routes: routes, security: policy)
+  app = orbit.App(routes: routes, security: policy)
 
-  missing = app.call(ember.Request(path: "/ok", target: "/ok"))
-  invalid = app.call(ember.Request(
+  missing = app.call(orbit.Request(path: "/ok", target: "/ok"))
+  invalid = app.call(orbit.Request(
     path: "/ok", target: "/ok", headers: {"host": "bad host"}))
-  unauthorized = app.call(ember.Request(
+  unauthorized = app.call(orbit.Request(
     path: "/ok", target: "/ok", headers: {"host": "evil.example"}))
   assert(missing.status == 400, "missing Host is rejected before routing")
   assert(invalid.status == 400, "malformed Host is rejected before routing: " + invalid.status.to_str + ":" + invalid.body_text)
   assert(unauthorized.status == 403, "unauthorized Host is rejected before routing")
 
-  direct = app.call(ember.Request(
+  direct = app.call(orbit.Request(
     path: "/inspect",
     target: "/inspect",
     headers: {
@@ -64,19 +64,19 @@ def security_policy_checks():
   assert(direct.status == 200, "untrusted forwarded fields are ignored, not interpreted")
   assert(direct.body_text == "http://app.example.test|203.0.113.8|false",
     "direct provenance uses socket peer and validated Host")
-  cached_direct = app.call(ember.Request(
+  cached_direct = app.call(orbit.Request(
     path: "/inspect",
     target: "/inspect",
     headers: {"host": "app.example.test"},
     remote_endpoint: "203.0.113.8:4000"))
-  cached_then_unauthorized = app.call(ember.Request(
+  cached_then_unauthorized = app.call(orbit.Request(
     path: "/ok", target: "/ok", headers: {"host": "evil.example"}))
   assert(cached_direct.body_text == "http://app.example.test|203.0.113.8|false",
     "repeated authorized Host preserves provenance through the cache")
   assert(cached_then_unauthorized.status == 403,
     "Host cache does not authorize a different authority")
 
-  trusted = app.call(ember.Request(
+  trusted = app.call(orbit.Request(
     path: "/inspect",
     target: "/inspect",
     headers: {
@@ -92,7 +92,7 @@ def security_policy_checks():
   assert(trusted.header("strict-transport-security") != null,
     "HSTS is emitted only for validated HTTPS provenance")
 
-  too_many = app.call(ember.Request(
+  too_many = app.call(orbit.Request(
     path: "/ok",
     target: "/ok",
     headers: {
@@ -100,7 +100,7 @@ def security_policy_checks():
       "x-forwarded-for": "192.0.2.1, 10.1.1.1, 10.2.2.2"
     },
     remote_endpoint: "10.9.8.7:4000"))
-  untrusted_middle = app.call(ember.Request(
+  untrusted_middle = app.call(orbit.Request(
     path: "/ok",
     target: "/ok",
     headers: {
@@ -114,7 +114,7 @@ def security_policy_checks():
   true
 
 def request_id_checks():
-  app = ember.App(routes: routes, middleware: [RequestIdMiddleware()])
+  app = orbit.App(routes: routes, middleware: [RequestIdMiddleware()])
   accepted = app.call(testing.get("/ok", headers: {"x-request-id": "stage-three-id"}))
   replaced = app.call(testing.get("/ok", headers: {"x-request-id": "bad id"}))
   assert(accepted.header("x-request-id") == "stage-three-id", "valid request id is accepted")
@@ -199,7 +199,7 @@ def cors_and_csrf_checks():
     methods: ["GET", "POST"],
     headers: ["content-type", "x-csrf-token"],
     credentials: true)
-  cors_app = ember.App(routes: routes, middleware: [cors])
+  cors_app = orbit.App(routes: routes, middleware: [cors])
   preflight = cors_app.call(testing.options("/ok", headers: {
     "origin": "https://ui.example.test",
     "access-control-request-method": "POST",
@@ -222,7 +222,7 @@ def cors_and_csrf_checks():
   assert(protection.valid?(direct_token, "session-one"), "CSRF token is session-bound")
   assert(not protection.valid?(direct_token, "session-two"), "CSRF token cannot cross sessions")
 
-  csrf_app = ember.App(routes: routes, middleware: [CsrfMiddleware(secret: secret)])
+  csrf_app = orbit.App(routes: routes, middleware: [CsrfMiddleware(secret: secret)])
   bootstrap = csrf_app.call(testing.get("/ok"))
   set_cookie = bootstrap.headers.all("set-cookie")[0]
   pair = set_cookie.split(";")[0]
@@ -246,16 +246,16 @@ def cors_and_csrf_checks():
 
 def multipart_request(body):
   testing.post("/upload", headers: {
-    "content-type": "multipart/form-data; boundary=ember-boundary"
+    "content-type": "multipart/form-data; boundary=orbit-boundary"
   }, body: body)
 
 def multipart_checks():
-  body = ("--ember-boundary\r\n" +
+  body = ("--orbit-boundary\r\n" +
     "Content-Disposition: form-data; name=\"title\"\r\n\r\n" +
-    "hello\r\n--ember-boundary\r\n" +
+    "hello\r\n--orbit-boundary\r\n" +
     "Content-Disposition: form-data; name=\"upload\"; filename=\"a.txt\"\r\n" +
     "Content-Type: text/plain\r\n\r\n" +
-    "file-data\r\n--ember-boundary--\r\n")
+    "file-data\r\n--orbit-boundary--\r\n")
   form = multipart.parse(multipart_request(body))
   assert(form.parts.count == 2, "multipart part count")
   assert(form.first("title").text() == "hello", "multipart field parsing")
@@ -273,16 +273,16 @@ def multipart_checks():
       max_file_bytes: 16))
   rescue multipart.MultipartError:
     too_large = true
-  two_fields = ("--ember-boundary\r\nContent-Disposition: form-data; name=\"a\"\r\n\r\n1" +
-    "\r\n--ember-boundary\r\nContent-Disposition: form-data; name=\"b\"\r\n\r\n2" +
-    "\r\n--ember-boundary--\r\n")
+  two_fields = ("--orbit-boundary\r\nContent-Disposition: form-data; name=\"a\"\r\n\r\n1" +
+    "\r\n--orbit-boundary\r\nContent-Disposition: form-data; name=\"b\"\r\n\r\n2" +
+    "\r\n--orbit-boundary--\r\n")
   try:
     multipart.parse(multipart_request(two_fields), limits: multipart.MultipartLimits(max_parts: 1))
   rescue multipart.MultipartError:
     too_many = true
-  bad_name = ("--ember-boundary\r\n" +
+  bad_name = ("--orbit-boundary\r\n" +
     "Content-Disposition: form-data; name=\"f\"; filename=\"../secret\"\r\n\r\nx" +
-    "\r\n--ember-boundary--\r\n")
+    "\r\n--orbit-boundary--\r\n")
   try:
     multipart.parse(multipart_request(bad_name))
   rescue multipart.MultipartError:

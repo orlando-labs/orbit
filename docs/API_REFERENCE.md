@@ -1,4 +1,4 @@
-# Ember 1.0 API reference
+# Orbit 1.0 API reference
 
 Version: `1.0.0-rc.1`. This is the callable reference for the public surface
 defined by [PUBLIC_API.md](PUBLIC_API.md). The machine-readable allowlist is
@@ -8,9 +8,9 @@ macro contexts by `test/stage3_selftest.build.yaml`, and the ORM section by
 `test/orm_selftest.build.yaml`.
 
 Exact error message text and names listed as internal exports are not API.
-Arguments shown with defaults retain those defaults for Ember 1.x.
+Arguments shown with defaults retain those defaults for Orbit 1.x.
 
-## `ember`
+## `orbit`
 
 ### Routing macros
 
@@ -48,8 +48,12 @@ Arguments shown with defaults retain those defaults for Ember 1.x.
   `closed?`, and `started?`; `RequestChunk#bytes`, `text`, and `extensions`.
 - `Response(status: 200, headers: {}, body: "")`; reads are `status`,
   `headers`, `body`, `header`, `body_text`, and `body_bytes`.
-- `StreamingResponse(status: 200, headers: {}, trailers: [], &producer)` and
+- `StreamingResponse(status: 200, headers: {}, trailers: [], length: null, &producer)` and
   `StreamBody#write`, `close`, `trailer`, `finish`, and `closed?`.
+  `stream`/`Controller#stream` accept `length:`; response `length` is read-only.
+  `null` selects chunked; a nonnegative `Int` selects fixed-length framing with
+  exact byte enforcement and without trailers/chunk extensions. HEAD advertises
+  known length without starting the producer. Direct framing headers are rejected.
 - `Headers(source = null)` reads with `first`, `all`, `include?`, `size`,
   `empty?`, `keys`, `each`, and `to_pairs`; persistent updates are `add`,
   `set`, `delete`, `without`, and `merge`.
@@ -79,7 +83,7 @@ Arguments shown with defaults retain those defaults for Ember 1.x.
 
 ### Public errors
 
-The stable semantic error classes are `EmberError`, `RouteError`,
+The stable semantic error classes are `OrbitError`, `RouteError`,
 `InvalidRouteError`, `DuplicateRouteError`, `DuplicateRouteNameError`,
 `InvalidPathError`, `RouteParamError`, `RouteNotFoundError`,
 `UnknownRouteNameError`, `PathGenerationError`, `InvalidResponseError`,
@@ -90,22 +94,22 @@ The stable semantic error classes are `EmberError`, `RouteError`,
 `RequestSecurityError`, `InvalidAuthorityError`, `UnauthorizedHostError`, and
 `InvalidForwardedRequestError`.
 
-## `ember.html`
+## `orbit.html`
 
-`html"""..."""` returns `ember.Html`. `escape`, `escape_text`,
+`html"""..."""` returns `orbit.Html`. `escape`, `escape_text`,
 `escape_attribute`, `raw`, and `join` handle normal HTML values. URL and active
 contexts require `url`/`HtmlUrl`, `trusted_script`/`TrustedScript`, or
 `trusted_style`/`TrustedStyle` as described in
 [SECURITY.md](SECURITY.md). These trust wrappers are not sanitizers.
 
-## `ember.middleware`
+## `orbit.middleware`
 
 `before`, `request_id`, `access_log`, `RequestIdMiddleware`, and
 `AccessLogMiddleware` are public. Middleware follows `(Request, next) ->
 response`; `next` may be called once. Production request observation should use
 the application telemetry boundary to include framework errors.
 
-## `ember.telemetry`
+## `orbit.telemetry`
 
 - Sinks/events: `RedactionPolicy`, `JsonLogSink`, `MemorySink`, `AccessEvent`,
   and `ErrorLogEvent`.
@@ -115,7 +119,7 @@ the application telemetry boundary to include framework errors.
 The stable schema, cardinality bounds, methods, and lifecycle timing are in
 [OBSERVABILITY.md](OBSERVABILITY.md).
 
-## `ember.security`
+## `orbit.security`
 
 - Cookies and envelopes: `CookieLimits`, `CookieJar`, `SetCookie`, `Aead`,
   `SignedCookieCodec`, and `SessionCodec`.
@@ -126,7 +130,7 @@ The stable schema, cardinality bounds, methods, and lifecycle timing are in
 Constructor limits, key rotation, expiry, safe cookie defaults, and
 application obligations are normative in [SECURITY.md](SECURITY.md).
 
-## `ember.multipart`
+## `orbit.multipart`
 
 `parse(request, limits: MultipartLimits()) -> MultipartForm` returns bounded
 `MultipartPart` values. Public types are `MultipartLimits`, `MultipartPart`,
@@ -134,19 +138,19 @@ application obligations are normative in [SECURITY.md](SECURITY.md).
 content-type, headers, bytes, text, and `file?`; forms expose `parts`, `first`,
 `all`, `fields`, and `files`.
 
-## `ember.testing`
+## `orbit.testing`
 
 `request`, `get`, `query`, `post`, `put`, `patch`, `delete`, `head`, and
 `options` create in-memory requests. `assert_status`, `assert_header`, and
 `assert_body` verify normalized responses.
 
-## `ember.integrations.orm` companion package
+## `orbit.integrations.orm` companion package
 
-Install the separate `ember-orm` package to use `pool`, `connection`,
-`PoolIntegration`, and `ConnectionMiddleware`. It pins `ember` and
+Install the separate `orbit-orm` package to use `pool`, `connection`,
+`PoolIntegration`, and `ConnectionMiddleware`. It pins `orbit` and
 `sputnik-orm`; applications that use the SQLite adapter additionally pin the
 tested `sqlite3-sputnik` row from [COMPATIBILITY.md](COMPATIBILITY.md). Core
-Ember has no ORM, SQLite, or FFI dependency.
+Orbit has no ORM, SQLite, or FFI dependency.
 
 ## Unsupported preview surface
 

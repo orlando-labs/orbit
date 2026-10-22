@@ -1,31 +1,31 @@
-# Ember security baseline
+# Orbit security baseline
 
 Status: normative stage-3 security contract, version 1.0, 2026-07-22.
 
 This document defines the secure deployment and application contract for the
-Ember 1.0 target. It complements the trusted-edge boundary in
+Orbit 1.0 target. It complements the trusted-edge boundary in
 [DEPLOYMENT.md](DEPLOYMENT.md), the versioned [threat model](THREAT_MODEL.md),
 and the [OWASP ASVS 5.0.0 mapping](ASVS_5_MAPPING.md).
 
 ## Request boundary
 
-Every `App` has an `ember.SecurityPolicy`. The default policy accepts only
+Every `App` has an `orbit.SecurityPolicy`. The default policy accepts only
 `localhost`, `127.0.0.1`, and `[::1]`, ignores all forwarding headers, and adds
 the default security headers. An in-memory request passed to `App#call` must
-therefore contain exactly one valid `Host` header; `ember.testing` supplies
+therefore contain exactly one valid `Host` header; `orbit.testing` supplies
 `Host: localhost` unless the test overrides it.
 
 Production must construct the policy explicitly:
 
 ```sputnik
-policy = ember.SecurityPolicy(
+policy = orbit.SecurityPolicy(
   allowed_hosts: ["app.example.test"],
   trusted_proxy_cidrs: ["10.20.0.0/16"],
   forwarded: :x_forwarded,
   forwarded_hops: 2,
   hsts: true)
 
-app = ember.App(routes: routes, security: policy)
+app = orbit.App(routes: routes, security: policy)
 ```
 
 Host syntax and authorization are checked before routing. A missing,
@@ -79,7 +79,7 @@ the structured, redacted schema in [OBSERVABILITY.md](OBSERVABILITY.md).
 
 ## Cookies and sessions
 
-`ember.security` exposes strict bounded primitives:
+`orbit.security` exposes strict bounded primitives:
 
 - `CookieJar.parse` rejects malformed, duplicate, invalid, oversized, or
   over-count request cookies;
@@ -118,14 +118,14 @@ CORS is not authorization and must not replace endpoint authentication.
 methods require an exact validated `Origin`, identical cookie/header tokens, a
 valid HMAC, and reject `Sec-Fetch-Site: cross-site`. Safe responses bootstrap a
 token cookie. Pair it with an authenticated encrypted/signed session cookie;
-use production names such as `__Host-ember-session` and
-`__Host-ember-csrf` on HTTPS. Routes that intentionally accept cross-origin
+use production names such as `__Host-orbit-session` and
+`__Host-orbit-csrf` on HTTPS. Routes that intentionally accept cross-origin
 state changes need a separately reviewed protocol rather than bypassing the
 middleware.
 
 ## Multipart and uploaded files
 
-`ember.multipart.parse(request, limits:)` claims the request body exactly once
+`orbit.multipart.parse(request, limits:)` claims the request body exactly once
 and accepts only strict `multipart/form-data`. Defaults are 1 MiB aggregate,
 64 parts, 8 KiB headers per part, 32 headers, 64 KiB fields, 512 KiB files,
 128-byte field names, and 255-byte filenames. It requires CRLF framing,
@@ -151,19 +151,19 @@ model requires that.
 - style bodies and style attributes require `trusted_style(...)`;
 - `srcdoc` requires an explicit `Html` value from `raw(...)`;
 - interpolation in comments, tag syntax, and unquoted attributes fails macro
-  expansion with `EMBER_HTML_CONTEXT`.
+  expansion with `ORBIT_HTML_CONTEXT`.
 
 `raw`, `trusted_script`, and `trusted_style` are security-review boundaries,
 not sanitizers. Never pass untrusted data to them. User-authored HTML, SVG,
 Markdown, CSS, or JavaScript needs a separately selected, maintained sanitizer;
-Ember deliberately does not pretend that escaping can sanitize active content.
+Orbit deliberately does not pretend that escaping can sanitize active content.
 
 ## Production checklist
 
 - Configure exact public hosts, edge CIDRs, hop count, HSTS, and an
   application-specific CSP before binding traffic.
 - Ensure the edge removes client forwarding fields and overwrites them once;
-  keep the edge-to-Ember hop private or mutually authenticated.
+  keep the edge-to-Orbit hop private or mutually authenticated.
 - Store and rotate 32-byte-or-longer session/CSRF secrets in a secret manager;
   use `__Host-` cookies on HTTPS.
 - Install CORS only on routes/origins that require it and CSRF on all

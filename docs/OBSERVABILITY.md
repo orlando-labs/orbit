@@ -1,8 +1,8 @@
-# Ember 1.0 observability contract
+# Orbit 1.0 observability contract
 
 Status: normative stage-4 contract, version 1.0, 2026-07-22.
 
-Ember observes a request at the `App` boundary. A buffered request ends after
+Orbit observes a request at the `App` boundary. A buffered request ends after
 response validation; a streaming request remains in flight until its producer
 finishes or fails. Telemetry failures never replace an application response or
 a transport cancellation.
@@ -10,8 +10,8 @@ a transport cancellation.
 ## Configuration
 
 ```sputnik
-import ember
-import ember.telemetry
+import orbit
+import orbit.telemetry
 
 sink = telemetry.JsonLogSink(
   redaction: telemetry.RedactionPolicy(fields: ["request.id"]))
@@ -20,7 +20,7 @@ observability = telemetry.Telemetry(
   metrics: telemetry.MetricsRegistry(max_series: 8192),
   tracer: telemetry.Tracer(sink))
 
-app = ember.App(routes: routes, telemetry: observability)
+app = orbit.App(routes: routes, telemetry: observability)
 ```
 
 `Telemetry` creates a JSON-lines sink, bounded registry, server tracer, and
@@ -40,7 +40,7 @@ Every event has `event.kind`. Access events have `event.name` equal to
 | Field | Contract |
 |---|---|
 | `request.id` | Validated or generated correlation ID. |
-| `http.request.method` | Bounded method name accepted by Ember. |
+| `http.request.method` | Bounded method name accepted by Orbit. |
 | `http.route` | Matched route template, or `<unmatched>`; never the raw path. |
 | `http.response.status_code` | Final status, or `null` if no response exists. |
 | `duration_ns` | Monotonic duration through final stream completion. |
@@ -48,7 +48,7 @@ Every event has `event.kind`. Access events have `event.name` equal to
 | `outcome` | `success`, `client_error`, `error`, or `cancelled`. |
 | `trace_id`, `span_id` | Correlation identifiers when tracing is enabled. |
 
-Error events use `event.name = ember.error`, the same request/method/route
+Error events use `event.name = orbit.error`, the same request/method/route
 correlation, and a bounded `error.type`. Exception messages, backtraces, raw
 paths, query strings, bodies, cookies, authorization/session headers, and
 arbitrary headers are not part of either schema. `RedactionPolicy(fields:)`
@@ -71,11 +71,11 @@ contains:
   explicit boundaries, count, sum, and cumulative bucket counts;
 - active/completed/failed stream state;
 - attached native server connection, rejection, capacity, keep-alive,
-  in-flight, and forced-shutdown state under `ember.server`;
+  in-flight, and forced-shutdown state under `orbit.server`;
 - clean/forced shutdown counts and drain duration;
 - explicitly registered integration-pool active/capacity/waiting gauges.
 
-The optional `ember.integrations.orm.PoolIntegration` publishes its leased,
+The optional `orbit.integrations.orm.PoolIntegration` publishes its leased,
 maximum, and waiting values automatically after server attachment and each
 controller lease. Other integrations use `set_integration_pool` at their own
 lifecycle boundaries.
@@ -98,7 +98,7 @@ includes stream production.
 Incoming W3C version-00 `traceparent` is accepted only after exact syntax,
 non-zero ID, and lowercase-hex validation, and only when `SecurityPolicy` has
 marked the peer as a trusted proxy. Invalid or untrusted context starts a new
-trace. `tracestate` is not accepted or propagated because Ember has no outbound
+trace. `tracestate` is not accepted or propagated because Orbit has no outbound
 HTTP instrumentation contract yet.
 
 To prevent sensitive identifiers entering telemetry, the default tracer sets

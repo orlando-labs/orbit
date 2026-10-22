@@ -1,11 +1,11 @@
 {
-  "schema": "ember.public-api.v1",
+  "schema": "orbit.public-api.v1",
   "version": "1.0.0-rc.1",
   "modules": {
-    "ember": {
+    "orbit": {
       "public": [
         "App", "Controller", "DoubleRenderError", "DuplicateRouteError",
-        "DuplicateRouteNameError", "EmberError", "ErrorEvent", "Headers",
+        "DuplicateRouteNameError", "OrbitError", "ErrorEvent", "Headers",
         "Html", "Integration", "InvalidAuthorityError", "InvalidForwardedRequestError",
         "InvalidPathError", "InvalidResponseError", "InvalidRouteError",
         "ParamArray", "ParamField", "ParamIssue", "ParamObject", "ParamSchema",
@@ -28,7 +28,7 @@
         "with_response_header"
       ]
     },
-    "ember.html": {
+    "orbit.html": {
       "public": [
         "HtmlUrl", "TrustedScript", "TrustedStyle", "escape", "escape_attribute",
         "escape_text", "html", "join", "raw", "trusted_script", "trusted_style", "url"
@@ -38,17 +38,17 @@
         "_style_body", "_url_attribute"
       ]
     },
-    "ember.middleware": {
+    "orbit.middleware": {
       "public": [
         "AccessLogMiddleware", "RequestIdMiddleware", "access_log", "before", "request_id"
       ],
       "internal_exports": []
     },
-    "ember.multipart": {
+    "orbit.multipart": {
       "public": ["MultipartError", "MultipartForm", "MultipartLimits", "MultipartPart", "parse"],
       "internal_exports": []
     },
-    "ember.security": {
+    "orbit.security": {
       "public": [
         "Aead", "CookieError", "CookieJar", "CookieLimits", "CorsMiddleware", "CsrfError",
         "CsrfMiddleware", "CsrfProtection", "SecurityError", "SessionCodec", "SessionError",
@@ -56,21 +56,21 @@
       ],
       "internal_exports": []
     },
-    "ember.telemetry": {
+    "orbit.telemetry": {
       "public": [
         "AccessEvent", "ErrorLogEvent", "HealthProbe", "JsonLogSink", "MemorySink",
         "MetricsRegistry", "RedactionPolicy", "ServerSpan", "Telemetry", "TraceContext", "Tracer"
       ],
       "internal_exports": []
     },
-    "ember.testing": {
+    "orbit.testing": {
       "public": [
         "assert_body", "assert_header", "assert_status", "delete", "get", "head", "options",
         "patch", "post", "put", "query", "request"
       ],
       "internal_exports": []
     },
-    "ember.integrations.orm": {
+    "orbit.integrations.orm": {
       "public": ["ConnectionMiddleware", "PoolIntegration", "connection", "pool"],
       "internal_exports": []
     }

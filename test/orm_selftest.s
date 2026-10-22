@@ -1,9 +1,9 @@
-package ember.orm_selftest
+package orbit.orm_selftest
 
-import ember
-import ember.testing
+import orbit
+import orbit.testing
 import orm
-from ember.integrations.orm import pool as pool_integration
+from orbit.integrations.orm import pool as pool_integration
 from orm.sqlite3 import memory_pool
 
 export main
@@ -11,12 +11,12 @@ export main
 class User:
   use orm.model(table: :users)
 
-class Users < ember.Controller:
+class Users < orbit.Controller:
   def create():
-    user = User.create(email: "ember@example.test", age: 36).or_raise
+    user = User.create(email: "orbit@example.test", age: 36).or_raise
     render(json: {id: user[:id], email: user[:email]}, status: :created)
 
-routes = ember.routes:
+routes = orbit.routes:
   post "/users", to: &Users#create
 
 def assert(condition, message):
@@ -24,7 +24,7 @@ def assert(condition, message):
 
 def main():
   memory_pool(
-    name: "ember_orm_selftest",
+    name: "orbit_orm_selftest",
     min_size: 1,
     max_size: 2
   ) |database|:
@@ -32,7 +32,7 @@ def main():
       connection.exec("create table users(id integer primary key, email text not null, age integer)")
 
     assert(database.bind!(User).ok?, "one-time model binding")
-    app = ember.App(
+    app = orbit.App(
       routes: routes,
       integrations: [pool_integration(database)],
       expose_exceptions: true)
@@ -40,7 +40,7 @@ def main():
     created = app.call(testing.post("/users"))
     assert(created.status == 201, "controller ORM response status")
     assert(created.header("content-type") == "application/json; charset=utf-8", "controller ORM JSON type")
-    assert(created.body_text.contains?("ember@example.test"), "controller ORM response body")
+    assert(created.body_text.contains?("orbit@example.test"), "controller ORM response body")
 
     found = User.find(1).or_raise
     assert(found[:age] == 36, "pool-backed model lookup")

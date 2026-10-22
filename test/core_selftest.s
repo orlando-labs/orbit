@@ -1,9 +1,9 @@
-package ember.core_selftest
+package orbit.core_selftest
 
-import ember
-import ember.testing
-from ember.html import escape, html, join
-from ember.middleware import before
+import orbit
+import orbit.testing
+from orbit.html import escape, html, join
+from orbit.middleware import before
 
 export main
 
@@ -11,10 +11,10 @@ def home(request):
   "home"
 
 def person(request, id):
-  ember.render(text: "person #{id}")
+  orbit.render(text: "person #{id}")
 
 def search(request):
-  ember.render(text: "query " + request.body_text())
+  orbit.render(text: "query " + request.body_text())
 
 annotation_order = []
 
@@ -33,16 +33,16 @@ def annotation_inner(request, next):
 before [&annotation_outer, &annotation_inner]
 def annotated(request):
   annotation_order.push!("handler")
-  ember.render(text: request.path)
+  orbit.render(text: request.path)
 
-class Posts < ember.Controller:
+class Posts < orbit.Controller:
   def show(slug):
     status(:created)
     header("x-controller", "yes")
     header("x-request-path", request.path)
     render(text: "post #{slug}")
 
-routes = ember.routes:
+routes = orbit.routes:
   get "/people/:id", to: &person, params: {id: Int}, as: :person
   get "/posts/new", to: &home
   get "/posts/:slug", to: &Posts#show, as: :post
@@ -53,7 +53,7 @@ def assert(condition, message):
   raise ArgumentError(message) unless condition
 
 def main():
-  app = ember.App(routes: routes, expose_exceptions: true)
+  app = orbit.App(routes: routes, expose_exceptions: true)
 
   assert(routes.routes[2].param_types.empty?, "controller route must not inherit typed params")
   selected = routes.match("/posts/sputnik", method: "GET")
@@ -96,14 +96,14 @@ def main():
     annotation_order.join(",") == "outer-before,inner-before,handler,inner-after,outer-after",
     "before middleware order")
 
-  missing = app.call(ember.Request(
+  missing = app.call(orbit.Request(
     path: "/missing/deep/path",
     target: "/missing/deep/path",
     method: "POST",
     headers: {"host": "localhost"}))
   assert(missing.status == 405, "method not allowed")
 
-  streaming = ember.stream(
+  streaming = orbit.stream(
     status: :created,
     headers: {"x-selected": "yes"},
     trailers: ["x-finished"]) |body|:
@@ -112,7 +112,7 @@ def main():
   assert(streaming.header("x-selected") == "yes", "streaming selected headers")
   assert(streaming.trailers == ["x-finished"], "streaming declared trailers")
 
-  local_stream = ember.Request(method: "POST", body_text: "hello").body_stream
+  local_stream = orbit.Request(method: "POST", body_text: "hello").body_stream
   local_a = local_stream.read_chunk(max_bytes: 2)
   local_b = local_stream.read_chunk(max_bytes: 3)
   assert(local_stream.framing == :content_length, "in-memory request stream framing")

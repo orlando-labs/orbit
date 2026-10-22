@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build and run the representative Ember CRUD soak system."""
+"""Build and run the representative Orbit CRUD soak system."""
 
 from __future__ import annotations
 
@@ -24,8 +24,8 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 BUILD = ROOT / ".build" / "soak"
-SERVICE_NAME = "ember.example.soak.service"
-CLIENT_NAME = "ember.example.soak.client"
+SERVICE_NAME = "orbit.example.soak.service"
+CLIENT_NAME = "orbit.example.soak.client"
 QUALIFYING_SECONDS = 72 * 60 * 60
 HTTP = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 
@@ -61,7 +61,7 @@ def resolve_compiler(explicit: Path | None) -> Path:
             raise RuntimeError(f"Sputnik compiler does not exist: {compiler}")
         return compiler
     sync = [sys.executable, str(ROOT / "script/dependencies.py"), "sync", "--scope", "all"]
-    local = os.environ.get("EMBER_LOCAL_SOURCE_ROOT")
+    local = os.environ.get("ORBIT_LOCAL_SOURCE_ROOT")
     if local:
         sync += ["--local-source-root", local]
     command(sync)
@@ -338,12 +338,12 @@ def metrics_are_idle(metrics: Any) -> tuple[bool, list[str]]:
         return False, ["final metrics response is not an object"]
     if metrics.get("http.server.active_requests", 999) > 1:
         errors.append("more than the metrics probe itself remains in flight")
-    if metrics.get("ember.streams.active", 999) != 0:
+    if metrics.get("orbit.streams.active", 999) != 0:
         errors.append("a stream remains active")
-    series = metrics.get("ember.request.series", {})
+    series = metrics.get("orbit.request.series", {})
     if not isinstance(series, dict) or len(series) > 256:
         errors.append("metric series exceeded its configured bound")
-    pools = metrics.get("ember.integration.pools", {})
+    pools = metrics.get("orbit.integration.pools", {})
     if not isinstance(pools, dict):
         errors.append("integration pool metrics are missing")
     else:
@@ -355,7 +355,7 @@ def metrics_are_idle(metrics: Any) -> tuple[bool, list[str]]:
                 errors.append(f"pool {name} retains leases beyond the metrics probe")
             if pool.get("waiting", 999) != 0:
                 errors.append(f"pool {name} still has waiters")
-    server = metrics.get("ember.server") or {}
+    server = metrics.get("orbit.server") or {}
     if server.get("active", 999) > 1:
         errors.append("server retains connections beyond the metrics probe")
     if server.get("active_requests", 999) > 1:
@@ -437,7 +437,7 @@ def git_metadata() -> dict[str, Any]:
     dirty, untracked = git_worktree_state(ROOT)
     lock = ROOT / "release" / "dependencies.lock.json"
     return {
-        "ember_revision": revision,
+        "orbit_revision": revision,
         "working_tree_dirty": dirty,
         "untracked_files_present": untracked,
         "dependencies_lock_sha256": sha256(lock),
@@ -450,7 +450,7 @@ def read_client_result(path: Path) -> dict[str, Any]:
     if not lines:
         raise RuntimeError(f"{path.name} contains no client result")
     result = json.loads(lines[-1])
-    if result.get("schema") != "ember.soak-client.result.v1":
+    if result.get("schema") != "orbit.soak-client.result.v1":
         raise RuntimeError(f"{path.name} has an unexpected result schema")
     for name in ("iterations", "requests", "valid_requests", "invalid_requests"):
         if not isinstance(result.get(name), int) or result[name] < 0:
@@ -577,7 +577,7 @@ def run_workload(args: argparse.Namespace, smoke: bool) -> int:
     configuration_json = json.dumps(
         configuration, sort_keys=True, separators=(",", ":")).encode()
     metadata = {
-        "schema": "ember.soak-run.v1",
+        "schema": "orbit.soak-run.v1",
         "started_at": dt.datetime.now(dt.timezone.utc).isoformat(),
         "configuration": configuration,
         "configuration_sha256": hashlib.sha256(configuration_json).hexdigest(),
@@ -855,7 +855,7 @@ def run_workload(args: argparse.Namespace, smoke: bool) -> int:
         and not source_metadata["working_tree_dirty"]
     )
     report = {
-        "schema": "ember.soak-report.v1",
+        "schema": "orbit.soak-report.v1",
         "finished_at": dt.datetime.now(dt.timezone.utc).isoformat(),
         "passed": passed,
         "qualifies_as_72h_evidence": qualifies,

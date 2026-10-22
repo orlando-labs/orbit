@@ -1,6 +1,6 @@
 # Release process
 
-Only a maintainer acting as release manager may publish Ember. Releases are
+Only a maintainer acting as release manager may publish Orbit. Releases are
 built from an annotated SemVer tag and never from an uncommitted worktree.
 
 ## Candidate checklist
@@ -26,15 +26,15 @@ built from an annotated SemVer tag and never from an uncommitted worktree.
 ```sh
 ./script/clean-room-build
 ./script/ci full
-git tag -s v1.0.0-rc.1 -m "Ember 1.0.0-rc.1"
+git tag -s v1.0.0-rc.1 -m "Orbit 1.0.0-rc.1"
 git push origin v1.0.0-rc.1
 ```
 
 The tag workflow independently verifies `v$VERSION`, repeats the clean build,
 builds the package twice, checks byte equality, emits SHA-256 checksums and
 machine-readable evidence, and uploads the package/source artifacts. The
-release environment supplies `EMBER_PACKAGE_SIGNING_KEY` and
-`EMBER_PACKAGE_KEY_ID`; these secrets never appear in logs or arguments shown
+release environment supplies `ORBIT_PACKAGE_SIGNING_KEY` and
+`ORBIT_PACKAGE_KEY_ID`; these secrets never appear in logs or arguments shown
 to users. An unsigned artifact is not published as an official release.
 
 ## Post-release

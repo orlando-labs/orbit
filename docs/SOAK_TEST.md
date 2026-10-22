@@ -1,7 +1,7 @@
 # Representative CRUD and 72-hour soak test
 
 `examples/soak` is the release-candidate reference workload. It consists of a
-controller-based Ember service backed by the locked ORM/SQLite integration and
+controller-based Orbit service backed by the locked ORM/SQLite integration and
 an Sputnik `net.http` client. Python is used only to build processes, sample
 operating-system resources, and produce evidence; every application request is
 generated and checked by the Sputnik client.
@@ -22,7 +22,7 @@ provides:
 - a bounded SQLite connection pool with WAL and production-shaped server
   limits.
 
-The handlers are ordinary `ember.Controller` methods. Bare `params`, `request`,
+The handlers are ordinary `orbit.Controller` methods. Bare `params`, `request`,
 `render`, and `service` are lexical-first dynamic nullary sends to the
 controller receiver; the example intentionally exercises that Sputnik language
 contract instead of spelling Python-like `self.*` throughout.
@@ -69,7 +69,7 @@ graphs.
 For an already resolved local dependency tree:
 
 ```sh
-EMBER_LOCAL_SOURCE_ROOT=/path/to/dependency-source ./script/soak smoke
+ORBIT_LOCAL_SOURCE_ROOT=/path/to/dependency-source ./script/soak smoke
 ```
 
 ## 72-hour qualification
@@ -82,12 +82,12 @@ Run on a production-equivalent host with a persistent artifact directory:
   --clients 4 \
   --server-workers 4 \
   --pool-size 8 \
-  --artifacts /var/lib/ember-evidence/soak-1.0.0-rc.1
+  --artifacts /var/lib/orbit-evidence/soak-1.0.0-rc.1
 ```
 
 The default duration is already `72h`. During the run the orchestrator records
 RSS, physical footprint on Darwin, descriptor and thread counts for both the
-service and every load client, readiness, the full Ember metrics snapshot,
+service and every load client, readiness, the full Orbit metrics snapshot,
 source and dependency revisions, a canonical configuration digest, and binary
 digests. After traffic stops, it checks that connections, requests, streams,
 pool leases, and pool waiters quiesce, then uses the service's authenticated

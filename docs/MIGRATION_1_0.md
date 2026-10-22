@@ -1,14 +1,24 @@
-# Migrating from the Ember preview to 1.0 RC
+# Migrating from the Orbit preview to 1.0 RC
 
 This guide covers intentional contract changes between the unversioned preview
-and `1.0.0-rc.1`. Upgrade the compiler/runtime and Ember together; mixed Sputnik
+and `1.0.0-rc.1`. Upgrade the compiler/runtime and Orbit together; mixed Sputnik
 artifacts are unsupported.
+
+## Framework naming
+
+Use `orbit` for the core package and imports, `orbit.*` for submodules, and
+`orbit-orm` for the optional ORM companion. The base exception is `OrbitError`.
+Update environment variables and CI secrets to the `ORBIT_*` prefix, diagnostic
+codes to `ORBIT_*`, and telemetry event names, metric keys, and evidence schemas
+to `orbit.*`. Deployments use `orbit.service` and `deploy/kubernetes/orbit.yaml`;
+HTTP benchmarks select the framework with `--stack orbit`. Regenerate package
+locks and rebuild applications after updating these names.
 
 ## 1. Install the locked packages
 
 Replace source paths outside the application checkout with exact package
-versions. Core applications depend only on `ember = 1.0.0-rc.1`. ORM
-applications additionally use `ember-orm = 1.0.0-rc.1`, the tested
+versions. Core applications depend only on `orbit = 1.0.0-rc.1`. ORM
+applications additionally use `orbit-orm = 1.0.0-rc.1`, the tested
 `sputnik-orm = 0.1.0-dev` revision, and a tested adapter such as
 `sqlite3-sputnik = 0.1.0-dev`. Commit the generated `sputnik.lock`.
 
@@ -47,7 +57,7 @@ client identity; use `request.origin()`, `effective_authority`,
 
 ## 5. Install browser and parsing controls explicitly
 
-Import `ember.security` for cookies/session/CORS/CSRF and `ember.multipart` for
+Import `orbit.security` for cookies/session/CORS/CSRF and `orbit.multipart` for
 multipart. Configure 32-byte-or-longer secret-manager keys, exact CORS
 allowlists, CSRF on cookie-authenticated unsafe routes, and upload
 type/quota/storage/scanning rules. Replace unsafe template interpolation with
@@ -59,7 +69,7 @@ now fail compilation.
 Change the dependency graph, not the import:
 
 ```sputnik
-from ember.integrations.orm import pool as orm_pool
+from orbit.integrations.orm import pool as orm_pool
 ```
 
 The package now participates in start/readiness/drain/stop. Do not close the

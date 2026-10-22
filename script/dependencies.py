@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Resolve and verify the exact git inputs recorded for Ember releases."""
+"""Resolve and verify the exact git inputs recorded for Orbit releases."""
 
 from __future__ import annotations
 

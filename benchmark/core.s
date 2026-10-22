@@ -1,7 +1,7 @@
-package ember.benchmark.core
+package orbit.benchmark.core
 
-import ember
-import ember.testing
+import orbit
+import orbit.testing
 from net.http import Client
 
 export main
@@ -27,21 +27,21 @@ class NullStreamBody:
     false
 
 def small_json(request):
-  ember.render(json: {"ok": true, "value": 42})
+  orbit.render(json: {"ok": true, "value": 42})
 
 def buffered_html(request):
-  ember.render(html: ember.Html.raw(
-    "<!doctype html><html><body><main>ember benchmark</main></body></html>"))
+  orbit.render(html: orbit.Html.raw(
+    "<!doctype html><html><body><main>orbit benchmark</main></body></html>"))
 
 def duplex(request):
-  ember.stream() |body|:
+  orbit.stream() |body|:
     request.body_stream.each_chunk(max_bytes: 1024) |chunk|:
       body.write(chunk.bytes())
 
 def static_response(request):
-  ember.render(text: "ok")
+  orbit.render(text: "ok")
 
-routes = ember.routes:
+routes = orbit.routes:
   get "/json", to: &small_json
   get "/html", to: &buffered_html
   post "/duplex", to: &duplex
@@ -73,15 +73,15 @@ def route_table(count):
   target = routes.routes[0].target
   entries = []
   count.times |index|:
-    entries.push!(ember.Route("GET", "/route/#{index}", target))
-  ember.Routes(entries)
+    entries.push!(orbit.Route("GET", "/route/#{index}", target))
+  orbit.Routes(entries)
 
 def run_duplex(app, payload):
   response = app.call(testing.post("/duplex", body: payload))
   response._producer_block()(NullStreamBody())
 
 def core_workloads():
-  app = ember.App(routes: routes)
+  app = orbit.App(routes: routes)
   one_k = route_table(1000)
   four_k = route_table(4096)
   payload = "x" * 4096
@@ -99,7 +99,7 @@ def core_workloads():
   results
 
 def keepalive_workload():
-  app = ember.App(routes: routes)
+  app = orbit.App(routes: routes)
   server = app.start(
     port: 0,
     workers: 1,
@@ -120,7 +120,7 @@ def main():
   workloads = core_workloads()
   workloads.store!("keep_alive", keepalive_workload())
   io.stdout.write_line(Json.generate({
-    "schema": "ember.benchmark.result.v1",
+    "schema": "orbit.benchmark.result.v1",
     "suite": "core",
     "workloads": workloads
   }))

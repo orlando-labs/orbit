@@ -1,6 +1,6 @@
-package ember.html
+package orbit.html
 
-from ember import Html
+from orbit import Html
 
 export escape, escape_text, escape_attribute, raw, join
 export url, trusted_script, trusted_style
@@ -85,32 +85,32 @@ def trusted_style(value):
 
 def _url_attribute(value):
   unless HtmlUrl === value:
-    raise ArgumentError("URL attribute interpolation requires ember.html.url(...)")
+    raise ArgumentError("URL attribute interpolation requires orbit.html.url(...)")
   escape_attribute(value.to_str)
 
 def _script_body(value):
   unless TrustedScript === value:
-    raise ArgumentError("script interpolation requires ember.html.trusted_script(...)")
+    raise ArgumentError("script interpolation requires orbit.html.trusted_script(...)")
   Html.raw(value.to_str)
 
 def _style_body(value):
   unless TrustedStyle === value:
-    raise ArgumentError("style interpolation requires ember.html.trusted_style(...)")
+    raise ArgumentError("style interpolation requires orbit.html.trusted_style(...)")
   Html.raw(value.to_str)
 
 def _script_attribute(value):
   unless TrustedScript === value:
-    raise ArgumentError("event-handler interpolation requires ember.html.trusted_script(...)")
+    raise ArgumentError("event-handler interpolation requires orbit.html.trusted_script(...)")
   escape_attribute(value.to_str)
 
 def _style_attribute(value):
   unless TrustedStyle === value:
-    raise ArgumentError("style-attribute interpolation requires ember.html.trusted_style(...)")
+    raise ArgumentError("style-attribute interpolation requires orbit.html.trusted_style(...)")
   escape_attribute(value.to_str)
 
 def _srcdoc_attribute(value):
   unless Html === value:
-    raise ArgumentError("srcdoc interpolation requires explicit ember.html.raw(...)")
+    raise ArgumentError("srcdoc interpolation requires explicit orbit.html.raw(...)")
   escape_attribute(value.to_str)
 
 string_tag macro def html(template as Ast.StringTemplate) -> Ast:
@@ -246,7 +246,7 @@ string_tag macro def html(template as Ast.StringTemplate) -> Ast:
         index += 1
 
       node = quote:
-        ember.Html(#{Ast.lift(part.value)})
+        orbit.Html(#{Ast.lift(part.value)})
       parts.push!(node)
     elif part.kind == "AstStringExpr":
       kind = null
@@ -268,12 +268,12 @@ string_tag macro def html(template as Ast.StringTemplate) -> Ast:
         else:
           kind = :attribute
       else:
-        raise ArgumentError("EMBER_HTML_CONTEXT: interpolation is forbidden in tags, comments, and unquoted attributes")
+        raise ArgumentError("ORBIT_HTML_CONTEXT: interpolation is forbidden in tags, comments, and unquoted attributes")
       lifted_kind = Ast.node("AstLiteral", {token: "SYMBOL", value: kind.to_str})
       node = quote:
         escape(#{part.expr}, #{lifted_kind})
       parts.push!(node)
     else:
-      raise ArgumentError("EMBER_HTML_PART: unsupported HTML template part")
+      raise ArgumentError("ORBIT_HTML_PART: unsupported HTML template part")
   return quote:
     join([#{*parts}])

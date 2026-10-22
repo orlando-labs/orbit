@@ -1,8 +1,8 @@
-package ember.stage4_selftest
+package orbit.stage4_selftest
 
-import ember
-import ember.testing
-import ember.telemetry
+import orbit
+import orbit.testing
+import orbit.telemetry
 from net.http import Client
 
 export main
@@ -11,13 +11,13 @@ def assert(condition, message):
   raise ArgumentError(message) unless condition
 
 def user(request, id):
-  ember.render(json: {"ok": true})
+  orbit.render(json: {"ok": true})
 
 def failure(request):
   raise ValueError("secret failure detail")
 
 def streamed(request):
-  ember.stream() |body|:
+  orbit.stream() |body|:
     body.write("abc")
     body.write("def")
 
@@ -53,11 +53,11 @@ class BrokenSink:
   def emit(kind, fields):
     raise ValueError("telemetry unavailable")
 
-class FailedAttachIntegration < ember.Integration:
+class FailedAttachIntegration < orbit.Integration:
   def attach_server(server):
     raise ValueError("attach failed")
 
-routes = ember.routes:
+routes = orbit.routes:
   get "/users/:id", to: &user, params: {id: Str}
   get "/failure", to: &failure
   get "/stream", to: &streamed
@@ -71,7 +71,7 @@ def structured_telemetry():
   sink = telemetry.MemorySink()
   metrics = telemetry.MetricsRegistry(max_series: 16)
   observed = telemetry.Telemetry(sink: sink, metrics: metrics)
-  app = ember.App(routes: routes, telemetry: observed)
+  app = orbit.App(routes: routes, telemetry: observed)
 
   request = testing.get(
     "/users/customer-secret?token=do-not-log",
@@ -130,7 +130,7 @@ def structured_telemetry():
   assert(body.bytes == 6, "observed stream preserves payload")
   assert(after_stream["http.server.active_requests"] == 0,
     "stream leaves in-flight accounting on completion")
-  assert(after_stream["ember.streams.completed"] == 1,
+  assert(after_stream["orbit.streams.completed"] == 1,
     "stream completion metric")
   assert(after_stream["http.server.requests"] == 3,
     "request counter covers buffered, error, and stream")
@@ -139,7 +139,7 @@ def structured_telemetry():
     "duration histogram count")
 
   metrics.set_integration_pool("database", active: 2, capacity: 8, waiting: 1)
-  pool = metrics.snapshot()["ember.integration.pools"]["database"]
+  pool = metrics.snapshot()["orbit.integration.pools"]["database"]
   assert(pool["active"] == 2 and pool["capacity"] == 8 and pool["waiting"] == 1,
     "bounded integration-pool metrics")
   true
@@ -157,7 +157,7 @@ def trace_context_contract():
 
   sink = telemetry.MemorySink()
   tracer = telemetry.Tracer(sink)
-  trusted = ember.Request(
+  trusted = orbit.Request(
     method: "GET",
     path: "/private/value",
     headers: {"traceparent": valid},
@@ -169,7 +169,7 @@ def trace_context_contract():
     "validated context propagates from trusted edge")
   assert(trusted_span.parent_span_id == parsed.parent_id,
     "trusted parent span is linked")
-  untrusted = ember.Request(
+  untrusted = orbit.Request(
     method: "GET",
     path: "/private/value",
     headers: {"traceparent": valid},
@@ -191,7 +191,7 @@ def redaction_and_cardinality():
   bounded.request_finished("GET", "/one", 200, 1, 1, "success")
   bounded.request_started()
   bounded.request_finished("POST", "/two", 500, 1, 1, "error")
-  series = bounded.snapshot()["ember.request.series"]
+  series = bounded.snapshot()["orbit.request.series"]
   assert(series.count == 1 and series["__overflow__"] == 2,
     "metric labels overflow into one bounded series")
 
@@ -206,7 +206,7 @@ def redaction_and_cardinality():
 def lifecycle_probes():
   sink = telemetry.MemorySink()
   observed = telemetry.Telemetry(sink: sink)
-  app = ember.App(
+  app = orbit.App(
     routes: routes,
     services: {telemetry: observed},
     telemetry: observed)
@@ -218,7 +218,7 @@ def lifecycle_probes():
   metrics_body = Json.parse(metrics_response.body_text)
   assert(
     metrics_response.status == 200 and
-    metrics_body["ember.server"]["active_requests"] == 0,
+    metrics_body["orbit.server"]["active_requests"] == 0,
     "attached server metrics produce a JSON response")
   loopback_user = Client().get(
     "http://127.0.0.1:#{server.port()}/users/42",
@@ -231,8 +231,8 @@ def lifecycle_probes():
   loopback_metrics_json = Json.parse(loopback_metrics_body)
   assert(
     loopback_metrics.status == 200 and
-    loopback_metrics_json["ember.server"]["active_requests"] == 1 and
-    loopback_metrics_json["ember.request.series"][
+    loopback_metrics_json["orbit.server"]["active_requests"] == 1 and
+    loopback_metrics_json["orbit.request.series"][
       "GET /users/:id 2xx success"] == 1,
     "metrics preserve a series recorded by a different request VM: " +
       loopback_metrics.status.to_str + ":" + loopback_metrics_body)
@@ -241,24 +241,24 @@ def lifecycle_probes():
   assert(server.shutdown(), "probe server drains")
   server.wait()
   metrics = observed.metrics.snapshot()
-  assert(metrics["ember.shutdowns"] == 1, "shutdown metric")
-  assert(metrics["ember.server"][:active_requests] == 0, "server state metrics")
+  assert(metrics["orbit.shutdowns"] == 1, "shutdown metric")
+  assert(metrics["orbit.server"][:active_requests] == 0, "server state metrics")
   lifecycle = sink.snapshot().find |entry|:
-    entry["event.name"] == "ember.server.shutdown"
+    entry["event.name"] == "orbit.server.shutdown"
   assert(lifecycle != null and lifecycle["outcome"] == "success",
     "structured lifecycle event")
   true
 
 def telemetry_failure_is_safe():
   broken = telemetry.Telemetry(sink: BrokenSink())
-  app = ember.App(routes: routes, telemetry: broken)
+  app = orbit.App(routes: routes, telemetry: broken)
   response = app.call(testing.get("/users/42"))
   assert(response.status == 200, "telemetry sink failure cannot replace response")
   true
 
 def request_derivation_is_isolated():
   request = testing.get("/users/42")
-  app = ember.App(routes: routes, services: {marker: "derived"})
+  app = orbit.App(routes: routes, services: {marker: "derived"})
   response = app.call(request)
   assert(response.status == 200, "derived request reaches route target")
   assert(request.effective_scheme == null and request.effective_authority == null,
@@ -272,7 +272,7 @@ def request_derivation_is_isolated():
 def attach_failure_unwinds():
   failed = false
   try:
-    ember.App(
+    orbit.App(
       routes: routes,
       integrations: [FailedAttachIntegration()]
     ).server(port: 0)

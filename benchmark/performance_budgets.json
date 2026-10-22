@@ -1,5 +1,5 @@
 {
-  "schema": "ember.performance-budgets.v1",
+  "schema": "orbit.performance-budgets.v1",
   "regression_threshold_percent": 10,
   "workloads": {
     "small_json": {"p50_us": 100000, "p95_us": 120000, "p99_us": 150000, "min_throughput_per_second": 10},

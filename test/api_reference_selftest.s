@@ -1,26 +1,26 @@
-package ember.api_reference_selftest
+package orbit.api_reference_selftest
 
-import ember
-import ember.middleware
-import ember.multipart
-import ember.security
-import ember.telemetry
-import ember.testing
-from ember.html import raw, url
+import orbit
+import orbit.middleware
+import orbit.multipart
+import orbit.security
+import orbit.telemetry
+import orbit.testing
+from orbit.html import raw, url
 
 export main
 
 def show(request, id):
-  ember.render(json: {id: id, origin: request.origin()})
+  orbit.render(json: {id: id, origin: request.origin()})
 
-routes = ember.routes:
+routes = orbit.routes:
   get "/items/:id", to: &show, params: {id: Int}, as: :item
 
 def main():
-  policy = ember.SecurityPolicy(allowed_hosts: ["example.test"])
+  policy = orbit.SecurityPolicy(allowed_hosts: ["example.test"])
   sink = telemetry.MemorySink()
   observer = telemetry.Telemetry(sink: sink)
-  app = ember.App(routes: routes, security: policy, telemetry: observer)
+  app = orbit.App(routes: routes, security: policy, telemetry: observer)
 
   request = testing.get("/items/42", headers: {host: "example.test"})
   response = app.call(request)
@@ -30,7 +30,7 @@ def main():
   destination = routes.path(:item, id: 42)
   destination_url = url(destination)
   page = raw("<a href=\"" + destination_url.to_str + "\">item</a>")
-  testing.assert_body(ember.Response(body: page),
+  testing.assert_body(orbit.Response(body: page),
     "<a href=\"/items/42\">item</a>")
 
   cookies = security.CookieJar.parse("theme=dark")

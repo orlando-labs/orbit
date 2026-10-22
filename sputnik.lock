@@ -2,9 +2,9 @@
 schema = "sputnik.lock.v1"
 
 [package]
-name = "ember"
+name = "orbit"
 version = "1.0.0-rc.1"
-root = "ember"
+root = "orbit"
 
 [[capabilities]]
 name = "net.listen"
