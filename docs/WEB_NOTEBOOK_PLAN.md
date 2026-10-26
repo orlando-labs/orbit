@@ -86,9 +86,12 @@ backend binary как одно целое; shell ссылается на assets 
   разрешённого development origin. Request Host не выбирает Vite server.
 - [ ] Production loader для `.vite/manifest.json`, проверяемый при старте:
   существующие entry/files, bounded manifest, безопасные пути внутри asset root,
-  отсутствие неизвестных ссылок и циклов imports.
+  отсутствие неизвестных ссылок. Обход imports использует visited set и
+  ограничение числа узлов; циклические ссылки не приводят к бесконечной рекурсии.
 - [ ] Typed HTML helpers для stylesheet/module script/modulepreload, с
-  детерминированным обходом imports и дедупликацией CSS/preload.
+  детерминированным обходом imports и дедупликацией CSS/preload. CSS entry
+  предшествует CSS imports с сохранением manifest order; dynamicImports остаются
+  ленивыми и не превращаются в обязательный initial preload.
 - [ ] Development helper добавляет `@vite/client` и entry URL; HMR работает через
   настроенный dev origin или edge proxy. CORS/WS допускаются только для явно
   заданного режима разработки.
