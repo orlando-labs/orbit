@@ -55,6 +55,28 @@ package.json + lockfile         pinned frontend toolchain
 
 Это предложенное расположение будущего приложения, не уже созданные директории.
 
+### Связка controller → view → browser
+
+В первом slice view остаётся обычной экспортируемой функцией Sputnik с явной
+сигнатурой. Controller собирает view model, получает `orbit.Html` вызовом
+`views.app(...)` и передаёт его существующему `render(html: ...)`. Декларации
+`@template` и регистрация `.html.sv` входят в build graph приложения. Layout и
+partials при необходимости составляются вызовами таких же функций с безопасными
+HTML fragments. Отдельный пакет `orbit-views` можно выделить после появления
+общих соглашений; первый shell использует уже существующий render-контракт.
+
+В production тот же trusted edge, который завершает TLS перед Orbit, обслуживает
+`/assets/` из соответствующего frontend dist: корректные MIME types, immutable
+cache для hashed assets и настоящий 404 для отсутствующего файла. Маршруты
+`/api/` и страницы идут в Orbit; HTML fallback не подменяет отсутствующий JS.
+В `examples/vue_shell` нужны и конфигурация edge/static preview, и browser smoke
+с выключенным Vite server. Это фиксирует способ доставки assets без добавления
+отдельного `orbit-static` в первый scope.
+
+Dev runner перезапускает Sputnik backend при изменении `.s`/`.sv`; frontend HMR
+остаётся в Vite. Production release собирается из frontend manifest/assets и
+backend binary как одно целое; shell ссылается на assets той же release-версии.
+
 ### 1. Общий пакет `orbit-vite`
 
 Первый следующий пакет связывает Vite assets с любым Orbit view; Vue-specific
