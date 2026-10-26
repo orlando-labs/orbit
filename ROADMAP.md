@@ -1,3 +1,16 @@
+## Активная ветка: web notebook — 26 октября 2026
+
+Следующая прикладная цель — Vue web notebook на Sputnik/Orbit, затем общий Vue
+клиент для Electron на Linux/Windows. Основы sessions/OAuth/ORM atomicity и внешние
+`.sv` templates реализованы; ближайший шаг — `orbit-vite`, безопасный bootstrap и
+SSR-view-skeleton с клиентским Vue mount. Затем authenticated shell/project ACL
+и первый notebook Run/reconnect slice.
+
+Подробные зависимости, границы DOM/backend и критерии выхода:
+[WEB_NOTEBOOK_PLAN.md](docs/WEB_NOTEBOOK_PLAN.md). Это параллельная ветка к общему
+RC gate ниже. Новые `.sputnikpkg` пока не публикуем; разработка идёт на локальных
+исходниках зависимостей.
+
 Вердикт: Orbit `1.0.0-rc.1` закрывает этапы 0–5, но пока не production-ready. HTTP correctness, lifecycle, graceful shutdown, production transport, security, observability/performance и release engineering реализованы и имеют воспроизводимые gates. Оставшийся блок — длительная RC-валидация в production-equivalent окружении.
 
 ## Текущее состояние
@@ -151,6 +164,6 @@ P1 до Orbit 1.0:
 - независимый cryptographic review или vetted runtime primitive;
 - immutable RC evidence index со всеми CI/load/fuzz/rollback артефактами.
 
-После 1.0 можно отложить WebSocket, HTTP/2/3 внутри процесса, direct TLS, hot reload, generators/resources, `.amv`, asset pipeline и динамически заменяемые route snapshots.
+После 1.0 можно отложить WebSocket, HTTP/2/3 внутри процесса, direct TLS, hot reload, generators/resources и динамически заменяемые route snapshots.
 
 Оставшаяся оценка для production-ready общего web-профиля: примерно 2–4 инженерные недели при наличии RC-инфраструктуры. Самый значимый риск расписания теперь сосредоточен в длительных soak/fuzz прогонах, независимом crypto review и canary/rollback evidence, а не в framework implementation или release tooling.

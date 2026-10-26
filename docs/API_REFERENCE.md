@@ -10,6 +10,12 @@ macro contexts by `test/stage3_selftest.build.yaml`, and the ORM section by
 Exact error message text and names listed as internal exports are not API.
 Arguments shown with defaults retain those defaults for Orbit 1.x.
 
+Working authentication companions are documented separately:
+[`orbit-oauth`](../packages/orbit-oauth/README.md) provides protocol flows and
+controller results; [`orbit-oauth-github`](../packages/orbit-oauth-github/README.md)
+adds GitHub identity resolution. They are local development packages, outside
+the root package's 1.0 export allowlist, and depend on no User/ORM model.
+
 ## `orbit`
 
 ### Routing macros
@@ -129,6 +135,9 @@ The stable schema, cardinality bounds, methods, and lifecycle timing are in
 
 Constructor limits, key rotation, expiry, safe cookie defaults, and
 application obligations are normative in [SECURITY.md](SECURITY.md).
+`CsrfMiddleware(session_service: :session, secret: ...)` integrates with the
+optional [orbit-session companion](../packages/orbit-session/README.md);
+otherwise CSRF retains its `session_cookie:` identity source.
 
 ## `orbit.multipart`
 
@@ -155,7 +164,15 @@ Orbit has no ORM, SQLite, or FFI dependency.
 ## Unsupported preview surface
 
 The following are intentionally not part of this reference: direct public
-TLS, HTTP/2/3, WebSocket, hot reload, generators/resources, `.amv`, asset
+TLS, HTTP/2/3, WebSocket, hot reload, generators/resources, asset
 pipeline, dynamic route replacement, exported `__*` macro plumbing, exported
 single-underscore HTML macro helpers, log text formatting, generated code,
 cache paths, and concrete transitive Sputnik/ORM/SQLite implementation details.
+
+## External view bodies
+
+`@template("./page.html.sv")` on a declaration-only module function uses its
+ordinary input signature and lexical imports. Build-manifest `source_formats`
+selects the `orbit.html` / `html` provider. See the README and
+`test/external_templates_selftest.build.yaml`. Runtime rendering uses compiled
+code; source files are compiler inputs, not runtime filesystem templates.

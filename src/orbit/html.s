@@ -113,7 +113,7 @@ def _srcdoc_attribute(value):
     raise ArgumentError("srcdoc interpolation requires explicit orbit.html.raw(...)")
   escape_attribute(value.to_str)
 
-string_tag macro def html(template as Ast.StringTemplate) -> Ast:
+macro def _html_template_parts(template_parts, loop_body: false):
   parts = []
   mode = :text
   tag_name = ""
@@ -123,8 +123,12 @@ string_tag macro def html(template as Ast.StringTemplate) -> Ast:
   reading_tag = false
   expecting_value = false
 
-  template.parts.each |part|:
-    if part.kind == "AstStringText":
+  template_parts.each |part|:
+    if part.kind == "AstStringFor":
+      raise ArgumentError("ORBIT_HTML_CONTROL_CONTEXT: %for requires HTML text context") unless mode == :text
+      body = _html_template_parts(part.parts, loop_body: true)
+      parts.push!(Ast.node("AstStringFor", {iteration: part.iteration, parts: body}))
+    elif part.kind == "AstStringText" or part.kind == "AstStringEscape":
       text = part.value
       index = 0
       while index < text.length:
@@ -245,8 +249,9 @@ string_tag macro def html(template as Ast.StringTemplate) -> Ast:
           token = token + char
         index += 1
 
+      html_type = Ast.node("AstQualifiedRef", {module: "orbit", name: "Html"})
       node = quote:
-        orbit.Html(#{Ast.lift(part.value)})
+        #{html_type}.raw(#{Ast.lift(part.value)})
       parts.push!(node)
     elif part.kind == "AstStringExpr":
       kind = null
@@ -270,10 +275,21 @@ string_tag macro def html(template as Ast.StringTemplate) -> Ast:
       else:
         raise ArgumentError("ORBIT_HTML_CONTEXT: interpolation is forbidden in tags, comments, and unquoted attributes")
       lifted_kind = Ast.node("AstLiteral", {token: "SYMBOL", value: kind.to_str})
+      escape_ref = Ast.node("AstQualifiedRef", {module: "orbit.html", name: "escape"})
       node = quote:
-        escape(#{part.expr}, #{lifted_kind})
+        #{escape_ref}(#{part.expr}, #{lifted_kind})
       parts.push!(node)
     else:
       raise ArgumentError("ORBIT_HTML_PART: unsupported HTML template part")
-  return quote:
-    join([#{*parts}])
+  if loop_body and mode != :text:
+    raise ArgumentError("ORBIT_HTML_CONTROL_CONTEXT: loop body must finish in HTML text context")
+  return parts
+
+string_tag macro def html(template as Ast.StringTemplate) -> Ast:
+  html_type = Ast.node("AstQualifiedRef", {module: "orbit", name: "Html"})
+  finish = quote:
+    #{html_type}.join
+  return Ast.node("AstTemplateRender", {
+    parts: _html_template_parts(template.parts),
+    finish: finish
+  })

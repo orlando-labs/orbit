@@ -1,0 +1,23 @@
+[package]
+name = "orbit-session"
+version = "0.1.0-dev"
+root = "orbit.session"
+
+[[modules]]
+name = "orbit.session"
+path = "src/orbit/session.s"
+
+[[modules]]
+name = "orbit.session._state"
+path = "src/orbit/session/_state.s"
+
+[[modules]]
+name = "orbit.session._stores"
+path = "src/orbit/session/_stores.s"
+
+[dependencies]
+orbit = "1.0.0-rc.1"
+
+[capabilities]
+random.secure = true
+time.now = true

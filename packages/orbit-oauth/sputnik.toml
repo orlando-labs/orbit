@@ -1,0 +1,20 @@
+[package]
+name = "orbit-oauth"
+version = "0.1.0-dev"
+root = "orbit.oauth"
+
+[[modules]]
+name = "orbit.oauth"
+path = "src/orbit/oauth.s"
+
+[[modules]]
+name = "orbit.oauth._protocol"
+path = "src/orbit/oauth/_protocol.s"
+
+[dependencies]
+orbit = "1.0.0-rc.1"
+
+[capabilities]
+net.connect = true
+random.secure = true
+time.now = true

@@ -1,0 +1,14 @@
+schema: sputnik.build.v1
+name: app.html_loop_selftest
+root: app.html_loop_selftest
+profiles:
+  required: [core.v1, macro.v1]
+modules:
+  - name: orbit
+    path: ../src/orbit.s
+  - name: orbit.html
+    path: ../src/orbit/html.s
+  - name: orbit.telemetry
+    path: ../src/orbit/telemetry.s
+  - name: app.html_loop_selftest
+    path: html_loop_selftest.s

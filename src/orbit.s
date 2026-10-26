@@ -1493,6 +1493,9 @@ class SecurityPolicy:
     return response unless @security_headers
     selected = @security_response_headers
     selected_names = @security_response_header_names
+    # OAuth callbacks can require the stricter policy to avoid leaking codes.
+    if response.header("referrer-policy") == "no-referrer":
+      selected = selected.set("referrer-policy", "no-referrer")
     if @hsts and request.secure?():
       selected = selected.set("strict-transport-security", "max-age=31536000; includeSubDomains")
       selected_names = @hsts_security_response_header_names
@@ -1694,6 +1697,18 @@ class Request:
       raise UnknownServiceError("unknown request service: " + name.to_str)
     value
 
+  # Request middleware can add a scoped service without mutating application
+  # services or losing it when routing derives another Request.
+  def with_service(name, value):
+    scoped_services = @services.copy
+    scoped_services[name] = value
+    derived = copy
+    derived._set_services!(scoped_services)
+
+  def _set_services!(services):
+    @services = services.copy.freeze
+    self
+
   def origin():
     return null unless @effective_scheme and @effective_authority
     @effective_scheme + "://" + @effective_authority
@@ -1720,7 +1735,7 @@ class Request:
     @routes = routes
     @selected_route = selected_route
     @path_params = path_params
-    @services = services
+    @services = services.merge(@services).freeze
     self
 
 def request_method(request):

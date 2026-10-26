@@ -123,6 +123,14 @@ use production names such as `__Host-orbit-session` and
 state changes need a separately reviewed protocol rather than bypassing the
 middleware.
 
+With the optional `orbit-session` companion, place its middleware before
+`CsrfMiddleware` and pass `session_service: :session` to CSRF. This binds tokens
+to the stable session ID instead of encrypted cookie text that changes on each
+save. Safe requests bootstrap a session when needed; ID rotation refreshes the
+CSRF cookie. Without `session_service`, the existing `session_cookie:` behavior
+is unchanged. See the [session package](../packages/orbit-session/README.md)
+for cookie-store replay limits and server-store revocation semantics.
+
 ## Multipart and uploaded files
 
 `orbit.multipart.parse(request, limits:)` claims the request body exactly once
@@ -153,12 +161,28 @@ model requires that.
 - interpolation in comments, tag syntax, and unquoted attributes fails macro
   expansion with `ORBIT_HTML_CONTEXT`.
 
+Runtime `%for` repeats the same context-checked parts. A loop starts and ends
+in HTML text context; loops inside tag syntax, attributes, comments, script or
+style, and bodies leaving those contexts open fail at expansion with
+`ORBIT_HTML_CONTROL_CONTEXT`. This is lexical context checking, not DOM
+validation. Runtime values never become template directives.
+
 `raw`, `trusted_script`, and `trusted_style` are security-review boundaries,
 not sanitizers. Never pass untrusted data to them. User-authored HTML, SVG,
 Markdown, CSS, or JavaScript needs a separately selected, maintained sanitizer;
 Orbit deliberately does not pretend that escaping can sanitize active content.
 
 ## Production checklist
+
+The local [`orbit-oauth`](../packages/orbit-oauth/README.md) companion requires
+PKCE S256 and session-bound state, fixed HTTPS provider/callback URLs, bounded
+JSON replies, and redirects disabled for token/profile HTTP calls. Its registry
+requires distinct provider callbacks; configured issuers must match the callback
+`iss`. OAuth responses set `Referrer-Policy: no-referrer`, which core preserves
+over the default policy. Applications still validate accounts, rotate session
+IDs, and decide token persistence. See the package's session-boundary notes:
+state consumption is persisted with the ordinary session response, and stateless
+cookie snapshots cannot provide global replay prevention.
 
 - Configure exact public hosts, edge CIDRs, hop count, HSTS, and an
   application-specific CSP before binding traffic.

@@ -1,0 +1,56 @@
+schema: sputnik.build.v1
+name: orbit.session_orm_selftest
+root: orbit.session_orm_selftest
+
+profiles:
+  required: [core.v1, macro.v1, ffi.v1]
+
+modules:
+  - name: orbit
+    path: ../src/orbit.s
+  - name: orbit.security
+    path: ../src/orbit/security.s
+  - name: orbit.testing
+    path: ../src/orbit/testing.s
+  - name: orbit.telemetry
+    path: ../src/orbit/telemetry.s
+  - name: orbit.session._state
+    path: ../packages/orbit-session/src/orbit/session/_state.s
+  - name: orbit.session._stores
+    path: ../packages/orbit-session/src/orbit/session/_stores.s
+  - name: orbit.session
+    path: ../packages/orbit-session/src/orbit/session.s
+  - name: sqlite3
+    path: ../../sqlite3/src/sqlite3.s
+  - name: orm
+    path: ../../orm/src/orm.s
+  - name: orm.pool
+    path: ../../orm/src/orm/pool.s
+  - name: orm.sqlite3._adapter
+    path: ../../orm/src/orm/sqlite3/adapter.s
+  - name: orm.sqlite3._pool
+    path: ../../orm/src/orm/sqlite3/pool.s
+  - name: orm.sqlite3
+    path: ../../orm/src/orm/sqlite3.s
+  - name: orbit.session.orm
+    path: ../packages/orbit-session-orm/src/orbit/session/orm.s
+  - name: orbit.session_selftest
+    path: session_selftest.s
+  - name: orbit.session_orm_selftest
+    path: session_orm_selftest.s
+
+native_extensions:
+  - name: sqlite3
+    language: c
+    sources:
+      - ../../sqlite3/native/sqlite3_ext.c
+      - ../../sqlite3/native/sqlite3.c
+    headers:
+      - ../../sqlite3/native/sqlite3.h
+    defines:
+      - SQLITE_THREADSAFE=1
+      - SQLITE_ENABLE_COLUMN_METADATA=1
+      - SQLITE_ENABLE_FTS5=1
+      - SQLITE_ENABLE_JSON1=1
+      - SQLITE_DQS=0
+      - SQLITE_OMIT_LOAD_EXTENSION=1

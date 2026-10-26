@@ -38,6 +38,14 @@ The `1.0.0-rc.1` release candidate includes:
 
 Core Orbit is source-only and ORM-neutral. Importing `orbit` does not pull in
 SQLite, FFI, sessions, or a filesystem template loader.
+## Web notebook development
+
+The next application milestone is a Sputnik-rendered `.html.sv` shell with a
+Vue/Vite client. See the [active plan](docs/WEB_NOTEBOOK_PLAN.md): `orbit-vite`,
+safe bootstrap data, session/GitHub auth with project ACL, then the first
+notebook Run/reconnect slice. Packages remain local source dependencies until
+the full agreed flow is complete.
+
 
 ## Small application
 
@@ -247,9 +255,48 @@ def page(title as Str):
     """
 ```
 
-External `.amv` files are intentionally not advertised: they require the
-compiler-level source-format registry described by the design. Orbit does not
-read templates from the filesystem during macro expansion.
+Template regions can repeat at runtime with ordinary Sputnik iteration:
+
+```sputnik
+from orbit.html import html, escape
+
+def list(items):
+  html"""
+    <ul>
+    %for item with_index index in items:
+      <li data-index="#{index}">#{item.name}</li>
+    </ul>
+    """
+```
+
+The iterable evaluates once; patterns, Map key/value arguments and nested loops
+work as in `for`. Directive lines emit no newline, extra body indent is stripped,
+and an empty loop emits nothing. `%#` comments are omitted and `%%` emits `%`.
+Only `%for` is implemented. Escaping and typed trust rules apply to every
+iteration. Loops must begin and end in HTML text context: placing one inside an
+attribute, tag, comment, script or style, or leaving such a context open in its
+body, fails with `ORBIT_HTML_CONTROL_CONTEXT`.
+
+External `.html.sv` bodies are supported through the compiler source-format
+registry. Declare inputs/imports in ordinary Sputnik:
+
+```sputnik
+package app.views.posts
+export index
+
+@template("./posts/index.html.sv")
+def index(posts, title: "Posts")
+```
+
+The external file contains only template text, `#{...}` and `%for` controls.
+Register `source_formats: [{suffix: .html.sv, module: orbit.html, macro: html}]`
+in the project build manifest and include the provider modules/dependencies.
+Call `index(posts, title: "Latest")` normally. Helpers for escaping are resolved
+by the provider, so external HTML declarations need no `escape` import. Source
+errors point to `.sv`; template/provider changes invalidate compiled output.
+The executable embeds rendering code and needs no template files at runtime.
+See [`test/external_templates_selftest.s`](test/external_templates_selftest.s)
+and the [SDK contract](../sputnik-lang/docs/engineering/external-templates-v1.md).
 
 The macro tracks the output interpreter context. Text and ordinary quoted
 attributes escape automatically; URL attributes require `url(...)`, script or
@@ -259,7 +306,7 @@ inside comments, tag syntax, or unquoted attributes is a compile-time
 `ORBIT_HTML_CONTEXT` error.
 
 ```sputnik
-from orbit.html import html, url
+from orbit.html import html, escape, url
 
 def item_link(label, id):
   destination = url("/items/" + id.to_str)
@@ -301,6 +348,34 @@ key management, or CORS policy into implicit framework behavior. The
 [threat model](docs/THREAT_MODEL.md), [ASVS map](docs/ASVS_5_MAPPING.md), and
 [review record](docs/SECURITY_REVIEW.md) define the exact responsibility split.
 
+## Session companions
+
+The working [`orbit-session`](packages/orbit-session/README.md) package adds
+request-scoped sessions, controller helpers, encrypted cookie storage, and
+bounded process-local memory storage. It has no User or ORM dependency.
+[`orbit-session-orm`](packages/orbit-session-orm/README.md) adds atomic,
+model-backed persistence through the existing ORM adapters, with no dependency
+on a particular database driver. Development build graphs use local sources;
+these companions have not been published.
+
+Cookie storage avoids database writes but cannot revoke copied cookies or
+detect concurrent updates. Memory/ORM stores enforce revision checks and
+revocation; conflicting saves return 409. For browser applications, place
+`CsrfMiddleware(session_service: :session, secret: ...)` after the session
+middleware so CSRF uses the stable session ID rather than changing ciphertext.
+See the package READMEs for lifecycle, limits, schema, and local test commands.
+
+## OAuth companions
+
+[`orbit-oauth`](packages/orbit-oauth/README.md) implements Authorization Code
+with PKCE S256, refresh tokens, Client Credentials, bounded browser state, and
+controller helpers. [`orbit-oauth-github`](packages/orbit-oauth-github/README.md)
+adds GitHub endpoints, authenticated profiles, and verified primary email.
+The controller receives an explicit `Result`; account lookup, session rotation,
+and optional User persistence remain application decisions. Neither package
+depends on ORM or a session store. Development graphs resolve local sources;
+these packages have not been published.
+
 ## ORM integration
 
 Models bind to one shareable pool during startup. Installing
@@ -332,6 +407,10 @@ Custom lifecycle-aware controller integrations subclass `orbit.Integration`;
 its default `start`, `attach_server`, `ready?`, and `stop` methods are safe no-ops.
 
 See `examples/sqlite_users.s` and `test/orm_selftest.s` for complete graphs.
+The ORM test/example/soak graphs load the sibling `../orm` and `../sqlite3`
+working directories directly, including native SQLite sources. During web
+notebook development, rebuild against these local sources; package release
+locks and published archives are not updated by these graphs.
 
 ## Production transport lifecycle
 
@@ -415,7 +494,7 @@ uploaded-file storage/scanning, or complete application security; those remain
 explicit edge or application layers, not hidden behavior.
 
 The unsupported 1.0 surface also includes WebSocket, hot reload,
-generators/resources, `.amv`, an asset pipeline, and dynamically replaceable
+generators/resources, an asset pipeline, and dynamically replaceable
 route snapshots. The complete supported/unsupported boundary is in the
 [versioned API reference](docs/API_REFERENCE.md).
 

@@ -6,6 +6,13 @@ All notable changes are recorded here. Orbit follows
 
 ## [Unreleased]
 
+- Added local-source `orbit-session`, `orbit-session-orm`, `orbit-oauth` and
+  `orbit-oauth-github` companions with storage/User-neutral controller APIs.
+- Added runtime HTML template loops, external `.html.sv` support via the SDK
+  source-format registry, and explicit runtime helper references immune to
+  caller-name shadowing. The web notebook plan now prioritizes Vue/Vite assets,
+  a safe bootstrap and an authenticated SSR shell.
+
 - Added `stream(length: N)`/`StreamingResponse(length: N)` with fixed-length
   response streaming in VM/native `net.http`, exact byte enforcement,
   known-length HEAD metadata, and preservation through middleware/telemetry.

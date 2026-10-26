@@ -1,0 +1,12 @@
+[package]
+name = "orbit-session-orm"
+version = "0.1.0-dev"
+root = "orbit.session.orm"
+
+[[modules]]
+name = "orbit.session.orm"
+path = "src/orbit/session/orm.s"
+
+[dependencies]
+orbit-session = "0.1.0-dev"
+orm = "0.1.0"

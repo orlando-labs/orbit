@@ -567,12 +567,16 @@ class CsrfMiddleware:
   def init(
     secret:,
     session_cookie: "orbit-session",
+    session_service: null,
     token_cookie: "orbit-csrf",
     header: "x-csrf-token",
     cookie_limits: CookieLimits()
   ):
     @protection = CsrfProtection(secret)
     @session_cookie = session_cookie
+    @session_service = session_service
+    unless @session_service == null or Str === @session_service or Symbol === @session_service:
+      raise ArgumentError("session_service must be a request service name")
     @token_cookie = token_cookie
     @header = header.downcase
     @cookie_limits = cookie_limits
@@ -583,11 +587,17 @@ class CsrfMiddleware:
     rescue CookieError:
       null
 
+  def _session_id(request, jar, create: true):
+    return jar.get(@session_cookie) or "anonymous" unless @session_service
+    current = request.service(@session_service)
+    return "anonymous" if not create and current.new?
+    current.id or "anonymous"
+
   def call(request, next):
     jar = _parse_cookies(request)
     return orbit.render(text: "bad request", status: :bad_request) unless jar
-    session_id = jar.get(@session_cookie) or "anonymous"
     safe = ["GET", "HEAD", "OPTIONS"].include?(request.method)
+    session_id = _session_id(request, jar, create: safe)
     unless safe:
       fetch_site = request.header("sec-fetch-site")
       return orbit.render(text: "forbidden", status: :forbidden) if fetch_site and fetch_site.downcase == "cross-site"
@@ -598,8 +608,9 @@ class CsrfMiddleware:
       valid = cookie_token and header_token and _constant_text_equal(cookie_token, header_token)
       valid = valid and @protection.valid?(header_token, session_id)
       return orbit.render(text: "forbidden", status: :forbidden) unless valid
-      return next(request)
+      return next(request) unless @session_service
     response = orbit.normalize_response(next(request))
+    session_id = _session_id(request, jar) if @session_service
     existing = jar.get(@token_cookie)
     return response if existing and @protection.valid?(existing, session_id)
     token = @protection.token(session_id)

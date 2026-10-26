@@ -91,5 +91,5 @@ longer a supported log schema.
 Run the one-command clean build, CI suites, compile-fail HTML fixtures,
 integration test, proxy smoke, and migration/rollback rehearsal. Review the
 unsupported list in [API_REFERENCE.md](API_REFERENCE.md); preview-only direct
-TLS, HTTP/2/3, WebSocket, `.amv`, generators/resources, asset pipeline, hot
+TLS, HTTP/2/3, WebSocket, generators/resources, asset pipeline, hot
 reload, and dynamic route replacement must not be assumed by the application.

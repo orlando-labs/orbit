@@ -1,0 +1,11 @@
+[package]
+name = "orbit-oauth-github"
+version = "0.1.0-dev"
+root = "orbit.oauth.github"
+
+[[modules]]
+name = "orbit.oauth.github"
+path = "src/orbit/oauth/github.s"
+
+[dependencies]
+orbit-oauth = "0.1.0-dev"

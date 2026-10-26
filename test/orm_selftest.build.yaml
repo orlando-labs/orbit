@@ -9,17 +9,17 @@ profiles:
 
 modules:
   - name: sqlite3
-    path: ../.build/dependencies/sqlite3/src/sqlite3.s
+    path: ../../sqlite3/src/sqlite3.s
   - name: orm
-    path: ../.build/dependencies/orm/src/orm.s
+    path: ../../orm/src/orm.s
   - name: orm.pool
-    path: ../.build/dependencies/orm/src/orm/pool.s
-  - name: orm.sqlite3.adapter
-    path: ../.build/dependencies/orm/src/orm/sqlite3/adapter.s
-  - name: orm.sqlite3.pool
-    path: ../.build/dependencies/orm/src/orm/sqlite3/pool.s
+    path: ../../orm/src/orm/pool.s
+  - name: orm.sqlite3._adapter
+    path: ../../orm/src/orm/sqlite3/adapter.s
+  - name: orm.sqlite3._pool
+    path: ../../orm/src/orm/sqlite3/pool.s
   - name: orm.sqlite3
-    path: ../.build/dependencies/orm/src/orm/sqlite3.s
+    path: ../../orm/src/orm/sqlite3.s
   - name: orbit
     path: ../src/orbit.s
   - name: orbit.testing
@@ -33,10 +33,10 @@ native_extensions:
   - name: sqlite3
     language: c
     sources:
-      - ../.build/dependencies/sqlite3/native/sqlite3_ext.c
-      - ../.build/dependencies/sqlite3/native/sqlite3.c
+      - ../../sqlite3/native/sqlite3_ext.c
+      - ../../sqlite3/native/sqlite3.c
     headers:
-      - ../.build/dependencies/sqlite3/native/sqlite3.h
+      - ../../sqlite3/native/sqlite3.h
     defines:
       - SQLITE_THREADSAFE=1
       - SQLITE_ENABLE_COLUMN_METADATA=1
