@@ -332,7 +332,7 @@ class Headers:
     result.freeze
 
   def each(&block):
-    unless block:
+    unless &block:
       raise ArgumentError("Headers#each requires a block")
     @pairs.each |pair|:
       block(pair[0], pair[1])
@@ -512,20 +512,20 @@ class StreamingResponse:
   attr on_complete
 
   def init(status: 200, headers: {}, trailers: [], length: null, on_complete: null, &producer):
-    unless producer:
+    unless &producer:
       raise ArgumentError("streaming response requires a producer block")
     if length != null and (not (Int === length) or length < 0):
       raise ArgumentError("length must be a nonnegative Int or null")
     if length != null and not trailers.empty?:
       raise InvalidHeaderError("fixed-length response does not permit trailers")
     @length = length
-    @on_complete = on_complete
+    @on_complete = &on_complete
     @status = status_code(status)
     @headers = _headers(headers)
     if @headers._content_length() != null or @headers._transfer_encoding?() or @headers._trailer?():
       raise InvalidHeaderError("streaming response owns Content-Length, Transfer-Encoding, and Trailer")
     @trailers = trailers.copy.freeze
-    @producer = producer
+    @producer = &producer
 
   def header(name):
     @headers.first(name)
@@ -572,7 +572,7 @@ def stream(status: :ok, headers: {}, trailers: [], length: null, on_complete: nu
     status: status,
     headers: headers,
     length: length,
-    on_complete: on_complete,
+    on_complete: &on_complete,
     trailers: trailers) |body|:
       producer(body)
 
@@ -1148,7 +1148,7 @@ class RequestBodyStream:
     RequestChunk(data: data)
 
   def each_chunk(max_bytes: null, &block):
-    unless block:
+    unless &block:
       raise ArgumentError("RequestBodyStream#each_chunk requires a block")
     while chunk = read_chunk(max_bytes: max_bytes):
       block(chunk)
@@ -2253,9 +2253,9 @@ class BeforeEndpoint:
     @block(request)
 
 def __before(middleware, request, &block):
-  unless block:
+  unless &block:
     raise ArgumentError("orbit.__before requires a handler block")
-  MiddlewareNext(_middleware_list(middleware), 0, BeforeEndpoint(block))(request)
+  MiddlewareNext(_middleware_list(middleware), 0, BeforeEndpoint((&block)))(request)
 
 class RouteEndpoint:
   def init(@match, @integrations)
@@ -2883,7 +2883,7 @@ class Controller:
 
   def stream(status: null, headers: {}, trailers: [], length: null, on_complete: null, &producer):
     _ensure_renderable!
-    unless producer:
+    unless &producer:
       raise ArgumentError("Controller#stream requires a producer block")
     chosen_status = if status == null then @response_status else status
     merged_headers = @response_headers.merge(headers)
@@ -2891,7 +2891,7 @@ class Controller:
       status: chosen_status,
       headers: merged_headers,
       length: length,
-      on_complete: on_complete,
+      on_complete: &on_complete,
       trailers: trailers) |body|:
         producer(body)
     @committed = true
