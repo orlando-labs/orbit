@@ -1768,10 +1768,10 @@ class Target:
   def init(@kind, @owner, @callable, @label)
 
   class_method def function(callable, label: "function"):
-    Target(:function, null, callable, label)
+    Target(:function, null, (&callable), label)
 
   class_method def controller(owner, callable, label: "controller"):
-    Target(:controller, owner, callable, label)
+    Target(:controller, owner, (&callable), label)
 
   def controller?():
     @kind == :controller
@@ -1864,7 +1864,7 @@ class Route:
     @pattern = pattern
     @target = target
     @name = name
-    @middleware = _middleware_list(before).freeze
+    @middleware = _middleware_list((&before)).freeze
     @param_types = params.copy.freeze
     @segments = _compile_pattern(pattern).freeze
     @shape = _shape(@segments)
@@ -1884,7 +1884,7 @@ class Route:
     Route(@method, _join_paths(prefix, @pattern), @target,
       name: @name,
       params: @param_types,
-      before: _middleware_list(before) + @middleware)
+      before: _middleware_list((&before)) + @middleware)
 
   def candidate(path_segments):
     raw_params = {}
@@ -1961,7 +1961,7 @@ class RouteGroup:
 
   def init(@prefix, entries, middleware):
     @entries = entries.copy.freeze
-    @middleware = _middleware_list(middleware).freeze
+    @middleware = _middleware_list((&middleware)).freeze
 
 class RouteMount:
   attr routes
@@ -1969,7 +1969,7 @@ class RouteMount:
   attr middleware
 
   def init(@routes, @prefix, middleware):
-    @middleware = _middleware_list(middleware).freeze
+    @middleware = _middleware_list((&middleware)).freeze
 
 class Routes:
   attr routes
@@ -2083,9 +2083,9 @@ class Routes:
     .join("\n")
 
 def _middleware_list(value):
-  return [] if value == null
-  return value.copy if Array === value
-  [value]
+  return [] if &value == null
+  return value.copy if Array === &value
+  [(&value)]
 
 def _join_paths(prefix, path):
   return path if prefix == null or prefix == "" or prefix == "/"
@@ -2255,7 +2255,7 @@ class BeforeEndpoint:
 def __before(middleware, request, &block):
   unless &block:
     raise ArgumentError("orbit.__before requires a handler block")
-  MiddlewareNext(_middleware_list(middleware), 0, BeforeEndpoint((&block)))(request)
+  MiddlewareNext(_middleware_list((&middleware)), 0, BeforeEndpoint((&block)))(request)
 
 class RouteEndpoint:
   def init(@match, @integrations)
@@ -2315,7 +2315,7 @@ def _propagated_error?(error):
   false
 
 def _report_error(hook, error, request, route_pattern):
-  return null unless hook
+  return null unless &hook
   try:
     hook(ErrorEvent(error, request, route_pattern: route_pattern))
   rescue Exception |hook_error|:
@@ -2643,7 +2643,7 @@ class App:
     telemetry: null
   ):
     @routes = routes
-    @middleware = _middleware_list(middleware).freeze
+    @middleware = _middleware_list((&middleware)).freeze
     @integrations = integrations.copy.freeze
     @services = services.copy.freeze
     @security = security or SecurityPolicy()
@@ -2652,7 +2652,7 @@ class App:
     @head_fallback = head_fallback
     @automatic_options = automatic_options
     @expose_exceptions = expose_exceptions
-    @on_error = on_error
+    @on_error = &on_error
     @telemetry = telemetry
     @dispatch_endpoint = DispatchEndpoint(
       @routes,
@@ -2926,10 +2926,10 @@ def __route(method, pattern, target, name: null, params: {}, before: []):
   Route(method, pattern, target, name: name, params: params, before: before)
 
 def __scope(prefix, entries, before: []):
-  RouteGroup(prefix, entries, _middleware_list(before))
+  RouteGroup(prefix, entries, _middleware_list((&before)))
 
 def __mount(routes, at: "/", before: []):
-  RouteMount(routes, at, _middleware_list(before))
+  RouteMount(routes, at, _middleware_list((&before)))
 
 macro def params(root as Ast: null, unknown as Ast: null, &blk) -> Ast:
   unless blk:
