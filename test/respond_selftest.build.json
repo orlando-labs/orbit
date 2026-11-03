@@ -1,0 +1,4 @@
+{
+  "entry": "respond_selftest.s",
+  "dependencies": {"orbit": {"path": ".."}}
+}

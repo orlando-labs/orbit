@@ -5,6 +5,7 @@ from orbit import Html
 export escape, escape_text, escape_attribute, raw, join
 export url, trusted_script, trusted_style
 export HtmlUrl, TrustedScript, TrustedStyle
+export json_script
 export _url_attribute, _script_body, _style_body
 export _script_attribute, _style_attribute, _srcdoc_attribute
 export macro html
@@ -32,6 +33,19 @@ def raw(value):
 
 def join(parts):
   Html.join(parts)
+
+# Non-executable JSON island. Escaping '<' prevents the HTML parser from
+# interpreting script end tags, comments, or nested script-like strings.
+def json_script(data, id:, nonce: null):
+  unless Str === id and id.present? and id.bytesize <= 256:
+    raise ArgumentError("JSON script id must be a nonempty bounded string")
+  unless nonce == null or (Str === nonce and nonce.present? and nonce.bytesize <= 256):
+    raise ArgumentError("JSON script nonce must be a nonempty bounded string")
+  encoded = Json.generate(data).replace("&", "\\u0026").replace("<", "\\u003c").replace(">", "\\u003e")
+  encoded = encoded.replace("\u{2028}", "\\u2028").replace("\u{2029}", "\\u2029")
+  attributes = " id=\"" + escape_attribute(id).to_str + "\""
+  attributes += " nonce=\"" + escape_attribute(nonce).to_str + "\"" if nonce
+  Html.raw("<script type=\"application/json\"" + attributes + ">" + encoded + "</script>")
 
 class HtmlUrl:
   def init(value):

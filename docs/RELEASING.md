@@ -5,7 +5,7 @@ built from an annotated SemVer tag and never from an uncommitted worktree.
 
 ## Candidate checklist
 
-- [ ] `VERSION`, both `sputnik.toml` files, lock files, public API manifest,
+- [ ] `VERSION`, package `sputnik.build.yaml` files, lock files, public API manifest,
       changelog, migration notes, compatibility matrix, and evidence version
       agree.
 - [ ] Dependency revisions and trees are immutable and available to the clean

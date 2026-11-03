@@ -3,6 +3,8 @@ package orbit.stage3_selftest
 import orbit
 import orbit.multipart
 import orbit.testing
+import orbit.security_policy_selftest as security_checks
+import orbit.respond_selftest as respond_checks
 from orbit.html import escape, html, join, raw, trusted_script, trusted_style, url
 from orbit.middleware import RequestIdMiddleware
 from orbit.security import Aead, CookieError, CookieJar, CookieLimits
@@ -334,6 +336,8 @@ def html_checks():
 
 def main():
   security_policy_checks()
+  security_checks.main()
+  respond_checks.main()
   request_id_checks()
   crypto_and_cookie_checks()
   cors_and_csrf_checks()

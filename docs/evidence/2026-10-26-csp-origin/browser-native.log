@@ -1,0 +1,15 @@
+
+> orbit-vue-shell@0.1.0 test:browser
+> playwright test
+
+[WebServer] (node:41426) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 2 tests using 1 worker
+
+(node:41429) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 test/session.spec.ts:3:1 › GitHub flow, Vue account, reload, refresh and logout (797ms)
+  ✓  2 test/session.spec.ts:73:1 › CSRF, invalid callback, denied login and missing assets (337ms)
+
+  2 passed (2.8s)

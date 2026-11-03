@@ -1,0 +1,29 @@
+{
+  "schema": "sputnik.build.v1",
+  "name": "orbit.assets_selftest",
+  "root": "orbit.assets_selftest",
+  "profiles": {
+    "required": [
+      "core.v1",
+      "macro.v1"
+    ]
+  },
+  "modules": [
+    {
+      "name": "orbit",
+      "path": "../src/orbit.s"
+    },
+    {
+      "name": "orbit.assets",
+      "path": "../src/orbit/assets.s"
+    },
+    {
+      "name": "orbit.testing",
+      "path": "../src/orbit/testing.s"
+    },
+    {
+      "name": "orbit.assets_selftest",
+      "path": "assets_selftest.s"
+    }
+  ]
+}

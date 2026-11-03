@@ -1,0 +1,9 @@
+schema: "sputnik.build.v1"
+name: "orbit-orm"
+version: "1.0.0-rc.1"
+source_root: "src"
+files:
+  - "src/orbit/integrations/orm.s"
+dependencies:
+  orm: "0.1.0"
+  orbit: "1.0.0-rc.1"

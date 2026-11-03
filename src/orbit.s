@@ -8,6 +8,7 @@ import task
 # controller lifecycle, and HTTP adapter do not depend on an ORM or an FFI
 # package.
 
+export macro respond
 export macro routes
 export macro params
 export macro field
@@ -27,7 +28,8 @@ export __route, __scope, __mount, __before
 export App, ServerHandle, Routes, Route, RouteMatch, RouteLookup, Request, Response, Headers
 export RequestBodyStream, RequestChunk, StreamingResponse, StreamBody
 export Controller, Target, Integration, Html, ErrorEvent
-export SecurityPolicy
+export Origin, ContentSecurityPolicy, SecurityPolicy
+export Format, InvalidAcceptError
 export ParamSchema, ParamField, ParamObject, ParamArray, ParamIssue
 export RequestParams, RequestParamSource
 export render, redirect, stream, normalize_response, status_code
@@ -42,7 +44,7 @@ export UnknownStatusError, UnknownServiceError, UnsafeRedirectError
 export RequestParamsError, ParamsParseError, ParamsShapeError
 export ParamsUnsupportedMediaTypeError, ParamsBodyConsumedError
 export RequestSecurityError, InvalidAuthorityError, UnauthorizedHostError
-export InvalidForwardedRequestError
+export InvalidForwardedRequestError, UnauthorizedOriginError
 
 class OrbitError < Exception:
   attr message
@@ -73,7 +75,10 @@ class RequestParamsError < OrbitError
 class RequestSecurityError < OrbitError
 class InvalidAuthorityError < RequestSecurityError
 class UnauthorizedHostError < RequestSecurityError
+class UnauthorizedOriginError < RequestSecurityError
 class InvalidForwardedRequestError < RequestSecurityError
+
+class InvalidAcceptError < RequestParamsError
 
 class ParamsParseError < RequestParamsError
 
@@ -105,6 +110,7 @@ def _status_codes():
     forbidden: 403,
     not_found: 404,
     method_not_allowed: 405,
+    not_acceptable: 406,
     gone: 410,
     unsupported_media_type: 415,
     unprocessable_entity: 422,
@@ -750,6 +756,240 @@ def _redirect_response(to, status: :temporary_redirect, headers: {}, external: f
 def redirect(to, status: :temporary_redirect, headers: {}, external: false):
   _redirect_response(to, status: status, headers: headers, external: external)
 
+# Quoted separators belong to parameter values, not the surrounding MIME list.
+def _media_fields(value, separator):
+  fields = []
+  field = ""
+  quoted = false
+  escaped = false
+  value.chars.each |char|:
+    if escaped:
+      escaped = false
+    elif quoted and char == "\\":
+      escaped = true
+    elif char == "\"":
+      quoted = not quoted
+    elif not quoted and char == separator:
+      fields.push!(field.trim)
+      field = ""
+      next
+    field += char
+  raise ArgumentError("unterminated MIME parameter") if quoted or escaped
+  fields.push!(field.trim)
+  fields
+
+def _media_parameter(value):
+  return value if not value.empty? and _valid_header_name?(value.downcase)
+  unless value.length >= 2 and value.starts_with?("\"") and value.ends_with?("\""):
+    raise ArgumentError("invalid MIME parameter value")
+  return "" if value.length == 2
+  result = ""
+  escaped = false
+  value.slice(1...value.length - 1).chars.each |char|:
+    if escaped:
+      result += char
+      escaped = false
+    elif char == "\\":
+      escaped = true
+    elif char == "\"":
+      raise ArgumentError("invalid quoted MIME parameter")
+    else:
+      result += char
+  raise ArgumentError("incomplete MIME escape") if escaped
+  result
+
+def _media_quality(value):
+  return 1000 if value == "1"
+  return 0 if value == "0"
+  unless value.starts_with?("0.") or value.starts_with?("1."):
+    raise ArgumentError("invalid Accept quality")
+  fraction = if value.length == 2 then "" else value.slice(2...value.length)
+  unless fraction.length <= 3 and (fraction.empty? or fraction.contains_only?("0123456789")):
+    raise ArgumentError("Accept quality requires at most three decimal digits")
+  if value.starts_with?("1."):
+    raise ArgumentError("Accept quality exceeds one") unless fraction.empty? or fraction.contains_only?("0")
+    return 1000
+  while fraction.length < 3:
+    fraction += "0"
+  _decimal_header_value(fraction)
+
+def _parse_media(value, accept: false):
+  unless Str === value and value.bytesize > 0 and value.bytesize <= 8192:
+    raise ArgumentError("MIME value must be a nonempty bounded string")
+  bytes = value.bytes
+  index = 0
+  while index < bytes.count:
+    byte = bytes[index]
+    raise ArgumentError("invalid control character in MIME value") if (byte < 32 and byte != 9) or byte == 127
+    index += 1
+  fields = _media_fields(value, ";")
+  parts = fields[0].downcase.split("/")
+  unless parts.count == 2 and not parts[0].empty? and not parts[1].empty? and _valid_header_name?(parts[0]) and _valid_header_name?(parts[1]):
+    raise ArgumentError("MIME type must contain type/subtype")
+  type = parts[0]
+  subtype = parts[1]
+  if type.contains?("*") or subtype.contains?("*"):
+    unless accept and ((type == "*" and subtype == "*") or (not type.contains?("*") and subtype == "*")):
+      raise ArgumentError("invalid MIME wildcard")
+  params = {}
+  seen = {}
+  weight = 1000
+  weighted = false
+  fields.each_with_index |field, index|:
+    next if index == 0
+    raise ArgumentError("MIME parameter requires a value") unless field.contains?("=")
+    raw_name = field.split("=")[0]
+    name = raw_name.trim.downcase
+    raise ArgumentError("invalid MIME parameter name") unless _valid_header_name?(name)
+    raise ArgumentError("duplicate MIME parameter") if seen.has_key?(name)
+    seen[name] = true
+    offset = raw_name.length + 1
+    raw = if offset == field.length then "" else field.slice(offset...field.length).trim
+    if name == "q":
+      raise ArgumentError("q is reserved for Accept quality") unless accept
+      weight = _media_quality(raw)
+      weighted = true
+    else:
+      parameter = _media_parameter(raw)
+      parameter = parameter.downcase if name == "charset"
+      params[name] = parameter unless weighted
+  return (type, subtype, params.freeze, weight)
+
+class Format:
+  attr mime
+  attr type
+  attr subtype
+  attr params
+  attr encoder
+  attr identity
+
+  def init(value, encode: null):
+    if Format === value:
+      @mime = value.mime
+      @type = value.type
+      @subtype = value.subtype
+      @params = value.params
+      @encoder = if encode == null then value.encoder else encode
+    else:
+      parsed = _parse_media(value)
+      @type = parsed[0]
+      @subtype = parsed[1]
+      @params = parsed[2]
+      @mime = @type + "/" + @subtype
+      @params.each |name, parameter|:
+        escaped = parameter.replace("\\", "\\\\").replace("\"", "\\\"")
+        encoded = if not parameter.empty? and _valid_header_name?(parameter.downcase) then parameter else "\"" + escaped + "\""
+        @mime += "; " + name + "=" + encoded
+      @encoder = if encode == null then :body else encode
+    unless [:body, :html, :json, :text].include?(@encoder):
+      raise ArgumentError("unknown representation encoder")
+    pairs = @params.keys.sorted.map |name|: [name, @params[name]]
+    @identity = @type + "/" + @subtype + Json.generate(pairs)
+
+  def _quality(ranges):
+    specificity = -1
+    parameters = -1
+    quality = 0
+    ranges.each |range|:
+      next unless (range[0] == "*" or range[0] == @type) and (range[1] == "*" or range[1] == @subtype)
+      matches = range[2].keys.all? |name|: @params[?name] == range[2][name]
+      next unless matches
+      score = if range[0] == "*" then 0 else (if range[1] == "*" then 1 else 2)
+      count = range[2].count
+      if score > specificity or (score == specificity and count > parameters):
+        specificity = score
+        parameters = count
+        quality = range[3]
+    quality
+
+  def _response(value, status: :ok):
+    if Response === value or StreamingResponse === value:
+      existing = value.header("content-type")
+      if existing:
+        actual = _parse_media(existing)
+        matches = @params.keys.all? |name|: actual[2][?name] == @params[name]
+        unless actual[0] == @type and actual[1] == @subtype and matches:
+          raise InvalidResponseError("response Content-Type does not match the selected format")
+        return value
+      code = response_status(value)
+      return value if code == 204 or code == 205 or code == 304
+      return value if Response === value and code >= 300 and code < 400 and value.body == ""
+      return with_response_header(value, "content-type", @mime)
+    body = case @encoder:
+      when (:html):
+        raise InvalidResponseError("html representation expects orbit.Html") unless Html === value
+        value
+      when (:json): Json.generate(value)
+      when (:text):
+        raise InvalidResponseError("text representation expects Str") unless Str === value
+        value
+      else:
+        unless Str === value or Bytes === value:
+          raise InvalidResponseError("raw representation expects Str, Bytes or an Orbit response")
+        value
+    Response(status: status, headers: {"content-type": @mime}, body: body)
+
+def _standard_format(name):
+  case name:
+    when (:html): Format("text/html; charset=utf-8", encode: :html)
+    when (:json): Format("application/json; charset=utf-8", encode: :json)
+    when (:text): Format("text/plain; charset=utf-8", encode: :text)
+    else: raise ArgumentError("unknown standard format")
+
+def _negotiate(request, formats, default):
+  raise ArgumentError("respond requires between 1 and 64 formats") if formats.empty? or formats.count > 64
+  identities = {}
+  formats.each |format|:
+    raise ArgumentError("expected orbit.Format") unless Format === format
+    raise ArgumentError("duplicate response MIME format") if identities.has_key?(format.identity)
+    identities[format.identity] = true
+  preferred = null
+  if default != null:
+    fallback = if Symbol === default then _standard_format(default) else Format(default)
+    preferred = formats.find |format|:
+      if Format === default:
+        format.identity == fallback.identity
+      else:
+        params = if Symbol === default then {} else fallback.params
+        matches = params.keys.all? |name|: format.params[?name] == params[name]
+        format.type == fallback.type and format.subtype == fallback.subtype and matches
+    raise ArgumentError("default format is not offered") unless preferred
+  fields = request.headers.all("accept")
+  raw = fields.join(",")
+  ranges = []
+  if fields.empty?:
+    ranges.push!(("*", "*", {}, 1000))
+  else:
+    try:
+      raise ArgumentError("Accept exceeds 8192 bytes") if raw.bytesize > 8192
+      entries = _media_fields(raw, ",")
+      raise ArgumentError("Accept exceeds 128 ranges") if entries.count > 128
+      entries.each |entry|:
+        ranges.push!(_parse_media(entry, accept: true)) unless entry.empty?
+    rescue ArgumentError |error|:
+      raise InvalidAcceptError(error.message)
+  best = null
+  quality = 0
+  formats.each |format|:
+    weight = format._quality(ranges)
+    if weight > quality or (weight > 0 and weight == quality and format == preferred):
+      best = format
+      quality = weight
+  best
+
+def _vary_accept(headers):
+  values = []
+  names = []
+  headers.all("vary").each |field|:
+    field.split(",").each |part|:
+      name = part.trim
+      return headers.set("vary", "*") if name == "*"
+      unless name.empty? or names.include?(name.downcase):
+        values.push!(name)
+        names.push!(name.downcase)
+  values.push!("Accept") unless names.include?("accept")
+  headers.set("vary", values.join(", "))
+
 class ParamIssue:
   attr path
   attr code
@@ -1245,11 +1485,11 @@ def _parse_authority(raw):
     unless close and close > 1:
       raise InvalidAuthorityError("malformed bracketed IPv6 authority")
     host = authority.slice(1...close)
-    suffix = authority.slice(close + 1...authority.length)
+    suffix = if close + 1 < authority.length then authority.slice(close + 1...authority.length) else ""
     if suffix != "":
       unless suffix.starts_with?(":"):
         raise InvalidAuthorityError("malformed bracketed IPv6 port")
-      port_text = suffix.slice(1...suffix.length)
+      port_text = if suffix == ":" then "" else suffix.slice(1...suffix.length)
     unless _valid_ipv6_literal?(host):
       raise InvalidAuthorityError("invalid IPv6 host literal")
   else:
@@ -1257,8 +1497,9 @@ def _parse_authority(raw):
     if colon:
       if authority.index(":") != colon:
         raise InvalidAuthorityError("IPv6 Host literals must be bracketed")
+      raise InvalidAuthorityError("Host authority must contain a host") if colon == 0
       host = authority.slice(0...colon)
-      port_text = authority.slice(colon + 1...authority.length)
+      port_text = if colon + 1 < authority.length then authority.slice(colon + 1...authority.length) else ""
     unless _valid_hostname?(host):
       raise InvalidAuthorityError("invalid host name")
 
@@ -1370,16 +1611,128 @@ def _forwarded_single(headers, name):
     raise InvalidForwardedRequestError(name + " must contain one value")
   value
 
+class Origin:
+  attr scheme
+  attr host
+  attr port
+  attr authority
+
+  def init(value):
+    unless Str === value and value.present? and value.bytesize <= 2048:
+      raise ArgumentError("origin must be a bounded HTTP(S) origin")
+    separator = value.index("://")
+    raise ArgumentError("origin must use HTTP or HTTPS") unless separator and separator > 0
+    @scheme = value.slice(0...separator).downcase
+    raise ArgumentError("origin must use HTTP or HTTPS") unless ["http", "https"].include?(@scheme)
+    raise ArgumentError("origin must contain an authority") unless value.length > separator + 3
+    raw = value.slice(separator + 3...value.length)
+    if raw.ends_with?("/"):
+      raw = if raw == "/" then "" else raw.slice(0...raw.length - 1)
+    parsed = try:
+      _parse_authority(raw)
+    rescue InvalidAuthorityError |error|:
+      raise ArgumentError("invalid origin: " + error.message)
+    @host = parsed[1]
+    if @host.contains_only?("0123456789.") and _parse_ipv4(@host) == null:
+      raise ArgumentError("origin IPv4 addresses must use four canonical decimal octets")
+    @port = if @scheme == "https" then 443 else 80
+    host_text = if @host.contains?(":") then "[" + @host + "]" else @host
+    suffix = if parsed[0].length > host_text.length then parsed[0].slice(host_text.length...parsed[0].length) else ""
+    @port = suffix.slice(1...suffix.length).to_int if suffix.present?
+    default_port = if @scheme == "https" then 443 else 80
+    @authority = host_text + (if @port == default_port then "" else ":" + @port.to_str)
+    @value = @scheme + "://" + @authority
+
+  def secure?(): @scheme == "https"
+  def websocket(): (if secure? then "wss://" else "ws://") + @authority
+  def to_str(): @value
+  def str(): @value
+
+def _csp_keyword(value):
+  keywords = {
+    self: "'self'", none: "'none'", unsafe_inline: "'unsafe-inline'",
+    unsafe_eval: "'unsafe-eval'", strict_dynamic: "'strict-dynamic'",
+    unsafe_hashes: "'unsafe-hashes'", report_sample: "'report-sample'",
+    wasm_unsafe_eval: "'wasm-unsafe-eval'", data: "data:", blob: "blob:"
+  }
+  result = keywords[?value]
+  raise ArgumentError("unsupported CSP source keyword: " + value.to_str) unless result
+  result
+
+def _csp_source(value):
+  case value:
+    when Symbol: return _csp_keyword(value)
+    when Str:
+      raise ArgumentError("CSP sources must be bounded strings") unless value.present? and value.bytesize <= 2048
+    else: raise ArgumentError("CSP sources must be symbols or origin strings")
+  # Serialized keywords are accepted so an immutable policy can be extended.
+  if ["'self'", "'none'", "'unsafe-inline'", "'unsafe-eval'", "'strict-dynamic'", "'unsafe-hashes'", "'report-sample'", "'wasm-unsafe-eval'", "data:", "blob:", "*"].include?(value):
+    return value
+  socket = value.starts_with?("ws://") or value.starts_with?("wss://")
+  origin = Origin(if socket then "http" + value.slice(2...value.length) else value)
+  if origin.host.contains?(":"):
+    raise ArgumentError("CSP host sources require a hostname or IPv4 address")
+  if socket then origin.websocket else origin.to_str
+
+def _csp_sources(values):
+  unless Array === values and values.count <= 128:
+    raise ArgumentError("CSP directive sources must be arrays of at most 128 values")
+  sources = values.map: _csp_source(_1)
+  sources = sources.uniq
+  sources = ["'none'"] if sources.empty?
+  if sources.include?("'none'") and sources.count != 1:
+    raise ArgumentError("CSP 'none' cannot be combined with other sources")
+  sources.freeze
+
+def _csp_directive(name):
+  unless Symbol === name:
+    raise ArgumentError("CSP directives must use keyword names")
+  supported = [:default_src, :script_src, :script_src_elem, :script_src_attr,
+    :style_src, :style_src_elem, :style_src_attr, :connect_src, :img_src,
+    :font_src, :media_src, :object_src, :frame_src, :child_src, :worker_src,
+    :manifest_src, :base_uri, :frame_ancestors, :form_action]
+  raise ArgumentError("unsupported CSP directive: " + name.to_str) unless supported.include?(name)
+  name
+
+class ContentSecurityPolicy:
+  def init(**directives):
+    sources = {
+      default_src: [:self], object_src: [:none], base_uri: [:none],
+      frame_ancestors: [:none]
+    }
+    directives.each |name, values|:
+      sources[_csp_directive(name)] = values
+    @directives = sources.transformed |name, values|: (name, _csp_sources(values))
+    @directives.freeze
+    parts = @directives.map |name, values|: name.to_str.replace("_", "-") + " " + values.join(" ")
+    @value = parts.join("; ")
+    raise ArgumentError("CSP header exceeds 16 KiB") if @value.bytesize > 16384
+
+  # Replace named source lists, preserving the other directives and this value.
+  def with(**directives):
+    sources = @directives.copy
+    directives.each |name, values|:
+      sources[_csp_directive(name)] = values
+    ContentSecurityPolicy(**sources)
+
+  def to_str(): @value
+  def str(): @value
+
 class SecurityPolicy:
+  attr origin
+
   def init(
-    allowed_hosts: ["localhost", "127.0.0.1", "::1"],
+    origin: null,
+    allowed_hosts: null,
     trusted_proxy_cidrs: [],
     forwarded: :none,
     forwarded_hops: 0,
     security_headers: true,
-    content_security_policy: "default-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'",
+    content_security_policy: ContentSecurityPolicy(),
     hsts: false
   ):
+    @origin = if origin == null or Origin === origin then origin else Origin(origin)
+    allowed_hosts = (if @origin then [@origin.host] else ["localhost", "127.0.0.1", "::1"]) if allowed_hosts == null
     unless Array === allowed_hosts and allowed_hosts.present?:
       raise ArgumentError("allowed_hosts must be a non-empty Array")
     @allowed_hosts = allowed_hosts.map |entry|:
@@ -1400,8 +1753,9 @@ class SecurityPolicy:
     @forwarded_hops = forwarded_hops
     unless Bool === security_headers and Bool === hsts:
       raise ArgumentError("security_headers and hsts must be Bool")
+    content_security_policy = content_security_policy.to_str if ContentSecurityPolicy === content_security_policy
     unless content_security_policy == null or (Str === content_security_policy and content_security_policy.present?() and not content_security_policy.contains?("\r") and not content_security_policy.contains?("\n")):
-      raise ArgumentError("content_security_policy must be null or a non-empty header-safe string")
+      raise ArgumentError("content_security_policy must be ContentSecurityPolicy, null or a non-empty header-safe string")
     @security_headers = security_headers
     @content_security_policy = content_security_policy
     @hsts = hsts
@@ -1487,7 +1841,15 @@ class SecurityPolicy:
             raise InvalidForwardedRequestError("x-forwarded-for contains an untrusted intermediate proxy")
           index += 1
         client_ip = chain[0]
-    request._with_provenance(scheme, authority, client_ip, peer_trusted)
+    effective = request._with_provenance(scheme, authority, client_ip, peer_trusted)
+    if @origin:
+      candidate = try:
+        Origin(effective.origin)
+      rescue ArgumentError |error|:
+        raise InvalidAuthorityError(error.message)
+      if candidate.to_str != @origin.to_str:
+        raise UnauthorizedOriginError("request origin is not authorized")
+    effective
 
   def protect_response(response, request):
     return response unless @security_headers
@@ -1643,6 +2005,9 @@ class Request:
       return [@header_lookup[?"x-request-id"], @response_header_sink]
     return @response_header_sink if name == "__orbit_response_header_sink"
     @header_lookup[?name.to_str.downcase]
+
+  def negotiate(formats, default: null):
+    _negotiate(self, formats, default)
 
   def method_name():
     @method
@@ -2693,6 +3058,8 @@ class App:
       finalized = true
     rescue UnauthorizedHostError |error|:
       response = render(text: "forbidden", status: :forbidden)
+    rescue UnauthorizedOriginError |error|:
+      response = render(text: "forbidden", status: :forbidden)
     rescue InvalidAuthorityError |error|:
       response = render(text: "bad request", status: :bad_request)
     rescue InvalidForwardedRequestError |error|:
@@ -2897,6 +3264,32 @@ class Controller:
     @committed = true
     response
 
+  def __respond(choices, default: null):
+    _ensure_renderable!
+    @response_headers = _vary_accept(@response_headers)
+    formats = choices.map: _1[0]
+    invalid = false
+    selected = try:
+      @request.negotiate(formats, default: default)
+    rescue InvalidAcceptError:
+      invalid = true
+      null
+    return render(text: "bad request", status: :bad_request) if invalid
+    return render(text: "not acceptable", status: :not_acceptable) unless selected
+    choice = choices.find: _1[0] == selected
+    producer = choice[1]
+    value = producer()
+    if @committed and not (Response === value or StreamingResponse === value):
+      raise DoubleRenderError("respond branch rendered a response but returned another value")
+    response = selected._response(value, status: @response_status)
+    vary = @response_headers.all("vary") + response.headers.all("vary")
+    headers = @response_headers.merge(response.headers)
+    headers = headers.set("vary", vary.join(", "))
+    headers = _vary_accept(headers)
+    response = _merge_response_headers(headers, headers.keys, response)
+    @committed = true
+    response
+
   def path(name, **params):
     @request.routes.path(name, **params)
 
@@ -2930,6 +3323,59 @@ def __scope(prefix, entries, before: []):
 
 def __mount(routes, at: "/", before: []):
   RouteMount(routes, at, _middleware_list((&before)))
+
+macro def respond(default as Ast: null, &blk) -> Ast:
+  unless blk and blk.params.empty?:
+    raise ArgumentError("ORBIT_RESPOND_BLOCK: respond requires a block without parameters")
+  choices = []
+  blk.expressions.each |entry|:
+    unless entry.kind == "AstPostfixChain" and entry.base.kind == "AstName":
+      raise ArgumentError("ORBIT_RESPOND_BRANCH: expected html, json, text or format(...) block")
+    name = entry.base.name
+    tails = entry.tails
+    unless not tails.empty? and tails[tails.count - 1].kind == "AstTailBlockSuffix":
+      raise ArgumentError("ORBIT_RESPOND_BRANCH: every representation requires a block")
+    block = tails[tails.count - 1].block
+    if not block.params.empty? or (Array === block.body and block.body.empty?):
+      raise ArgumentError("ORBIT_RESPOND_BRANCH: representation requires a nonempty block without parameters")
+    args = []
+    if tails.count == 2 and tails[0].kind == "AstTailCall":
+      args = tails[0].args
+    elif tails.count != 1:
+      raise ArgumentError("ORBIT_RESPOND_BRANCH: unexpected representation call shape")
+    descriptor = null
+    if ["html", "json", "text"].include?(name):
+      raise ArgumentError("ORBIT_RESPOND_BRANCH: standard formats take no arguments") unless args.empty?
+      mime = {"html": "text/html; charset=utf-8", "json": "application/json; charset=utf-8", "text": "text/plain; charset=utf-8"}[name]
+      encoder = Ast.node("AstLiteral", {token: "SYMBOL", value: name})
+      descriptor = quote:
+        orbit.Format(#{Ast.lift(mime)}, encode: #{encoder})
+    elif name == "format":
+      unless args.count >= 1 and args.count <= 2 and args[0].kind != "AstKeywordArg":
+        raise ArgumentError("ORBIT_RESPOND_FORMAT: format requires a MIME string or Format and optional encode:")
+      encoder = quote:
+        null
+      if args.count == 2:
+        option = args[1]
+        unless option.kind == "AstKeywordArg" and option.name == "encode":
+          raise ArgumentError("ORBIT_RESPOND_FORMAT: only encode: is supported")
+        encoder = option.value
+      descriptor = quote:
+        orbit.Format(#{args[0]}, encode: #{encoder})
+    else:
+      raise ArgumentError("ORBIT_RESPOND_BRANCH: unknown format " + name)
+    choice = quote:
+      (#{descriptor}, #{block})
+    choices.push!(choice)
+  if choices.empty? or choices.count > 64:
+    raise ArgumentError("ORBIT_RESPOND_FORMATS: respond requires between 1 and 64 representations")
+  fallback = default
+  unless fallback:
+    fallback = quote:
+      null
+  dispatch = Ast.node("AstName", {name: "__respond"})
+  return quote:
+    #{dispatch}([#{*choices}], default: #{fallback})
 
 macro def params(root as Ast: null, unknown as Ast: null, &blk) -> Ast:
   unless blk:

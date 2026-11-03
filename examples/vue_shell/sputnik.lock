@@ -1,0 +1,41 @@
+schema = "sputnik.packages.lock.v1"
+
+[[packages]]
+name = "orbit"
+version = "1.0.0-rc.1"
+variant = "source"
+digest = "sha256:1a459b993a13a4c96af9fe9da40624285bfc72431edeaff41a0e718001c40266"
+source_kind = "path"
+source = "../.."
+
+[[packages]]
+name = "orbit-oauth"
+version = "0.1.0-dev"
+variant = "source"
+digest = "sha256:ee7fda041a09e8f253157f6eb70801fb3a7cd7bd7fa82339b82483b8cd25f0ec"
+source_kind = "path"
+source = "../../packages/orbit-oauth"
+
+[[packages]]
+name = "orbit-oauth-github"
+version = "0.1.0-dev"
+variant = "source"
+digest = "sha256:9c60c1cdf26a1287512bcee433d2be99d1cfb9395728140a43d1eb0856f9e191"
+source_kind = "path"
+source = "../../packages/orbit-oauth-github"
+
+[[packages]]
+name = "orbit-session"
+version = "0.1.0-dev"
+variant = "source"
+digest = "sha256:d4f1d23bbd82b6636c205b9e03ace043c37c066e5db53aa8692ba8b8e4a47bd5"
+source_kind = "path"
+source = "../../packages/orbit-session"
+
+[[packages]]
+name = "orbit-vite"
+version = "0.1.0-dev"
+variant = "source"
+digest = "sha256:8cec2b7fb1549f2e6be37d3737f12ff00f596810cd5b8fa6ba26607c48d09de9"
+source_kind = "path"
+source = "../../packages/orbit-vite"

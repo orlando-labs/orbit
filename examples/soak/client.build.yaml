@@ -1,12 +1,1 @@
-schema: sputnik.build.v1
-name: orbit.example.soak.client
-root: orbit.example.soak.client
-
-profiles:
-  required: [core.v1]
-  optional: []
-  forbidden: []
-
-modules:
-  - name: orbit.example.soak.client
-    path: client.s
+entry: client.s

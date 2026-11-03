@@ -1,14 +1,4 @@
-schema: sputnik.build.v1
-name: orbit.example.strong_params
-root: orbit.example.strong_params
+entry: strong_params.s
 
-profiles:
-  required: [core.v1, macro.v1]
-  optional: []
-  forbidden: []
-
-modules:
-  - name: orbit
-    path: ../src/orbit.s
-  - name: orbit.example.strong_params
-    path: strong_params.s
+dependencies:
+  orbit: {path: ..}

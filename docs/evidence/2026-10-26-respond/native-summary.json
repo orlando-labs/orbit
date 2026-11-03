@@ -1,0 +1,30 @@
+{
+  "date": "2026-10-26",
+  "compilerSha256": "6c2dbf724b97b60fddf71368cd8474b0c70f9be64281caa2c00665358b373123",
+  "unit": {
+    "codes": 809,
+    "nativeCodes": 809,
+    "full": true,
+    "vmIndependent": true,
+    "fallbackCodes": 0,
+    "bridge": false
+  },
+  "fixture": {
+    "codes": 1214,
+    "nativeCodes": 1214,
+    "full": true,
+    "vmIndependent": true,
+    "fallbackCodes": 0,
+    "bridge": false,
+    "bytecodeFallback": false
+  },
+  "production": {
+    "codes": 1214,
+    "nativeCodes": 1214,
+    "full": true,
+    "vmIndependent": true,
+    "fallbackCodes": 0,
+    "bridge": false,
+    "bytecodeFallback": false
+  }
+}

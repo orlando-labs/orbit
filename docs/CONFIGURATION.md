@@ -47,14 +47,19 @@ Production constructs `SecurityPolicy` explicitly:
 
 ```sputnik
 security = orbit.SecurityPolicy(
-  allowed_hosts: ["app.example.test"],
+  origin: "https://app.example.test",
   trusted_proxy_cidrs: ["10.20.0.0/16"],
   forwarded: :x_forwarded,
   forwarded_hops: 1,
   security_headers: true,
-  content_security_policy: "default-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'",
   hsts: true)
 ```
+
+`origin` supplies the allowed host and constrains the effective scheme and port
+after trusted-proxy processing. Applications needing host-only authorization
+can retain `allowed_hosts`. For structured CSP extensions use
+`content_security_policy: orbit.ContentSecurityPolicy(...)`; a Vite app passes
+`assets.csp`. See [SECURITY.md](SECURITY.md) for source lists and `.with(...)`.
 
 The edge removes client `Forwarded`/`X-Forwarded-*` values and writes exactly
 one canonical `X-Forwarded-For`, `X-Forwarded-Host`, and

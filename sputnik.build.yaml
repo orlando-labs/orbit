@@ -1,24 +1,28 @@
-schema: sputnik.build.v1
-name: orbit
-root: orbit
-
+requires:
+  sputnik: ">=1.0.0 <2.0.0"
+schema: "sputnik.build.v1"
+name: "orbit"
+version: "1.0.0-rc.1"
+source_root: "src"
 profiles:
-  required: [core.v1, macro.v1]
+  required:
+    - "core.v1"
+    - "macro.v1"
   optional: []
   forbidden: []
-
-modules:
-  - name: orbit
-    path: src/orbit.s
-  - name: orbit.html
-    path: src/orbit/html.s
-  - name: orbit.testing
-    path: src/orbit/testing.s
-  - name: orbit.middleware
-    path: src/orbit/middleware.s
-  - name: orbit.telemetry
-    path: src/orbit/telemetry.s
-  - name: orbit.security
-    path: src/orbit/security.s
-  - name: orbit.multipart
-    path: src/orbit/multipart.s
+files:
+  - "src/orbit.s"
+  - "src/orbit/html.s"
+  - "src/orbit/assets.s"
+  - "src/orbit/middleware.s"
+  - "src/orbit/multipart.s"
+  - "src/orbit/security.s"
+  - "src/orbit/telemetry.s"
+  - "src/orbit/testing.s"
+  - "README.md"
+  - "LICENSE"
+capabilities:
+  net.listen: true
+  random.secure: true
+  fs.read: true
+  fs.metadata: true

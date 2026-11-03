@@ -1,0 +1,9 @@
+schema: "sputnik.build.v1"
+name: "orbit-oauth-github"
+version: "0.1.0-dev"
+source_root: "src"
+files:
+  - "src/orbit/oauth/github.s"
+  - "README.md"
+dependencies:
+  orbit-oauth: "0.1.0-dev"

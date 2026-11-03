@@ -38,13 +38,20 @@ The `1.0.0-rc.1` release candidate includes:
 
 Core Orbit is source-only and ORM-neutral. Importing `orbit` does not pull in
 SQLite, FFI, sessions, or a filesystem template loader.
+
+Public files can live in `./assets` and be streamed by the optional
+[`orbit.assets.StaticFiles`](docs/STATIC_FILES.md) middleware. It uses Sputnik
+file IO and HTTP streaming, including GET/HEAD and MIME selection; no favicon
+controller action is needed.
 ## Web notebook development
 
-The next application milestone is a Sputnik-rendered `.html.sv` shell with a
-Vue/Vite client. See the [active plan](docs/WEB_NOTEBOOK_PLAN.md): `orbit-vite`,
-safe bootstrap data, session/GitHub auth with project ACL, then the first
-notebook Run/reconnect slice. Packages remain local source dependencies until
-the full agreed flow is complete.
+[`orbit-vite`](packages/orbit-vite/README.md) connects `./frontend` to Sputnik
+`.html.sv` views. [`examples/vue_shell`](examples/vue_shell/README.md) demonstrates
+GitHub login, CookieStore and a Vue account/session screen in dev/production and
+with a strict native backend. Backend and OAuth fixture are Sputnik; frontend
+tooling is Node, with no Python/ORM/database dependency. The [active plan](docs/WEB_NOTEBOOK_PLAN.md)
+continues with project ACL and the first notebook Run/reconnect slice. Packages
+remain local source dependencies until the agreed full flow is complete.
 
 
 ## Small application
@@ -242,6 +249,10 @@ list. Route-dependent policy belongs in the central route declaration.
 
 ## HTML and views
 
+Controllers can select HTML, JSON, text or an arbitrary MIME with the
+[`respond` macro](docs/CONTENT_NEGOTIATION.md). Branches return payloads; only
+the negotiated branch executes, and `Vary: Accept` is preserved automatically.
+
 Views are ordinary typed Sputnik modules. Interpolation in `html"""..."""` is
 escaped by default and returns `orbit.Html`; trusted output requires explicit
 `raw(...)`.
@@ -284,7 +295,7 @@ registry. Declare inputs/imports in ordinary Sputnik:
 package app.views.posts
 export index
 
-@template("./posts/index.html.sv")
+template("./posts/index.html.sv")
 def index(posts, title: "Posts")
 ```
 

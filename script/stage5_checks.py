@@ -80,9 +80,9 @@ def check_release_files(errors: list[str], sputnik: Path | None) -> None:
     version = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
     if not re.fullmatch(r"\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?", version):
         fail(errors, f"VERSION is not SemVer: {version}")
-    for path in (ROOT / "sputnik.toml", ROOT / "packages/orbit-orm/sputnik.toml"):
+    for path in (ROOT / "sputnik.build.yaml", ROOT / "packages/orbit-orm/sputnik.build.yaml"):
         source = path.read_text(encoding="utf-8")
-        if f'version = "{version}"' not in source:
+        if not re.search(r'^version:\s*[\"\']?' + re.escape(version) + r'[\"\']?\s*$', source, re.M):
             fail(errors, f"{path.relative_to(ROOT)} does not match VERSION")
     api = json.loads((ROOT / "release/public-api.json").read_text(encoding="utf-8"))
     deps = json.loads((ROOT / "release/dependencies.lock.json").read_text(encoding="utf-8"))
@@ -117,8 +117,8 @@ def check_release_files(errors: list[str], sputnik: Path | None) -> None:
             fail(errors, f"missing stage-5 deliverable: {relative}")
     if sputnik:
         pairs = [
-            (ROOT / "sputnik.toml", ROOT / "sputnik.lock"),
-            (ROOT / "packages/orbit-orm/sputnik.toml", ROOT / "packages/orbit-orm/sputnik.lock"),
+            (ROOT / "sputnik.build.yaml", ROOT / "sputnik.lock"),
+            (ROOT / "packages/orbit-orm/sputnik.build.yaml", ROOT / "packages/orbit-orm/sputnik.lock"),
         ]
         for manifest, lock in pairs:
             generated = package_lock(sputnik, manifest)

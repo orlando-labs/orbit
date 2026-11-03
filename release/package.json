@@ -1,6 +1,6 @@
 {
   "name": "orbit",
-  "version": "1.0.0-rc.1",
+  "version": "1.0.0-rc.2",
   "root": "orbit",
   "sources": [
     "src/**/*.s",
@@ -9,5 +9,8 @@
   "capabilities": {
     "net.listen": true,
     "random.secure": true
+  },
+  "requires": {
+    "sputnik": ">=1.0.0 <2.0.0"
   }
 }

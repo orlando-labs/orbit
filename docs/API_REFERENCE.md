@@ -6,6 +6,8 @@ defined by [PUBLIC_API.md](PUBLIC_API.md). The machine-readable allowlist is
 entry. Examples are compiled by `test/api_reference_selftest.build.yaml`, HTML
 macro contexts by `test/stage3_selftest.build.yaml`, and the ORM section by
 `test/orm_selftest.build.yaml`.
+Origin/CSP checks also have a standalone full-native fixture,
+`test/security_policy_selftest.build.json`, included by the stage-3 suite.
 
 Exact error message text and names listed as internal exports are not API.
 Arguments shown with defaults retain those defaults for Orbit 1.x.
@@ -67,6 +69,21 @@ the root package's 1.0 export allowlist, and depend on no User/ORM model.
   create or normalize responses. `Html` provides `escape`, `raw`, `join`,
   `to_str`, and concatenation.
 
+### Content negotiation
+
+- `respond(default: null, &block)` is a controller macro with lazy `html`,
+  `json`, `text` and `format(mime, encode: :body)` branches. It negotiates
+  Accept, returns 406 when no offer matches and 400 for malformed Accept, and
+  merges `Vary: Accept` with existing variance. `status_code(:not_acceptable)`
+  is 406. Standard branches return payloads; ready buffered/streaming responses
+  retain their explicit status and lifecycle.
+- `Format(mime, encode: :body)` is a reusable MIME/encoder descriptor with
+  read-only `mime`, `type`, `subtype`, `params`, `encoder` and `identity`.
+- `Request#negotiate(formats, default: null)` returns the selected Format or
+  null and raises `InvalidAcceptError` for malformed Accept.
+- See [content negotiation](CONTENT_NEGOTIATION.md) for selection, defaults,
+  arbitrary MIME parameters, encoders, limits and response preservation.
+
 ### Controllers, targets, and routing values
 
 - `Controller` helpers are `request`, `status`, `header`, `render`,
@@ -83,9 +100,29 @@ the root package's 1.0 export allowlist, and depend on no User/ORM model.
 - Values: `ParamSchema`, `ParamField`, `ParamObject`, `ParamArray`,
   `ParamIssue`, `RequestParams`, and `RequestParamSource`. Sources expose
   `check` and `expect`; request sources are `json` and `query`.
-- `SecurityPolicy(allowed_hosts:, trusted_proxy_cidrs: [], forwarded: :none,
+- `Origin(value)` validates an HTTP(S) origin. Read-only fields are `scheme`,
+  `host`, `port` (effective integer port), and `authority`; `to_str`/`str`
+  return its canonical spelling, `secure?` identifies HTTPS, and `websocket`
+  derives the WS(S) origin. Host case, default ports and an optional trailing
+  slash normalize; credentials, paths, query/fragment, ambiguous numeric IPs,
+  malformed authorities and out-of-range ports are rejected.
+- `ContentSecurityPolicy(**directives)` builds a bounded CSP header from source
+  lists. `.with(**directives)` returns a new policy, replacing the specified
+  lists and preserving other directives; it never mutates the original.
+  Keyword names use underscores (`script_src`, `img_src`, `connect_src`, etc.).
+  Sources are arrays of exact HTTP(S)/WS(S) origins, `"*"`, or explicit keywords
+  `:self`, `:none`, `:data`, `:blob`, `:unsafe_inline`, `:unsafe_eval`,
+  `:strict_dynamic`, `:unsafe_hashes`, `:report_sample`, `:wasm_unsafe_eval`.
+  An empty list serializes as `'none'`; `'none'` cannot mix with other sources.
+  `to_str`/`str` return the serialized header. See [SECURITY.md](SECURITY.md).
+- `SecurityPolicy(origin: null, allowed_hosts: null, trusted_proxy_cidrs: [], forwarded: :none,
   forwarded_hops: 0, security_headers: true, content_security_policy: ...,
   hsts: false)` authorizes request provenance before routing.
+  `origin` accepts an `Origin` or string, defaults the allowed hosts to that
+  origin's host, and checks the effective scheme/host/port after trusted-proxy
+  processing. Without it, the previous localhost host defaults apply.
+  `content_security_policy` accepts `ContentSecurityPolicy`, the existing raw
+  header string, or explicit `null`. The default is `ContentSecurityPolicy()`.
 
 ### Public errors
 
@@ -97,8 +134,18 @@ The stable semantic error classes are `OrbitError`, `RouteError`,
 `UnknownStatusError`, `UnknownServiceError`, `UnsafeRedirectError`,
 `RequestParamsError`, `ParamsParseError`, `ParamsShapeError`,
 `ParamsUnsupportedMediaTypeError`, `ParamsBodyConsumedError`,
-`RequestSecurityError`, `InvalidAuthorityError`, `UnauthorizedHostError`, and
-`InvalidForwardedRequestError`.
+`RequestSecurityError`, `InvalidAuthorityError`, `UnauthorizedHostError`,
+`InvalidForwardedRequestError`, and `UnauthorizedOriginError`.
+
+## `orbit.assets`
+
+`StaticFiles(root: "./assets", at: "/", chunk_size: 65536,
+cache_control: "public, max-age=3600")` is an optional middleware serving public
+application files. Add `StaticFiles()` before session/CSRF middleware. It streams
+GET responses through scoped `fs.File.open` / `each_chunk` and `orbit.stream`
+with known length; HEAD returns metadata without opening the producer. Missing
+or unsupported paths fall through to application routing. Requires `fs.read`
+and `fs.metadata` grants. See [static files](STATIC_FILES.md).
 
 ## `orbit.html`
 
@@ -165,14 +212,27 @@ Orbit has no ORM, SQLite, or FFI dependency.
 
 The following are intentionally not part of this reference: direct public
 TLS, HTTP/2/3, WebSocket, hot reload, generators/resources, asset
-pipeline, dynamic route replacement, exported `__*` macro plumbing, exported
+pipeline in core, dynamic route replacement, exported `__*` macro plumbing, exported
 single-underscore HTML macro helpers, log text formatting, generated code,
 cache paths, and concrete transitive Sputnik/ORM/SQLite implementation details.
 
 ## External view bodies
 
-`@template("./page.html.sv")` on a declaration-only module function uses its
+`template("./page.html.sv")` on a declaration-only module function uses its
 ordinary input signature and lexical imports. Build-manifest `source_formats`
 selects the `orbit.html` / `html` provider. See the README and
 `test/external_templates_selftest.build.yaml`. Runtime rendering uses compiled
 code; source files are compiler inputs, not runtime filesystem templates.
+
+## JSON bootstrap and Vite companion
+
+`orbit.html.json_script(data, id:, nonce: null) -> orbit.Html` encodes a
+non-executable JSON island with escaped HTML-sensitive characters, separators
+and attributes. Read it using DOM `textContent` and `JSON.parse`; application
+wire schemas carry large IDs as strings and exclude credentials/session bearers.
+
+The separate [`orbit-vite`](../packages/orbit-vite/README.md) package exports
+`Assets` and `ManifestError`. `Assets` defaults to `./frontend`, production mode,
+and `src/main.ts`; `tags(entry: null, nonce: null, preload: true)` returns an
+HTML asset fragment. See [`examples/vue_shell`](../examples/vue_shell/README.md)
+for `.html.sv`, dev/HMR, production manifest/assets and GitHub/session integration.

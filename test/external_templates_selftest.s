@@ -3,13 +3,13 @@ import orbit.telemetry
 from orbit.html import url, raw
 export main, page, query, command
 
-@template("./templates/page.html.sv")
+template("./templates/page.html.sv")
 def page(items, target, escape: "caller shadow")
 
-@template("./templates/filter.sql.sv")
+template("./templates/filter.sql.sv")
 def query(values)
 
-@template("./templates/args.cmd.sv")
+template("./templates/args.cmd.sv")
 def command(values)
 
 def check(value, message):

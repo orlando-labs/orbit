@@ -1,0 +1,26 @@
+{
+  "dependencies": {
+    "orbit": {
+      "path": "../.."
+    },
+    "orbit-session": {
+      "path": "../../packages/orbit-session"
+    },
+    "orbit-oauth": {
+      "path": "../../packages/orbit-oauth"
+    },
+    "orbit-oauth-github": {
+      "path": "../../packages/orbit-oauth-github"
+    },
+    "orbit-vite": {
+      "path": "../../packages/orbit-vite"
+    }
+  },
+  "source_formats": [
+    {
+      "suffix": ".html.sv",
+      "module": "orbit.html",
+      "macro": "html"
+    }
+  ]
+}

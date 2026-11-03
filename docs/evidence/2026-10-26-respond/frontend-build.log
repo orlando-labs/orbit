@@ -1,0 +1,14 @@
+
+> orbit-vue-shell@0.1.0 build
+> vue-tsc --noEmit && vite build
+
+vite v8.3.5 building client environment for production...
+transforming...
+✓ 12 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/.vite/manifest.json        0.18 kB │ gzip:  0.14 kB
+dist/assets/main-ZJ2kP6nL.css   4.78 kB │ gzip:  1.71 kB
+dist/assets/main-DtMjDsHQ.js   68.09 kB │ gzip: 26.92 kB
+
+✓ built in 85ms

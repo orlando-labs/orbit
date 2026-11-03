@@ -4,11 +4,11 @@
   "modules": {
     "orbit": {
       "public": [
-        "App", "Controller", "DoubleRenderError", "DuplicateRouteError",
+        "App", "ContentSecurityPolicy", "Controller", "DoubleRenderError", "DuplicateRouteError",
         "DuplicateRouteNameError", "OrbitError", "ErrorEvent", "Headers",
-        "Html", "Integration", "InvalidAuthorityError", "InvalidForwardedRequestError",
+        "Format", "Html", "Integration", "InvalidAcceptError", "InvalidAuthorityError", "InvalidForwardedRequestError",
         "InvalidPathError", "InvalidResponseError", "InvalidRouteError",
-        "ParamArray", "ParamField", "ParamIssue", "ParamObject", "ParamSchema",
+        "Origin", "ParamArray", "ParamField", "ParamIssue", "ParamObject", "ParamSchema",
         "ParamsBodyConsumedError", "ParamsParseError", "ParamsShapeError",
         "ParamsUnsupportedMediaTypeError", "PathGenerationError", "Request",
         "RequestBodyStream", "RequestChunk", "RequestParamSource", "RequestParams",
@@ -16,10 +16,10 @@
         "ResponseCommittedError", "Route", "RouteError", "RouteLookup", "RouteMatch",
         "RouteNotFoundError", "RouteParamError", "Routes", "SecurityPolicy",
         "ServerHandle", "ServerLifecycleError", "StreamBody", "StreamingResponse",
-        "Target", "UnauthorizedHostError", "UnknownRouteNameError", "UnknownServiceError",
+        "Target", "UnauthorizedHostError", "UnauthorizedOriginError", "UnknownRouteNameError", "UnknownServiceError",
         "UnknownStatusError", "UnsafeRedirectError", "array", "delete", "field", "get",
         "head", "mount", "normalize_response", "object", "options", "params", "patch",
-        "post", "put", "query", "redirect", "render", "routes", "scope", "status_code",
+        "post", "put", "query", "redirect", "render", "respond", "routes", "scope", "status_code",
         "stream"
       ],
       "internal_exports": [
@@ -28,10 +28,14 @@
         "with_response_header"
       ]
     },
+    "orbit.assets": {
+      "public": ["StaticFiles"],
+      "internal_exports": []
+    },
     "orbit.html": {
       "public": [
         "HtmlUrl", "TrustedScript", "TrustedStyle", "escape", "escape_attribute",
-        "escape_text", "html", "join", "raw", "trusted_script", "trusted_style", "url"
+        "escape_text", "html", "join", "json_script", "raw", "trusted_script", "trusted_style", "url"
       ],
       "internal_exports": [
         "_script_attribute", "_script_body", "_srcdoc_attribute", "_style_attribute",

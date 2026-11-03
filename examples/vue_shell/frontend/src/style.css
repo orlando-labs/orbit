@@ -1,0 +1,361 @@
+:root {
+  font-family:Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  color:#282b27;
+  background:#f4f3ee;
+  font-synthesis:none;
+  text-rendering:optimizeLegibility;
+  -webkit-font-smoothing:antialiased;
+  font-weight:400
+}
+* {
+  box-sizing:border-box
+}
+body {
+  margin:0
+}
+button,a {
+  -webkit-tap-highlight-color:transparent
+}
+button {
+  font:inherit
+}
+button:focus-visible,a:focus-visible {
+  outline:3px solid #769c79;
+  outline-offset:5px
+}
+a {
+  color:inherit;
+  text-decoration:none
+}
+.shell-header,.shell-footer {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  margin:0 6.5vw
+}
+.shell-header {
+  height:104px;
+  border-bottom:1px solid #dcded5
+}
+.wordmark {
+  font-size:27px;
+  font-weight:650;
+  letter-spacing:-1px;
+  display:flex;
+  align-items:center;
+  gap:9px
+}
+.orbit-mark {
+  font-size:44px;
+  font-weight:400;
+  line-height:1;
+  color:#547257
+}
+.shell-label,.shell-footer {
+  font-size:12px;
+  color:#777d71;
+  letter-spacing:.03em
+}
+.shell-label {
+  border:1px solid #d7dbd0;
+  border-radius:20px;
+  padding:8px 13px
+}
+#notebook-app {
+  max-width:650px;
+  margin:76px auto 86px;
+  padding:0 24px
+}
+.eyebrow {
+  font-size:10px;
+  font-weight:650;
+  letter-spacing:.15em;
+  color:#757c6e;
+  margin:0
+}
+.intro h1 {
+  font-size:54px;
+  line-height:1.1;
+  letter-spacing:-2.6px;
+  font-weight:500;
+  margin:22px 0 21px
+}
+.intro h1 em {
+  font-family:Georgia,"Times New Roman",serif;
+  font-weight:400;
+  letter-spacing:-2.3px;
+  color:#68795d
+}
+.lede {
+  font-size:15px;
+  line-height:1.8;
+  color:#7b7e75;
+  margin-bottom:36px
+}
+.account-card {
+  background:#fffefa;
+  border:1px solid #dedfd4;
+  border-radius:16px;
+  box-shadow:0 7px 22px #282b2704;
+  overflow:hidden
+}
+.card-heading {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:23px 27px;
+  border-bottom:1px solid #eeeee5
+}
+.status {
+  font-size:10px;
+  padding:5px 9px;
+  border-radius:5px;
+  background:#f1f0ea;
+  color:#85877c
+}
+.status.active {
+  background:#edf3e7;
+  color:#4d6d3f
+}
+.profile {
+  display:flex;
+  gap:16px;
+  align-items:center;
+  margin:30px 27px 26px
+}
+.avatar {
+  width:53px;
+  height:53px;
+  border:1px solid #d8dfd0;
+  border-radius:13px;
+  display:grid;
+  place-items:center;
+  color:#657854;
+  background:#eef1e7;
+  font-size:26px;
+  font-weight:500
+}
+.anonymous .avatar {
+  background:#f5f5ef;
+  border-color:#e3e4d9;
+  color:#777e6b;
+  font-size:27px
+}
+.profile h2 {
+  font-size:19px;
+  font-weight:500;
+  letter-spacing:-.5px;
+  margin:0 0 6px
+}
+.handle {
+  font-size:12px;
+  color:#898c80;
+  margin:0
+}
+.button {
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:11px;
+  border:0;
+  border-radius:8px;
+  padding:14px 18px;
+  font-size:13px;
+  cursor:pointer;
+  font-weight:500;
+  transition:background .15s
+}
+.primary {
+  width:calc(100% - 54px);
+  margin:0 27px;
+  background:#303c2e;
+  color:#fffefa
+}
+.primary:hover {
+  background:#41533c
+}
+.primary svg {
+  height:17px;
+  width:17px
+}
+.primary span {
+  margin-left:auto;
+  font-size:17px
+}
+.primary svg {
+  margin-right:auto
+}
+.button:disabled,.text-button:disabled {
+  opacity:.6;
+  cursor:wait
+}
+.permission-note {
+  font-size:10px;
+  text-align:center;
+  color:#999c90;
+  margin:15px 20px 28px
+}
+.session-strip {
+  border-top:1px solid #e7e9de;
+  background:#f8f9f1;
+  padding:14px 27px;
+  display:flex;
+  align-items:center;
+  gap:8px;
+  font-size:10px;
+  color:#7a856b
+}
+.session-dot {
+  width:5px;
+  height:5px;
+  border-radius:50%;
+  background:#8a9d74
+}
+.session-meta {
+  margin-left:auto;
+  color:#9a9f90
+}
+.next-note {
+  display:flex;
+  gap:12px;
+  color:#96998d;
+  font-size:11px;
+  margin:25px 6px
+}
+.next-note p {
+  margin:0;
+  line-height:1.7
+}
+.next-note strong {
+  font-weight:500;
+  color:#7e8572
+}
+.note-icon {
+  font-size:22px;
+  color:#909b80
+}
+.shell-footer {
+  border-top:1px solid #dcded5;
+  padding:22px 0 28px;
+  font-size:10px
+}
+.details {
+  margin:0 27px 25px;
+  font-size:12px
+}
+.details div {
+  display:flex;
+  justify-content:space-between;
+  padding:11px 0;
+  border-bottom:1px solid #f0f0e8;
+  gap:20px
+}
+.details dt {
+  color:#8c9183
+}
+.details dd {
+  margin:0;
+  text-align:right;
+  font-variant-numeric:tabular-nums;
+  overflow-wrap:anywhere
+}
+.actions {
+  display:flex;
+  align-items:center;
+  gap:20px;
+  margin:0 27px 28px;
+  justify-content:space-between
+}
+.secondary {
+  border:1px solid #dce0d2;
+  background:#fafbf6;
+  color:#59694f;
+  font-size:11px;
+  padding:10px 14px
+}
+.secondary:hover {
+  background:#edf1e6
+}
+.text-button {
+  border:0;
+  background:none;
+  color:#888f7a;
+  font-size:11px;
+  cursor:pointer
+}
+.error {
+  margin:20px 27px 0;
+  padding:12px 14px;
+  background:#fbefe8;
+  color:#975f43;
+  border-radius:7px;
+  font-size:12px;
+  line-height:1.5
+}
+.loading {
+  color:#7b7e75;
+  font-size:14px
+}
+noscript {
+  display:block;
+  text-align:center;
+  padding:30px
+}
+@media(max-width:600px) {
+  .shell-header {
+    height:80px
+  }
+  .shell-header,.shell-footer {
+    margin:0 22px
+  }
+  .shell-label {
+    font-size:10px;
+    padding:7px 10px
+  }
+  .wordmark {
+    font-size:23px
+  }
+  #notebook-app {
+    margin:50px auto 60px;
+    padding:0 22px
+  }
+  .intro h1 {
+    font-size:43px;
+    letter-spacing:-2px
+  }
+  .intro h1 em {
+    letter-spacing:-1.6px
+  }
+  .lede {
+    font-size:13px
+  }
+  .card-heading,.session-strip {
+    padding-left:20px;
+    padding-right:20px
+  }
+  .profile {
+    margin-left:20px;
+    margin-right:20px
+  }
+  .profile h2 {
+    font-size:17px
+  }
+  .primary {
+    margin-left:20px;
+    width:calc(100% - 40px)
+  }
+  .session-strip {
+    flex-wrap:wrap
+  }
+  .session-meta {
+    font-size:9px
+  }
+  .details,.actions {
+    margin-left:20px;
+    margin-right:20px
+  }
+  .shell-footer {
+    font-size:9px;
+    gap:15px
+  }
+}

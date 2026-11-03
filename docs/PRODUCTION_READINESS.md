@@ -154,7 +154,7 @@ initial named Apple M4 runner baseline.
 Required evidence: clean-room build log, release checklist, artifact/source
 checksums, documentation link checker/example compilation, and compatibility CI.
 
-Evidence: `VERSION`, `sputnik.toml`, `sputnik.lock`, the separate
+Evidence: `VERSION`, `sputnik.build.yaml`, `sputnik.lock`, the separate
 `packages/orbit-orm` package, `release/dependencies.lock.json`,
 `release/public-api.json`, `release/evidence/stage5-local.json`,
 `.github/workflows/ci.yml`,

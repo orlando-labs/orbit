@@ -97,11 +97,21 @@ Applications may use `header(name)` for the first/selected value or
 host authorization and trusted-proxy processing. Applications must not derive
 origin or client identity from raw forwarding fields.
 
-`SecurityPolicy` is public with `allowed_hosts`, `trusted_proxy_cidrs`,
+`Origin` validates and canonicalizes an HTTP(S) origin. It exposes read-only
+`scheme`, `host`, `port`, `authority`, plus `secure?`, `websocket`, `to_str` and
+`str`. `ContentSecurityPolicy(**directives)` is an immutable policy value;
+`with(**directives)` replaces specified source lists in a new value, and
+`to_str`/`str` serialize it.
+
+`SecurityPolicy` is public with `origin`, `allowed_hosts`, `trusted_proxy_cidrs`,
 `forwarded`, `forwarded_hops`, `security_headers`,
 `content_security_policy`, and `hsts` constructor keywords. Supported
 forwarding modes are `:none` and `:x_forwarded`. IPv4 CIDR and exact IPv6
-`/128` proxy entries are supported. Policy defaults and the production
+`/128` proxy entries are supported. Optional `origin` accepts a string or
+`Origin` and checks the effective scheme, host and port after proxy validation;
+the read-only `origin` accessor returns that `Origin` (or `null`). CSP accepts a
+`ContentSecurityPolicy`, a raw header string, or explicit `null`.
+Policy defaults and the production
 configuration contract are normative in [SECURITY.md](SECURITY.md).
 
 `RequestBodyStream` public operations are `framing`, `read_chunk(max_bytes:
@@ -140,6 +150,15 @@ multi-value collection. Supported reads are `first`, `all`, `include?`,
 `set`, `delete`, `without`, and `merge`. Source maps and ordered pairs are
 validated and snapshotted. Header names are canonicalized to lowercase;
 repeated values such as `Set-Cookie` remain separate and ordered.
+
+### Content negotiation
+
+The public `respond` macro, `Format` descriptors and `Request#negotiate` select
+one representation using Accept. `html`, `json`, `text` and arbitrary
+`format(mime, encode:)` branches return payloads or ready responses. Negotiation
+is lazy, adds `Vary: Accept`, returns 406 for no acceptable format and 400 for
+malformed Accept (`InvalidAcceptError` at the lower-level request API). See
+[the full contract](CONTENT_NEGOTIATION.md).
 
 ### Controllers and extension protocols
 
@@ -207,9 +226,18 @@ classification are stable, but their exact message strings are not:
 - `RequestParamsError`, `ParamsParseError`, `ParamsShapeError`,
   `ParamsUnsupportedMediaTypeError`, and `ParamsBodyConsumedError`;
 - `RequestSecurityError`, `InvalidAuthorityError`,
-  `UnauthorizedHostError`, and `InvalidForwardedRequestError`.
+  `UnauthorizedHostError`, `InvalidForwardedRequestError`, and
+  `UnauthorizedOriginError`.
 
 ## Supporting modules
+
+### `orbit.assets`
+
+`StaticFiles(root: "./assets", at: "/", chunk_size: 65536,
+cache_control: "public, max-age=3600")` provides public-file middleware with
+GET/HEAD, bounded streaming and MIME selection. See
+[STATIC_FILES.md](STATIC_FILES.md) for URL mapping, lifecycle and filesystem
+assumptions. No directory scan or content read occurs on import.
 
 ### `orbit.html`
 

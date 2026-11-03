@@ -33,6 +33,25 @@ duplicated, or malformed authority returns 400; a syntactically valid but
 unauthorized host returns 403. Exact host names are preferred. A `*.` entry is
 an explicit subdomain-suffix policy and never authorizes the bare suffix.
 
+For an application with a configured public origin, use
+`SecurityPolicy(origin: "https://app.example.test")`. It validates the origin
+at startup and supplies `allowed_hosts: ["app.example.test"]` automatically.
+After trusted-proxy processing, each request must match the effective scheme,
+host and port; a mismatch returns 403 before application middleware/routing.
+Case and explicit default ports normalize. This replaces application-specific
+origin boundary middleware. It does not enable forwarding or trust a proxy.
+An explicit `allowed_hosts` can also admit an internal edge Host while the
+final effective origin remains constrained to the configured public origin.
+Applications needing several public origins may retain explicit `allowed_hosts`
+and their own multi-origin policy.
+
+`Origin(value)` exposes this validation separately for callback construction and
+configuration. It accepts only bounded HTTP(S) origins, rejecting credentials,
+paths, queries, fragments and invalid ports. An optional trailing slash is
+removed; host case and default ports normalize. IPv4 must use four canonical
+decimal octets; bracketed IPv6 literals are supported. This is lexical
+validation, with no DNS resolution.
+
 `:x_forwarded` is the only supported forwarding convention. It is disabled
 unless at least one trusted proxy CIDR and a positive hop bound are configured.
 Forwarding fields from an untrusted socket peer are ignored. For a trusted
@@ -69,6 +88,56 @@ true`, it is emitted only when the effective scheme is validated as HTTPS. A
 production browser deployment must enable HSTS and may replace the CSP with a
 stricter application-specific policy. Disabling `security_headers` is not a
 supported production configuration.
+
+### Structured content security policy
+
+Applications normally configure sources rather than concatenate CSP strings:
+
+```sputnik
+csp = orbit.ContentSecurityPolicy(
+  img_src: [:self, "https://images.example.test"])
+csp = csp.with(connect_src: [:self, "https://api.example.test"])
+policy = orbit.SecurityPolicy(origin: "https://app.example.test",
+  content_security_policy: csp)
+```
+
+`with` returns a new value and replaces each supplied directive's complete
+source list. Unspecified directives retain their defaults; caller arrays are
+copied. An empty list means `'none'`. Sources are deduplicated after
+normalization, and `'none'` cannot be combined with another source. Source
+lists have a 128-value bound; each source is at most 2 KiB and the resulting
+header is at most 16 KiB. Invalid sources fail during configuration.
+
+Supported directive keywords are `default_src`, `script_src`, `script_src_elem`,
+`script_src_attr`, `style_src`, `style_src_elem`, `style_src_attr`, `connect_src`,
+`img_src`, `font_src`, `media_src`, `object_src`, `frame_src`, `child_src`,
+`worker_src`, `manifest_src`, `base_uri`, `frame_ancestors` and `form_action`.
+Values use `:self`, `:none`, explicit `:data`/`:blob` schemes, exact HTTP(S) or
+WS(S) origins, or the explicit wildcard string `"*"`. Advanced keyword sources
+include `:unsafe_inline`, `:unsafe_eval`, `:strict_dynamic`, `:unsafe_hashes`,
+`:report_sample` and `:wasm_unsafe_eval`; they are never implicitly enabled by
+the core defaults. CSP host sources require a hostname or IPv4 address;
+bracketed IPv6 origins remain usable for request authorization, but cannot be
+serialized as CSP host sources. Paths, credentials, directive separators and
+control characters are rejected. Unknown directive/source keywords are errors.
+
+Existing raw CSP header strings remain supported for directives/nonces/hashes
+outside this structured source-list API. Explicit `null` disables the CSP
+header. Core default directives retain the previous policy for existing
+applications. The Vite policy additionally restricts form submissions to
+`'self'`; applications posting forms to another origin must permit it in
+`form_action`. This also covers cross-origin redirects following form
+submission; the local OAuth provider fixture explicitly permits its configured
+callback origin.
+
+`orbit-vite` exposes `Assets#csp`, derived from these core defaults. Development
+adds the configured HTTP(S) asset origin to `script-src`/`connect-src` and its
+WS(S) HMR endpoint to `connect-src`, with inline styles allowed for Vite CSS
+updates. It does not enable inline/eval scripts. Production has no dev origins,
+WebSocket permissions or inline-style relaxation. Both modes explicitly keep
+scripts, styles, connections and form actions on `'self'` unless extended.
+Extensions such as external
+image hosts remain explicit application choices.
 
 `RequestIdMiddleware` accepts an incoming identifier only when
 `accept_incoming` is true and the value is non-empty, within the configured

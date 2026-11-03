@@ -1,12 +1,15 @@
 {
   "name": "orbit-orm",
-  "version": "1.0.0-rc.1",
+  "version": "1.0.0-rc.2",
   "root": "orbit.integrations.orm",
   "sources": [
     "packages/orbit-orm/src/**/*.s"
   ],
   "dependencies": {
-    "orbit": "1.0.0-rc.1",
-    "orm": "0.1.0"
+    "orbit": "1.0.0-rc.2",
+    "orm": "0.1.1"
+  },
+  "requires": {
+    "sputnik": ">=1.0.0 <2.0.0"
   }
 }

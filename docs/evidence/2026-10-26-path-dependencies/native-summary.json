@@ -1,0 +1,22 @@
+{
+  "date": "2026-10-26",
+  "compilerSha256": "c57b03c88a8ad501f181ad01e6175b499657026a34088c777ad1627f7cbe250d",
+  "vue": {
+    "entry": "examples/vue_shell/backend/fixture.s",
+    "codeCount": 1160,
+    "nativeCodeCount": 1160,
+    "fullCoverage": true,
+    "vmIndependent": true,
+    "bytecodeFallback": false,
+    "runtimeBridge": false
+  },
+  "orm": {
+    "entry": "test/orm_selftest.s",
+    "codeCount": 1909,
+    "nativeCodeCount": 1909,
+    "fullCoverage": true,
+    "vmIndependent": true,
+    "fallbackCodeCount": 0,
+    "runtimeBridge": false
+  }
+}

@@ -1,0 +1,14 @@
+schema: "sputnik.build.v1"
+name: "orbit-oauth"
+version: "0.1.0-dev"
+source_root: "src"
+files:
+  - "src/orbit/oauth.s"
+  - "src/orbit/oauth/_protocol.s"
+  - "README.md"
+dependencies:
+  orbit: "1.0.0-rc.1"
+capabilities:
+  net.connect: true
+  random.secure: true
+  time.now: true

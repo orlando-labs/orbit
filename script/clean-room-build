@@ -54,7 +54,7 @@ def main() -> int:
 
     version = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
     packages: list[Path] = []
-    for name, manifest in (("orbit", "sputnik.toml"), ("orbit-orm", "packages/orbit-orm/sputnik.toml")):
+    for name, manifest in (("orbit", "sputnik.build.yaml"), ("orbit-orm", "packages/orbit-orm/sputnik.build.yaml")):
         first = BUILD / "dist" / f"{name}-{version}.first.sputnikpkg"
         second = BUILD / "dist" / f"{name}-{version}.second.sputnikpkg"
         run(str(sputnik), "package-build", manifest, str(first))

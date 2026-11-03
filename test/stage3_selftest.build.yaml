@@ -24,3 +24,5 @@ modules:
     path: ../src/orbit/multipart.s
   - name: orbit.stage3_selftest
     path: stage3_selftest.s
+  - name: orbit.security_policy_selftest
+    path: security_policy_selftest.s

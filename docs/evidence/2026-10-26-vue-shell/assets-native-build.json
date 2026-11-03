@@ -1,0 +1,40 @@
+{
+  "schema": "sputnik.build.result.v2",
+  "status": "ok",
+  "name": "orbit.vite_selftest",
+  "root": "orbit.vite_selftest",
+  "target": "native",
+  "out_dir": "/Users/slowpilot/workspace/sputnik/orbit/build/vite-native",
+  "cache_dir": "/Users/slowpilot/workspace/sputnik/orbit/build/vite-native-cache",
+  "native_output": "/Users/slowpilot/workspace/sputnik/orbit/build/vite-native/orbit.vite_selftest",
+  "native_backend": "cpp-bytecode-direct-v1",
+  "native_hash": "956b6f33d2c6056e6363d33d5ed4b46d4e912ee40202c39c80cb9227f28233ea",
+  "native_source": "/Users/slowpilot/workspace/sputnik/orbit/build/vite-native/orbit.vite_selftest.native.cpp",
+  "native_cxx": "clang++",
+  "native_bytecode_fallback": false,
+  "native_graph_module_count": 5,
+  "native_graph_code_count": 909,
+  "native_graph_native_code_count": 909,
+  "native_graph_vm_fallback_code_count": 0,
+  "native_graph_fallback_code_count": 0,
+  "native_binary_size_bytes": 8836176,
+  "native_graph_body_coverage_full": true,
+  "native_graph_full_coverage": true,
+  "native_graph_runtime_bridge": false,
+  "native_graph_runtime_bridge_kind": "",
+  "native_graph_vm_independent": true,
+  "native_extensions": [],
+  "profiles": {
+    "required": ["core.v1", "macro.v1"],
+    "optional": [],
+    "forbidden": []
+  },
+  "artifacts": [
+    {"name":"orbit","path":"../src/orbit.s","output":"/Users/slowpilot/workspace/sputnik/orbit/build/vite-native/orbit.sputnikbc","cache_path":"/Users/slowpilot/workspace/sputnik/orbit/build/vite-native-cache/orbit-da5adfcba2566f28b96f83165d4f98bdce11d1ea6b60755c4c368a186bbb3d91.sputnikbc","cache_key":"da5adfcba2566f28b96f83165d4f98bdce11d1ea6b60755c4c368a186bbb3d91","source_hash":"34b8edbe6276157849220eda16843cbc447b4aef6e458f6f3318884f83c185d3","artifact_hash":"5dbefcf77278f7f2b4767290053f1bdd489363508cdb31aa1c1bc3afdba6a611","abi_hash":"35819b4c7b35bd843267876b3b72538bac562c94626b2783b15898a057c6953f","native_output":"","native_hash":"","native_backend":"","native_eligible":false,"native_fallback_reason":"","stdlib":false,"cached":true,"bootstrap":"","bytes":1495035,"native_bytes":0},
+    {"name":"orbit.html","path":"../src/orbit/html.s","output":"/Users/slowpilot/workspace/sputnik/orbit/build/vite-native/orbit.html.sputnikbc","cache_path":"/Users/slowpilot/workspace/sputnik/orbit/build/vite-native-cache/orbit.html-d8a624843519a6d66b3c7ea93b65c5c63c07b20c7e4f827da275d3f30729d8c6.sputnikbc","cache_key":"d8a624843519a6d66b3c7ea93b65c5c63c07b20c7e4f827da275d3f30729d8c6","source_hash":"5d4cfbb97da8e96b847334c449a1cd192a384709190f2e52ca8e91e6e3e7a2d4","artifact_hash":"89dd82f96f79b6b35942be8fd5e69dfcb1ab79bb9c657fe6dd180e0acbf9c01a","abi_hash":"411f046101eca8f316538996c8447b75f69803029516242ffcfc6184f405f630","native_output":"","native_hash":"","native_backend":"","native_eligible":false,"native_fallback_reason":"","stdlib":false,"cached":true,"bootstrap":"","bytes":79532,"native_bytes":0},
+    {"name":"orbit.telemetry","path":"../src/orbit/telemetry.s","output":"/Users/slowpilot/workspace/sputnik/orbit/build/vite-native/orbit.telemetry.sputnikbc","cache_path":"/Users/slowpilot/workspace/sputnik/orbit/build/vite-native-cache/orbit.telemetry-ac427a69e549480f6e7c007196c5bb29589eede7e6c98b29defd339beb33de57.sputnikbc","cache_key":"ac427a69e549480f6e7c007196c5bb29589eede7e6c98b29defd339beb33de57","source_hash":"2393de372afb5916bfb69c33f04aaa59b6bcfec949244377e3018d4707d3d802","artifact_hash":"f25caf593eb37eba166019020744efab9f95709e8dfb041c178ea316c4b4d182","abi_hash":"e48535149b63a4636b3d0d48604efe0cd6657255dbd3843c3f6911f37deca04b","native_output":"","native_hash":"","native_backend":"","native_eligible":false,"native_fallback_reason":"","stdlib":false,"cached":true,"bootstrap":"","bytes":368396,"native_bytes":0},
+    {"name":"orbit.vite","path":"../packages/orbit-vite/src/orbit/vite.s","output":"/Users/slowpilot/workspace/sputnik/orbit/build/vite-native/orbit.vite.sputnikbc","cache_path":"/Users/slowpilot/workspace/sputnik/orbit/build/vite-native-cache/orbit.vite-6ea35835d7b687fdd4f7fe5fb0d2bb8264a3ff779ab1ca6cf06d9e6b9a62a3e6.sputnikbc","cache_key":"6ea35835d7b687fdd4f7fe5fb0d2bb8264a3ff779ab1ca6cf06d9e6b9a62a3e6","source_hash":"0a81f70a6629ce8b64d9b74d0c320f30caa23b9a3a860a80cd58b1c9176d600d","artifact_hash":"37a93810c7e8bf0a3de402d7b98eba61021837e911adc12fa051363ee19d24bc","abi_hash":"b8f99c11d5ab76bad00d560cdd0c1ff2b0be77fa88f4ed6e24df577ae29b4a0b","native_output":"","native_hash":"","native_backend":"","native_eligible":false,"native_fallback_reason":"","stdlib":false,"cached":true,"bootstrap":"","bytes":199194,"native_bytes":0},
+    {"name":"orbit.vite_selftest","path":"vite_selftest.s","output":"/Users/slowpilot/workspace/sputnik/orbit/build/vite-native/orbit.vite_selftest.sputnikbc","cache_path":"/Users/slowpilot/workspace/sputnik/orbit/build/vite-native-cache/orbit.vite_selftest-70a6028e7f41851ae75b8dbdf5fecbe15d95ac5b362bd68c65191a215651cdb5.sputnikbc","cache_key":"70a6028e7f41851ae75b8dbdf5fecbe15d95ac5b362bd68c65191a215651cdb5","source_hash":"8eb8c6949c87f62dcb4c5b401e3e06edb4b1638dd9581003a7475e5d9c18f9cc","artifact_hash":"dd35173bc9af74c3c3b523b0c522cb2af59a321fb86625c54f75183cb7dd3c4e","abi_hash":"9c76e04d7dab53c5a89ed9cc80c7032e33c24500e52fde04977031f30a174276","native_output":"/Users/slowpilot/workspace/sputnik/orbit/build/vite-native/orbit.vite_selftest","native_hash":"956b6f33d2c6056e6363d33d5ed4b46d4e912ee40202c39c80cb9227f28233ea","native_backend":"cpp-bytecode-direct-v1","native_eligible":true,"native_fallback_reason":"","stdlib":false,"cached":true,"bootstrap":"","bytes":52201,"native_bytes":8836176}
+  ],
+  "diagnostics": []
+}

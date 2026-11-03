@@ -1,0 +1,10 @@
+schema: "sputnik.build.v1"
+name: "orbit-session-orm"
+version: "0.1.0-dev"
+source_root: "src"
+files:
+  - "src/orbit/session/orm.s"
+  - "README.md"
+dependencies:
+  orbit-session: "0.1.0-dev"
+  orm: "0.1.0"

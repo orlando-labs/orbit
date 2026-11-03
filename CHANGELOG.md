@@ -6,6 +6,27 @@ All notable changes are recorded here. Orbit follows
 
 ## [Unreleased]
 
+- Added the `respond` macro: lazy HTML/JSON/text and arbitrary MIME branches,
+  independent encoders, reusable Format descriptors, Accept negotiation,
+  400/406 and merged Vary headers. The Vue shell negotiates HTML, JSON and a
+  vendor JSON MIME; browser API calls explicitly request JSON.
+
+- Converted example applications to directory package dependencies. Library
+  modules and SQLite extension sources are owned by their package manifests;
+  local application sources follow imports from the entry file. Development watches the
+  compiler's resolved package and template inputs.
+- Added `orbit.assets.StaticFiles` for public application files in `./assets`,
+  with bounded scoped file streaming, GET/HEAD, MIME selection and path checks.
+  The Vue example now serves its favicon from that directory without a
+  controller action or embedded SVG.
+- Added structured `ContentSecurityPolicy` values with immutable `.with(...)`,
+  validated `Origin` values and optional exact-origin authorization in
+  `SecurityPolicy`. Existing host-only and raw-string CSP configurations and
+  core default headers remain supported. `orbit-vite` derives its CSP from
+  dev/production configuration, including a configurable HMR origin; the Vue
+  example no longer builds CSP strings or defines origin middleware.
+- Fixed authority parsing for IPv6 hosts without a port and malformed empty
+  hosts/ports, which now produce the intended validation errors.
 - Added local-source `orbit-session`, `orbit-session-orm`, `orbit-oauth` and
   `orbit-oauth-github` companions with storage/User-neutral controller APIs.
 - Added runtime HTML template loops, external `.html.sv` support via the SDK

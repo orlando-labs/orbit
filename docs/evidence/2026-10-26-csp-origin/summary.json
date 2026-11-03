@@ -1,0 +1,65 @@
+{
+  "date": "2026-10-26",
+  "source_state": "Uncommitted local working tree; no packages published",
+  "source_sha256": {
+    "src/orbit.s": "879194d3589bf3a43a55abdfa982e81ec20ed11fa99036519566341631614d80",
+    "packages/orbit-vite/src/orbit/vite.s": "d2d35c455e0569fcc4cfcf635f4a57e580b96c6eedc08c1b94411bb9ab6a164b",
+    "examples/vue_shell/backend/app.s": "4016d739a354722ca096016445885dd0431ac29a0e05d7f5197651e50f6a4ece",
+    "examples/vue_shell/backend/main.s": "ba62f9a37babb507e124d671d507cfbfd3248a58db9e46f176a90e4cdad2f42c",
+    "examples/vue_shell/test/github_fixture.s": "59940b09d8bcc369e067e8e260e3abb888126533c5a4909beaab72e8e4d92a68",
+    "examples/vue_shell/frontend/test/session.spec.ts": "1082106e7c7da7f57931c342264542707a123a246f9e5f63d4f0338999a174e7",
+    "test/security_policy_selftest.s": "afc239cd53bf0e4fd8cd9aedaef99a49656bb28bc7fe2e412351679ad5c09cc7",
+    "test/vite_selftest.s": "71509e48e82009b72dcfd992011e59aee725fad60bc9a62307bf009f5047e1ad"
+  },
+  "native": [
+    {
+      "root": "orbit.security_policy_selftest",
+      "native_graph_module_count": 4,
+      "native_graph_code_count": 886,
+      "native_graph_native_code_count": 886,
+      "native_graph_fallback_code_count": 0,
+      "native_graph_full_coverage": true,
+      "native_graph_vm_independent": true,
+      "native_graph_runtime_bridge": false,
+      "native_bytecode_fallback": false
+    },
+    {
+      "root": "orbit.vite_selftest",
+      "native_graph_module_count": 5,
+      "native_graph_code_count": 941,
+      "native_graph_native_code_count": 941,
+      "native_graph_fallback_code_count": 0,
+      "native_graph_full_coverage": true,
+      "native_graph_vm_independent": true,
+      "native_graph_runtime_bridge": false,
+      "native_bytecode_fallback": false
+    },
+    {
+      "root": "fixture",
+      "native_graph_module_count": 15,
+      "native_graph_code_count": 1326,
+      "native_graph_native_code_count": 1326,
+      "native_graph_fallback_code_count": 0,
+      "native_graph_full_coverage": true,
+      "native_graph_vm_independent": true,
+      "native_graph_runtime_bridge": false,
+      "native_bytecode_fallback": false
+    }
+  ],
+  "browser": {
+    "production_vm": "2 passed",
+    "development_vm": "2 passed, including a Vite HMR connected frame",
+    "production_native": "2 passed"
+  },
+  "regressions": [
+    "stage3 VM",
+    "core VM",
+    "API reference VM",
+    "public API export inventory/documentation",
+    "normal application bytecode build"
+  ],
+  "limitations": [
+    "Browser authentication uses the local Sputnik GitHub provider fixture; GitHub.com was not exercised.",
+    "A separate full-native probe of the broad stage3 suite was rejected with five fallback code objects; its first diagnostic names the existing session-dependent CSRF new? selector. That probe is not counted as passing. The focused policy, Vite and application native graphs listed here all have zero fallback."
+  ]
+}

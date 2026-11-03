@@ -1,0 +1,33 @@
+schema = "sputnik.packages.lock.v1"
+
+[[packages]]
+name = "orbit"
+version = "1.0.0-rc.1"
+variant = "source"
+digest = "sha256:1a459b993a13a4c96af9fe9da40624285bfc72431edeaff41a0e718001c40266"
+source_kind = "path"
+source = "../.."
+
+[[packages]]
+name = "orbit-orm"
+version = "1.0.0-rc.1"
+variant = "source"
+digest = "sha256:4349899d0b9f68548ea20fcec4b36aaf69f8c5cba36bb3de01e49f8d6164da07"
+source_kind = "path"
+source = "../../packages/orbit-orm"
+
+[[packages]]
+name = "orm"
+version = "0.1.0"
+variant = "source"
+digest = "sha256:ae32216047b010ba9b56e473ded52f355dde9d8574713751287d55e019ae7afa"
+source_kind = "path"
+source = "../../../orm"
+
+[[packages]]
+name = "sqlite3"
+version = "0.1.0"
+variant = "source"
+digest = "sha256:5356cf39d9510ff6dba7780adecdee65a9adfa59497a7fbacaeeb2fd6a232757"
+source_kind = "path"
+source = "../../../sqlite3"

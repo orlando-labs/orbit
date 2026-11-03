@@ -1,22 +1,4 @@
-schema: sputnik.build.v1
-name: orbit.example.hello
-root: orbit.example.hello
+entry: hello.s
 
-profiles:
-  required: [core.v1, macro.v1]
-  optional: []
-  forbidden: []
-
-modules:
-  - name: orbit
-    path: ../src/orbit.s
-  - name: orbit.html
-    path: ../src/orbit/html.s
-  - name: orbit.middleware
-    path: ../src/orbit/middleware.s
-  - name: orbit.telemetry
-    path: ../src/orbit/telemetry.s
-  - name: orbit.example.views.home
-    path: views/home.s
-  - name: orbit.example.hello
-    path: hello.s
+dependencies:
+  orbit: {path: ..}

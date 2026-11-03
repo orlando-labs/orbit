@@ -34,14 +34,14 @@ jobs:
           mkdir -p dist
           SPUTNIK=.build/dependencies/sputnik-lang/build/sputnik
           VERSION_VALUE=$(tr -d '\n' < VERSION)
-          "${SPUTNIK}" package-build sputnik.toml "dist/orbit-${VERSION_VALUE}.first.sputnikpkg" --sign-key "${ORBIT_PACKAGE_SIGNING_KEY}" --key-id "${ORBIT_PACKAGE_KEY_ID}" >/dev/null
-          "${SPUTNIK}" package-build sputnik.toml "dist/orbit-${VERSION_VALUE}.second.sputnikpkg" --sign-key "${ORBIT_PACKAGE_SIGNING_KEY}" --key-id "${ORBIT_PACKAGE_KEY_ID}" >/dev/null
+          "${SPUTNIK}" package-build sputnik.build.yaml "dist/orbit-${VERSION_VALUE}.first.sputnikpkg" --sign-key "${ORBIT_PACKAGE_SIGNING_KEY}" --key-id "${ORBIT_PACKAGE_KEY_ID}" >/dev/null
+          "${SPUTNIK}" package-build sputnik.build.yaml "dist/orbit-${VERSION_VALUE}.second.sputnikpkg" --sign-key "${ORBIT_PACKAGE_SIGNING_KEY}" --key-id "${ORBIT_PACKAGE_KEY_ID}" >/dev/null
           cmp "dist/orbit-${VERSION_VALUE}.first.sputnikpkg" "dist/orbit-${VERSION_VALUE}.second.sputnikpkg"
           mv "dist/orbit-${VERSION_VALUE}.first.sputnikpkg" "dist/orbit-${VERSION_VALUE}.sputnikpkg"
           rm "dist/orbit-${VERSION_VALUE}.second.sputnikpkg"
           "${SPUTNIK}" package-verify "dist/orbit-${VERSION_VALUE}.sputnikpkg" --sign-key "${ORBIT_PACKAGE_SIGNING_KEY}" >/dev/null
-          "${SPUTNIK}" package-build packages/orbit-orm/sputnik.toml "dist/orbit-orm-${VERSION_VALUE}.first.sputnikpkg" --sign-key "${ORBIT_PACKAGE_SIGNING_KEY}" --key-id "${ORBIT_PACKAGE_KEY_ID}" >/dev/null
-          "${SPUTNIK}" package-build packages/orbit-orm/sputnik.toml "dist/orbit-orm-${VERSION_VALUE}.second.sputnikpkg" --sign-key "${ORBIT_PACKAGE_SIGNING_KEY}" --key-id "${ORBIT_PACKAGE_KEY_ID}" >/dev/null
+          "${SPUTNIK}" package-build packages/orbit-orm/sputnik.build.yaml "dist/orbit-orm-${VERSION_VALUE}.first.sputnikpkg" --sign-key "${ORBIT_PACKAGE_SIGNING_KEY}" --key-id "${ORBIT_PACKAGE_KEY_ID}" >/dev/null
+          "${SPUTNIK}" package-build packages/orbit-orm/sputnik.build.yaml "dist/orbit-orm-${VERSION_VALUE}.second.sputnikpkg" --sign-key "${ORBIT_PACKAGE_SIGNING_KEY}" --key-id "${ORBIT_PACKAGE_KEY_ID}" >/dev/null
           cmp "dist/orbit-orm-${VERSION_VALUE}.first.sputnikpkg" "dist/orbit-orm-${VERSION_VALUE}.second.sputnikpkg"
           mv "dist/orbit-orm-${VERSION_VALUE}.first.sputnikpkg" "dist/orbit-orm-${VERSION_VALUE}.sputnikpkg"
           rm "dist/orbit-orm-${VERSION_VALUE}.second.sputnikpkg"

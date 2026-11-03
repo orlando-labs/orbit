@@ -1,0 +1,26 @@
+{
+  "created_at": "2026-10-26T15:23:05.169Z",
+  "checks": {
+    "production_browser": {
+      "tests": 2,
+      "status": "passed"
+    },
+    "development_browser": {
+      "tests": 2,
+      "status": "passed"
+    },
+    "native_browser": {
+      "tests": 2,
+      "status": "passed"
+    },
+    "full_native_without_fallback": true
+  },
+  "source_sha256": {
+    "examples/vue_shell/backend/app.s": "8e5f5ae184edce013995546813829dff672d371092ef7274318f81a09bcf6e69",
+    "examples/vue_shell/backend/layouts.s": "bbaf5e4feabc7d685f1035ffb6dc964d55d16ed649b2431e64215a1d7bcd61b6",
+    "examples/vue_shell/backend/views.s": "66f186844dfc91964069f8628a6ff0f2569fd047916489c8634e7ec962183b66",
+    "examples/vue_shell/backend/views/layouts/application.html.sv": "718b17d6be1b8062d9d03a8678c2098e0bbdf2c1c31e16235e0f7de19aed2287",
+    "examples/vue_shell/backend/views/account/show.html.sv": "6bd67afd01deb88d8f549097848f5cab0f5244c7c436206d017fc3c196daff5b",
+    "examples/vue_shell/frontend/test/session.spec.ts": "7dec6841e1f12e9df78cb55f3ab965bd337b26ce43b153d779dc81e0827cad11"
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "schema": "sputnik.build.v1",
+  "name": "orbit.vite_selftest",
+  "root": "orbit.vite_selftest",
+  "profiles": {
+    "required": [
+      "core.v1",
+      "macro.v1"
+    ]
+  },
+  "source_formats": [
+    {
+      "suffix": ".html.sv",
+      "module": "orbit.html",
+      "macro": "html"
+    }
+  ],
+  "modules": [
+    {
+      "name": "orbit",
+      "path": "../src/orbit.s"
+    },
+    {
+      "name": "orbit.html",
+      "path": "../src/orbit/html.s"
+    },
+    {
+      "name": "orbit.vite",
+      "path": "../packages/orbit-vite/src/orbit/vite.s"
+    },
+    {
+      "name": "orbit.vite_selftest",
+      "path": "vite_selftest.s"
+    }
+  ]
+}

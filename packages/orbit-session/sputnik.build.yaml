@@ -1,0 +1,14 @@
+schema: "sputnik.build.v1"
+name: "orbit-session"
+version: "0.1.0-dev"
+source_root: "src"
+files:
+  - "src/orbit/session.s"
+  - "src/orbit/session/_state.s"
+  - "src/orbit/session/_stores.s"
+  - "README.md"
+dependencies:
+  orbit: "1.0.0-rc.1"
+capabilities:
+  random.secure: true
+  time.now: true

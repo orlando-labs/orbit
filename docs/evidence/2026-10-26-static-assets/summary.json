@@ -1,0 +1,87 @@
+{
+  "date": "2026-10-26",
+  "source_state": "Uncommitted local sources, no package publication",
+  "source_sha256": {
+    "src/orbit/assets.s": "7b7eccdb44815d785a7c8c685fd464ddbfe8169f780049bb2c8d711a7975f9ad",
+    "examples/vue_shell/backend/app.s": "99fe15989b41b6eb44efffc863d32de60a7c6ca7c50df89a599889c6bbaccefc",
+    "examples/vue_shell/assets/favicon.svg": "48227b128f61336566cc8ba30b97309f824f8bd1adeeff32577cd235517d0e31",
+    "examples/vue_shell/sputnik.build.json": "00bc6ecb74ec2523111aeeedfe625abcac1de8980483668018dbab107fbd74f3",
+    "test/assets_selftest.s": "5492de8bd9fba37b09a8b5931eae97ff93de652708660693e9ed24918bef75e9",
+    "../sputnik-lang/runtime/remote_io_native.inc": "42d68ad1fd35cafcf899964e1d79ff46b9bdc99b43c6e1b3d5c0e81921913641",
+    "../sputnik-lang/tools/sputnik/main.cpp": "d4704135b743ee242db3f1c9f221613af1d66863ae77828b576ab25ec6e761de",
+    "../sputnik-lang/tests/fixtures/native_http_reader/main.s": "59ce841fde14cb743945c0f11ce6d351d169f6d412b8b3ac0e801fc44748abd4",
+    "../sputnik-lang/tests/fixtures/native_open_protocol_core/main.s": "2642625fe427f925c34fafa3414be3cb628511e075adb4f47375e6abf56705bf"
+  },
+  "native": [
+    {
+      "fixture": "build/assets-native-build.json",
+      "root": "orbit.assets_selftest",
+      "native_graph_module_count": 4,
+      "native_graph_code_count": 718,
+      "native_graph_native_code_count": 718,
+      "native_graph_fallback_code_count": 0,
+      "native_graph_full_coverage": true,
+      "native_graph_vm_independent": true,
+      "native_graph_runtime_bridge": false,
+      "native_bytecode_fallback": false
+    },
+    {
+      "fixture": "/private/tmp/orbit-static-example-native-build.log",
+      "root": "fixture",
+      "native_graph_module_count": 15,
+      "native_graph_code_count": 1160,
+      "native_graph_native_code_count": 1160,
+      "native_graph_fallback_code_count": 0,
+      "native_graph_full_coverage": true,
+      "native_graph_vm_independent": true,
+      "native_graph_runtime_bridge": false,
+      "native_bytecode_fallback": false
+    },
+    {
+      "fixture": "/private/tmp/sputnik-file-each-chunk-native-build.json",
+      "schema": "sputnik.executable.build.v2",
+      "native_full_coverage": true,
+      "native_vm_independent": true,
+      "native_runtime_bridge": false,
+      "native_code_count": 18,
+      "native_fallback_code_count": 0,
+      "bytecode_code_count": 18,
+      "bytecode_fallback": false
+    },
+    {
+      "fixture": "/private/tmp/sputnik-static-open-protocol-native-build.json",
+      "schema": "sputnik.executable.build.v2",
+      "native_full_coverage": true,
+      "native_vm_independent": true,
+      "native_runtime_bridge": false,
+      "native_code_count": 18,
+      "native_fallback_code_count": 0,
+      "bytecode_code_count": 18,
+      "bytecode_fallback": false
+    }
+  ],
+  "browser": {
+    "production_vm": "3 passed",
+    "development_vm": "3 passed, including HMR connection",
+    "production_native": "3 passed"
+  },
+  "checks": [
+    "150000-byte file uses bounded 4096-byte reads",
+    "scoped cleanup on callback failure; producer reopens independently",
+    "GET/HEAD, exact Content-Length, no chunked framing",
+    "empty/nested files, MIME, cache policy, nosniff",
+    "no session/CSRF cookie for favicon",
+    "dotfiles, traversal, encoded separators and symlink exclusion",
+    "missing assets and normal application-route fallthrough",
+    "malformed percent escape gives UrlDecodeError in VM/native",
+    "optional telemetry hooks compile without importing orbit.telemetry",
+    "core/stage3 VM regression",
+    "normal app bytecode build",
+    "public API inventory/documentation"
+  ],
+  "limitations": [
+    "OAuth uses the local Sputnik fixture, not github.com.",
+    "Public asset directories must be trusted immutable release files. Concurrent attacker-controlled filesystem mutations are outside this helper contract.",
+    "Conditional requests and byte ranges are outside this first helper scope."
+  ]
+}
