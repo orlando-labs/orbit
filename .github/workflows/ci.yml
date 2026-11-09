@@ -19,7 +19,7 @@ jobs:
   static:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Static, lock, API, documentation, and budget checks
         run: ./script/ci static
 
@@ -37,27 +37,27 @@ jobs:
             runner: macos-15
     runs-on: ${{ matrix.runner }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Core, property, HTTP conformance, fuzz smoke, native, and examples
         run: ./script/ci core
 
   integration:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7
         with:
           repository: orlando-labs/amber-lang
           ref: 3383a5eecb4466077dd7ba580698a22ae40dbd3d
           path: .dependency-source/sputnik-lang
           token: ${{ secrets.DEPENDENCY_READ_TOKEN || github.token }}
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           repository: orlando-labs/amber-orm
           ref: 3575602c2f03a3337dec5685eafecbe9d918597f
           path: .dependency-source/sputnik-orm
           token: ${{ secrets.DEPENDENCY_READ_TOKEN || github.token }}
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           repository: orlando-labs/sqlite3-amber
           ref: 96f3a62a19f448fc231268fcac33fddf9958e83e
@@ -71,7 +71,7 @@ jobs:
   clean-room:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Resolve, package twice, verify, install, and build API/server examples
         run: ./script/clean-room-build
       - uses: actions/upload-artifact@v4
