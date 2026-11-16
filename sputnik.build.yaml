@@ -3,6 +3,7 @@ requires:
 schema: "sputnik.build.v1"
 name: "orbit"
 version: "1.0.0-rc.1"
+notebook_packages: ["orbit-notebook"]
 source_root: "src"
 profiles:
   required:

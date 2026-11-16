@@ -1,11 +1,9 @@
 {
   "name": "orbit",
-  "version": "1.0.0-rc.2",
+  "version": "1.0.0-rc.3",
+  "notebook_packages": ["slowpilot/orbit-notebook"],
   "root": "orbit",
-  "sources": [
-    "src/**/*.s",
-    "src/*.s"
-  ],
+  "source_roots": ["src"],
   "capabilities": {
     "net.listen": true,
     "random.secure": true

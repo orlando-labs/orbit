@@ -2,9 +2,7 @@
   "name": "orbit-orm",
   "version": "1.0.0-rc.2",
   "root": "orbit.integrations.orm",
-  "sources": [
-    "packages/orbit-orm/src/**/*.s"
-  ],
+  "source_roots": ["packages/orbit-orm/src"],
   "dependencies": {
     "orbit": "1.0.0-rc.2",
     "orm": "0.1.1"

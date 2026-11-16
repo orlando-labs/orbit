@@ -1,0 +1,10 @@
+{
+  "name": "orbit-notebook",
+  "version": "0.1.0",
+  "root": "orbit.notebook",
+  "source_roots": ["packages/orbit-notebook/src"],
+  "package_root": "packages/orbit-notebook",
+  "notebook_components": true,
+  "dependencies": {"orbit": "1.0.0-rc.3"},
+  "requires": {"sputnik": ">=1.0.0 <2.0.0"}
+}

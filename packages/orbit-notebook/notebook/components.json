@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "components": [
+    {
+      "id": "http_server",
+      "kind": "service",
+      "title": "HTTP Server",
+      "detail": "Serve Orbit routes on this Mac",
+      "symbol": "network",
+      "module": "orbit.notebook",
+      "entry": "serve",
+      "listen_port": "port",
+      "properties": [
+        {"id": "port", "title": "Port (0 chooses a free port)", "kind": "integer", "initial": "0", "minimum": 0, "maximum": 65535},
+        {"id": "routes", "title": "Orbit Routes factory", "kind": "module", "argument": "supplied_routes", "invoke": true},
+        {"id": "reading", "title": "Input for POST /reading", "kind": "input"}
+      ]
+    },
+    {
+      "id": "server_board",
+      "kind": "board",
+      "title": "HTTP Server Board",
+      "detail": "Orbit server and an isolated reading monitor",
+      "symbol": "rectangle.inset.filled",
+      "board": "notebook/server-board.json"
+    }
+  ]
+}

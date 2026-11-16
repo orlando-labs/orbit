@@ -1,0 +1,15 @@
+schema: "sputnik.build.v1"
+name: "orbit-notebook"
+version: "0.1.0"
+requires:
+  sputnik: ">=1.0.0 <2.0.0"
+source_root: "src"
+files:
+  - "src/orbit/notebook.s"
+  - "notebook/components.json"
+  - "notebook/server-board.json"
+  - "README.md"
+dependencies:
+  orbit:
+    path: "../.."
+    version: "1.0.0-rc.1"

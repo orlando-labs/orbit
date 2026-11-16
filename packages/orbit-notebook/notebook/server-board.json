@@ -1,0 +1,39 @@
+{
+  "format": "sputnik-notebook",
+  "version": 2,
+  "title": "HTTP Server Board",
+  "active_sheet": "controller",
+  "sheets": [{
+    "id": "controller",
+    "title": "Controller",
+    "cells": [{
+      "id": "1",
+      "kind": "code",
+      "mode": "watch",
+      "source": "reading = notebook.input(\"reading\")\nreading\n"
+    }]
+  }],
+  "modules": [],
+  "auto_imports": [],
+  "inputs": [{"id": "reading", "title": "Last reading", "type": "string", "default": ""}],
+  "boards": [{
+    "id": "monitor",
+    "title": "HTTP Server Board",
+    "sheet": "controller",
+    "columns": 2,
+    "rows": [{"id": "description"}, {"id": "reading"}],
+    "components": [
+      {
+        "id": "intro", "kind": "rich_text", "title": "Orbit",
+        "row": "description", "span": 12,
+        "text_mode": "markdown",
+        "text_content": {"source": "Send a JSON string to **POST /reading** with the service's Bearer token."}
+      },
+      {"id": "reading_value", "kind": "result", "title": "Last reading", "row": "reading", "span": 12, "cell": "1"},
+      {
+        "id": "http", "kind": "package_service", "title": "HTTP Server",
+        "package_component": {"provider": "orbit-notebook", "type": "http_server", "properties": {"port": "0", "reading": "reading"}}
+      }
+    ]
+  }]
+}
